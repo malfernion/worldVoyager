@@ -104,6 +104,15 @@ def main():
         eta = (time.time() - t0) / done * (len(todo) - done)
         print(f"[{done}/{len(todo)}] {best[1]:.1f}s  {text}   (eta {eta / 60:.0f} min)", flush=True)
 
+    # Drop clips for sentences Pip no longer says (only on full runs, not --only).
+    if not a.only:
+        wanted = {l["key"] for l in lines}
+        for key in [k for k in manifest["lines"] if k not in wanted]:
+            path = os.path.join(OUT, manifest["lines"].pop(key))
+            if os.path.exists(path):
+                os.remove(path)
+            print(f"pruned: {key}")
+
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
     size = sum(os.path.getsize(os.path.join(OUT, n)) for n in manifest["lines"].values())

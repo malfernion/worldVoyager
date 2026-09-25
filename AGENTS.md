@@ -171,6 +171,7 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   `record.py --voice jess --only "^Exact sentence start" --redo --take 1` (then 2, 3…).
   After a full run, very short or long takes are worth a listen: exclamations and lines with a
   gasp or chuckle are naturally slow; a long sentence said very fast may be clipped.
+- A full `record.py` run also prunes clips for sentences that no longer exist.
 - `tools/voice/compare.py` renders side-by-side takes for auditioning voices or settings.
 - Generation runs at about a quarter of real time on an M4: roughly 10 s per sentence.
 
