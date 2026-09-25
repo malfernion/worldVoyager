@@ -68,6 +68,10 @@ export class Autopilot {
     this.listeners = [];
     this.coach = false;
     this.cmd = { throttle: 0, angle: null };
+    this.clock = 0; // real seconds, for spacing out spoken cues
+    this.saidAt = -Infinity;
+    this.cuedAt = -Infinity;
+    this.goPower = 1; // how hard GO pushes while coaching (gentler for landings)
   }
 
   on(fn) {
@@ -75,6 +79,7 @@ export class Autopilot {
   }
 
   say(text, extra = {}) {
+    if (text) this.saidAt = this.clock;
     for (const fn of this.listeners) fn({ text, ...extra });
   }
 
@@ -110,6 +115,7 @@ export class Autopilot {
     this.marker = null;
     this.status = '';
     this.cmd = { throttle: 0, angle: null };
+    this.goPower = 1;
     if (this.flight && !this.coach) {
       this.flight.throttle = 0;
       this.flight.targetAngle = null;
@@ -121,6 +127,7 @@ export class Autopilot {
   update(realDt) {
     if (!this.program) return;
     this.dt = realDt;
+    this.clock += realDt;
     if (this.flight.state.crashed) {
       this.stop();
       return;
@@ -273,7 +280,7 @@ export class Autopilot {
     return true;
   }
 
-  *landProgram() {
+  *landProgram(intro = null) {
     const f = this.flight;
     const body = f.state.body;
     if (f.state.landed) return true;
@@ -285,28 +292,42 @@ export class Autopilot {
       this.say('Ember is way too hot to land on!');
       return false;
     }
-    const amax = f.stats.accel;
-    if (amax < f.localGravity * 1.05) {
+    if (f.stats.accel < f.localGravity * 1.05) {
       this.say('Our rocket is too weak to land here. Build one with more engines!');
       return false;
     }
-    this.say(`Let's land on ${body.name}. Nice and gentle!`);
     this.status = 'Landing';
+    if (this.coach) return yield* this.coachLand(intro ?? `Let's land on ${body.name} together!`);
+    this.say(`Let's land on ${body.name}. Nice and gentle!`);
+    return yield* this.descend();
+  }
+
+  /** How we're moving compared to the ground, and how fast we'd like to be falling. */
+  descent() {
+    const f = this.flight;
+    const s = f.state;
+    const body = s.body;
+    const up = f.upAngle;
+    const ux = Math.cos(up), uy = Math.sin(up);
+    const tx = -uy, ty = ux;
+    const vr = s.vx * ux + s.vy * uy;
+    const vt = s.vx * tx + s.vy * ty;
+    const alt = f.altitude;
+    const gSurface = body.mu / (body.minSurface * body.minSurface);
+    const brake = Math.min(10, Math.max(0.5, f.stats.accel - gSurface));
+    // Leave room for turning the rocket around before the brakes bite.
+    const room = Math.max(alt - 2.5 - Math.abs(vr) * 0.9, 0);
+    const vrDes = -(Math.sqrt(2 * brake * 0.35 * room) + 1.2);
+    return { up, ux, uy, tx, ty, vr, vt, alt, g: f.localGravity, brake, vrDes };
+  }
+
+  /** Fly down on the gentle descent profile until we touch the ground. */
+  *descend() {
+    const f = this.flight;
+    const amax = f.stats.accel;
     while (!f.state.landed) {
       if (f.state.crashed) return false;
-      const s = f.state;
-      const up = f.upAngle;
-      const ux = Math.cos(up), uy = Math.sin(up);
-      const tx = -uy, ty = ux;
-      const vr = s.vx * ux + s.vy * uy;
-      const vt = s.vx * tx + s.vy * ty;
-      const alt = f.altitude;
-      const g = f.localGravity;
-      const gSurface = body.mu / (body.minSurface * body.minSurface);
-      const brake = Math.min(10, Math.max(0.5, amax - gSurface));
-      // Leave room for turning the rocket around before the brakes bite.
-      const room = Math.max(alt - 2.5 - Math.abs(vr) * 0.9, 0);
-      const vrDes = -(Math.sqrt(2 * brake * 0.35 * room) + 1.2);
+      const { up, ux, uy, tx, ty, vr, vt, alt, g, vrDes } = this.descent();
       const k = 1.3;
       const Tx = k * ((vrDes - vr) * ux - vt * tx) + g * ux;
       const Ty = k * ((vrDes - vr) * uy - vt * ty) + g * uy;
@@ -323,6 +344,168 @@ export class Autopilot {
       yield;
     }
     this.setThrottle(0);
+    return true;
+  }
+
+  /** How hard we'd have to brake (beyond gravity) to slow from `down` to `vLand` just above the ground. */
+  brakeNeed(down, alt, vLand = 0) {
+    return Math.max(0, down - vLand) ** 2 / (2 * Math.max(alt - 0.3, 0.1));
+  }
+
+  /** Call out HOLD / LET GO: never over a longer line Pip just said, and not too often. */
+  cue(text) {
+    if (this.clock - this.saidAt < 3 || this.clock - this.cuedAt < 1.5) return;
+    const at = this.saidAt;
+    this.say(text);
+    this.saidAt = at; // short cues shouldn't hold back the next one
+    this.cuedAt = this.clock;
+  }
+
+  /** Which way to push to stop drifting sideways, tipped up enough to only sink slowly meanwhile. */
+  sidewaysAngle(d) {
+    const lift = Math.max(0, 1.3 * (-1 - d.vr) + d.g);
+    return d.up + clamp(Math.atan2(-d.vt, lift), -1.6, 1.6);
+  }
+
+  /** Tiny sideways stops are too quick for small thumbs, so Pip does them. */
+  *stopSideways(line) {
+    const f = this.flight;
+    const wasCoach = this.coach;
+    this.coach = false;
+    this.say(line);
+    this.warp = 1;
+    for (let guard = 0; guard < 60 * 20 && !f.state.landed && !f.state.crashed; guard++) {
+      const d = this.descent();
+      if (Math.abs(d.vt) < 0.5) break;
+      const ang = this.sidewaysAngle(d);
+      const side = Math.abs(Math.sin(ang - d.up)) * f.stats.accel;
+      this.setThrottle(this.aim(ang, 0.15) ? clamp(Math.abs(d.vt) / (side * 0.3 + 1e-6), 0.05, 1) : 0);
+      yield;
+    }
+    this.setThrottle(0);
+    f.targetAngle = null;
+    this.coach = wasCoach;
+  }
+
+  /**
+   * Coached landing for binary GO presses: first stop going sideways, then point up and
+   * hold GO whenever we're falling too fast to stop gently before the ground.
+   */
+  *coachLand(intro) {
+    const f = this.flight;
+    const body = f.state.body;
+    const amax = f.stats.accel;
+    // Kids react late, so cues look this far ahead (seconds).
+    const lead = 0.3;
+    // On the way down GO gives a gentle push (about twice our weight), so a tap on a big
+    // engine or a tiny moon doesn't fling us back up.
+    const gSurface = body.mu / (body.minSurface * body.minSurface);
+    const power = Math.min(1, (2.2 * gSurface) / amax);
+    // Aim to touch down at a third of the speed the legs can take.
+    const vLand = f.stats.safeSpeed * 0.3;
+    // Lines kept as plain sentences so the voice recorder can find them.
+    const pointUp = 'Now point up at the arrow. I\'ll tell you when to hold GO!';
+    const stopSide = 'First, point along the arrow and hold GO to stop going sideways.';
+    const tinyPush = 'I\'ll do this tiny push for you!';
+    let d = this.descent();
+    // Only long sideways stops (a second or more of GO) are left to the player.
+    let sideways = Math.abs(d.vt) > amax;
+    if (sideways) {
+      this.say(`${intro} ${stopSide}`);
+    } else if (Math.abs(d.vt) > 1.5) {
+      yield* this.stopSideways(`${intro} ${tinyPush}`);
+      this.say(pointUp);
+    } else {
+      this.say(`${intro} ${pointUp}`);
+    }
+    let hold = false;
+    let flipAt = -Infinity;
+    let steady = false;
+    while (!f.state.landed) {
+      if (f.state.crashed) return false;
+      d = this.descent();
+      const down = -d.vr;
+      const need = this.brakeNeed(down, d.alt, vLand);
+      // Just dropping from here would still be a gentle bump? Then no more GO.
+      const drop = Math.sqrt(Math.max(0, down) ** 2 + 2 * d.g * Math.max(0, d.alt)) < f.stats.safeSpeed * 0.6;
+      // Too fast to trust to small hands (with room to spare for Pip)?
+      if (d.alt > 3 && !drop && this.brakeNeed(down, d.alt - 1.2, f.stats.safeSpeed * 0.5) > (amax - gSurface) * 0.6) {
+        // Safety first: if it's gone badly, Pip lands the last bit (like the other takeovers).
+        this.coach = false;
+        this.goPower = 1;
+        this.say('Whoa, too fast! I\'ll catch us this time.');
+        // Brake hard first, then the Land helper finishes gently.
+        for (let e = d; !f.state.landed && !f.state.crashed && -e.vr > vLand; e = this.descent()) {
+          this.setThrottle(this.aim(e.up + clamp(-e.vt * 0.2, -0.2, 0.2), 0.3) ? 1 : 0);
+          this.warp = 1;
+          yield;
+        }
+        const ok = yield* this.descend();
+        this.coach = true;
+        if (ok) this.say('Phew, we\'re down! Next time, hold GO a little sooner.');
+        return ok;
+      }
+      // 1. Stop going sideways: point along the arrow (backwards) and hold GO.
+      if (sideways) {
+        this.warp = 1;
+        // Called a little early so a late "let go" still leaves us nearly still.
+        if (Math.abs(d.vt) > amax * 0.15) {
+          this.setThrottle(this.aim(this.sidewaysAngle(d), 0.35) ? 1 : 0);
+          yield;
+          continue;
+        }
+        sideways = false;
+        this.say(`Let go! ${pointUp}`);
+      }
+      // Still drifting a lot? Pip tidies that up while there's room.
+      if (Math.abs(d.vt) > 4 && d.alt > 10) {
+        yield* this.stopSideways(tinyPush);
+        continue;
+      }
+      // 2. Straight down. Falling fast? GO quietly pushes harder, so a HOLD always has enough oomph.
+      // For the last few metres it's just "keep holding": GO then sets the engine for a
+      // gentle touchdown.
+      const final = d.alt < 5;
+      this.goPower = final
+        ? clamp((need * 2 + d.g * 0.9) / amax, 0.05, 1)
+        : Math.max(power, Math.min(1, (need * 1.3 + d.g) / amax));
+      const brake = Math.max(0.5, amax * power - gSurface);
+      // Lean a little to cancel leftover drift (and stand up straight near the ground).
+      const lim = d.alt < 6 ? 0.12 : 0.3;
+      const ang = d.up + clamp(-d.vt * 0.2, -lim, lim);
+      // Keeping straight is fiddly, so once the player has pointed up (and always near the
+      // ground) Pip steadies the rocket and hides the arrow; the player does HOLD / LET GO.
+      const off = Math.abs(wrapPi(ang - f.state.angle));
+      steady = d.alt < 8 || off < (steady ? 0.5 : 0.25);
+      const ok = steady ? off < 0.35 : this.aim(ang, 0.35);
+      if (steady) {
+        this.cmd.angle = null;
+        f.targetAngle = ang;
+      }
+      // How much braking we might need by the time the player reacts (as if falling freely:
+      // HOLD a little early, LET GO a little late).
+      const ahead = this.brakeNeed(down + d.g * lead, d.alt, vLand);
+      // HOLD when stopping gently needs 40% of our (gentle) brakes, LET GO below 15%.
+      // A HOLD lasts at least half a second so small hands can keep up.
+      const was = hold;
+      const since = this.clock - flipAt;
+      if (!hold && !drop && down > 0 && (final || (ahead > brake * 0.4 && (since > 0.3 || ahead > brake * 0.6)))) hold = true;
+      // Never keep holding while going up, or we'd bounce about above the ground.
+      else if (hold && (down < 0 || drop || (!final && since > 0.5 && ahead < brake * 0.15))) hold = false;
+      if (hold !== was) {
+        flipAt = this.clock;
+        this.cue(hold ? 'Hold GO!' : 'Let go!');
+      }
+      this.setThrottle(hold && ok ? 1 : 0);
+      // Speed up long falls, but slow back down well before the next HOLD.
+      const vHold = vLand + Math.sqrt(0.8 * brake * Math.max(d.alt - 0.3, 0));
+      const tCue = (vHold - down) / (2 * d.g);
+      this.warp = this.safeWarp(!hold && f.throttle === 0 && tCue > 4 ? clamp(tCue / 4, 1, 8) : 1);
+      yield;
+    }
+    this.goPower = 1;
+    this.setThrottle(0);
+    this.say('You landed all by yourself! Great flying!');
     return true;
   }
 
@@ -347,6 +530,11 @@ export class Autopilot {
         }
       }
       if (cur === target) {
+        if (this.coach && target.solid) {
+          // Carry straight on: now the player lands it too.
+          this.mode = 'land';
+          return yield* this.landProgram(`You flew to ${target.name} all by yourself! Now let's land together.`);
+        }
         this.tip(`We made it to ${target.name}! Tap the landing button to land!`,
           `You flew to ${target.name} all by yourself! To land, point up and hold GO to slow down. Or tap the landing button.`, { arrived: target });
         return true;

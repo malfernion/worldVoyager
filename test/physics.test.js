@@ -178,48 +178,101 @@ describe('helpers', () => {
 
 describe('coach mode', () => {
   const stats = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
+  const noLegs = { accel: 17, turnRate: 1.6, safeSpeed: 6, maxTilt: 0.45 };
+  const rescue = 'Whoa, too fast! I\'ll catch us this time.';
 
   // A pretend kid: turns toward the arrow with the turn buttons, holds GO when told,
-  // and reacts a few frames late.
-  function kidFlies(target, maxFrames = 60 * 60 * 40) {
-    const sys = createSystem();
-    const flight = new Flight(sys, stats);
-    const ap = new Autopilot(flight);
-    ap.start('goto', sys.byId[target], { coach: true });
-    const lag = [];
+  // and reacts a few frames late. `lazy` kids stop pressing GO once they're told to point up.
+  function kidFlies(m, mode, target, { lag = 8, lazy = false, maxFrames = 60 * 60 * 40 } = {}) {
+    const { flight, ap, sys } = m;
+    const said = [];
+    ap.on((e) => e.text && said.push(e.text));
+    ap.start(mode, target && sys.byId[target], { coach: true });
+    const queue = [];
+    let presses = 0;
+    let wasGo = false;
     for (let i = 0; i < maxFrames && ap.active && !flight.state.crashed; i++) {
       ap.update(1 / 60);
+      // Touched down: the game ignores a still-held GO until it's let go.
+      if (!ap.active) break;
       const { angle, throttle } = ap.cmd;
       let turn = 0;
       if (angle !== null && !flight.state.landed) {
         const d = Math.atan2(Math.sin(angle - flight.state.angle), Math.cos(angle - flight.state.angle));
         turn = Math.abs(d) < 0.05 ? 0 : Math.sign(d);
       }
-      lag.push({ turn, go: throttle > 0.5 });
-      const act = lag.length > 8 ? lag.shift() : { turn: 0, go: false };
+      const giveUp = lazy && said.some((t) => t.includes('point up'));
+      queue.push({ turn, go: throttle > 0.5 && !giveUp });
+      const act = queue.length > lag ? queue.shift() : { turn: 0, go: false };
       if (!ap.driving) {
         flight.turn = act.turn;
-        flight.throttle = act.go ? 1 : 0;
+        flight.throttle = act.go ? ap.goPower : 0;
+        if (act.go && !wasGo) presses++;
+        wasGo = act.go;
       } else {
         flight.turn = 0;
-        lag.length = 0;
+        queue.length = 0;
       }
       flight.step(1 / 60, flight.throttle > 0 ? 1 : ap.warp ?? 1);
     }
-    return { flight, ap, done: !ap.active };
+    return { flight, ap, said, presses, done: !ap.active };
   }
 
-  it('talks a player from the pad all the way to Pebble', () => {
-    const { flight, done } = kidFlies('pebble');
+  it('talks a player from the pad all the way to Pebble, then down onto it', () => {
+    const { flight, done, said } = kidFlies(mission(stats), 'goto', 'pebble');
     expect(flight.state.crashed).toBe(false);
     expect(done).toBe(true);
     expect(flight.state.body.id).toBe('pebble');
+    expect(flight.state.landed).toBe(true);
+    expect(said.some((t) => t.includes('Now let\'s land together.'))).toBe(true);
   }, 60000);
 
-  it('talks a player to Dusty', () => {
-    const { flight, done } = kidFlies('dusty');
+  it('talks a player to Dusty and lands', () => {
+    const { flight, done } = kidFlies(mission(stats), 'goto', 'dusty');
     expect(flight.state.crashed).toBe(false);
     expect(done).toBe(true);
     expect(flight.state.body.id).toBe('dusty');
+    expect(flight.state.landed).toBe(true);
+  }, 60000);
+
+  // Coached landings from orbit, flown only from the arrow and the HOLD / LET GO cues.
+  const fromOrbit = (st, world) => {
+    const m = mission(st);
+    if (world === 'homestead') m.run('orbit');
+    else m.run('goto', world, 60 * 60 * 30);
+    expect(m.flight.state.body.id).toBe(world);
+    expect(inStableOrbit(m.flight)).toBe(true);
+    return m;
+  };
+  const cases = [
+    ['homestead', stats, {}],
+    ['homestead', noLegs, {}],
+    ['homestead', noLegs, { lag: 20 }],
+    ['pebble', stats, {}],
+    ['pebble', noLegs, {}],
+    ['pebble', noLegs, { lag: 30 }],
+    ['dusty', noLegs, { lag: 15 }],
+  ];
+  for (const [world, st, opts] of cases) {
+    const what = `${st === noLegs ? 'without legs' : 'with legs'}, ${opts.lag ?? 8}-frame lag`;
+    it(`coaches a landing on ${world} from orbit (${what})`, () => {
+      const { flight, done, said, presses } = kidFlies(fromOrbit(st, world), 'land', null, opts);
+      expect(flight.state.crashed).toBe(false);
+      expect(done).toBe(true);
+      expect(flight.state.landed).toBe(true);
+      expect(flight.state.body.id).toBe(world);
+      expect(said).not.toContain(rescue);
+      expect(said).toContain('You landed all by yourself! Great flying!');
+      expect(presses).toBeGreaterThan(0);
+      // Pulses a small child can follow, not a flicker.
+      expect(presses).toBeLessThan(20);
+    }, 60000);
+  }
+
+  it('Pip catches a player who stops braking', () => {
+    const { flight, said } = kidFlies(fromOrbit(noLegs, 'homestead'), 'land', null, { lazy: true });
+    expect(flight.state.crashed).toBe(false);
+    expect(flight.state.landed).toBe(true);
+    expect(said).toContain(rescue);
   }, 60000);
 });
