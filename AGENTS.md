@@ -96,7 +96,7 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   comes back down. The one deliberate exception is the Nibble orbit secret (#5, `ORBIT` in
   `buggy.js`): only the Hopper on Nibble can super hop into orbit, and there speed is capped
   by energy so the orbit stays bound (highest point ≤ 2 × `ORBIT.maxA` = 100, SOI 170) and
-  sags back down after a lap. Keep both caps if you touch buggy speeds.
+  sags back down after a lap once the jets stop. Keep both caps if you touch buggy speeds.
 - **The physics ground is the visible mesh.** Planet meshes come from `terrain.js`, then the
   physics surface is rebuilt from the mesh's z = 0 slice (`surfaceFromMesh`).
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map

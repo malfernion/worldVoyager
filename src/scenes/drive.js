@@ -85,7 +85,7 @@ export class DriveMode {
     const foot = this.rocketFoot();
     // Roll out in front of the garage door (it faces the camera, +z).
     this.buggy.spawn(vec.add(foot, [0, 0, 6]), [0, 0, 1]);
-    this.buggy.obstacles = [{ p: foot, r: 1.5 }];
+    this.buggy.obstacles = [{ p: foot, r: 1.5, top: fs.rocket.height + 0.5 }];
     this.buggy.grid = this.obstacleGrid(body);
     this.mesh = buildBuggy(choice.kind, choice.paint);
     fs.scene.add(this.mesh.group);
@@ -255,7 +255,7 @@ export class DriveMode {
     }
     this.bumpEffects(dt);
     this.orbitEffects(dt);
-    fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : b.braking ? 0.2 : 0.06);
+    fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : b.braking || b.jets ? 0.2 : 0.06);
   }
 
   /** Bonk! A soft sound, a gentle shake and a few falling leaves (or a puff of dust). */
@@ -305,20 +305,29 @@ export class DriveMode {
     const b = this.buggy;
     const fs = this.fs;
     const app = fs.app;
+    // Driving the Hopper on Nibble: a whispered hint, once a session until the sticker is earned.
+    if (b.canOrbit && !this.whispered && !app.progress.has('orbit-nibble')) {
+      this.driven = (this.driven || 0) + dt;
+      if (this.driven > 6) {
+        this.whispered = true;
+        app.pip('Psst! Drive really fast, then jump and hold it!', { speak: true });
+      }
+    }
     if (b.superHop) {
       b.superHop = false;
       this.halfway = false;
       app.audio.play('whoosh');
       if (!this.hinted) {
         this.hinted = true;
-        app.pip('Super hop! Tap jump again to fire the jets!', { speak: true });
+        app.pip('Super hop! Keep holding jump to fire the jets!', { speak: true });
       }
     }
     if (b.puffed) {
       b.puffed = false;
       app.audio.play('whoosh');
-      for (let i = 0; i < 10; i++) this.jetPuff(-1, 3 + Math.random() * 3);
+      for (let i = 0; i < 6; i++) this.jetPuff(-1, 3 + Math.random() * 3);
     }
+    if (b.jets && Math.random() < dt * 20) this.jetPuff(-1, 3 + Math.random() * 2);
     if (b.braking && Math.random() < dt * 25) this.jetPuff(1, 3);
     if (b.orbiting && !this.halfway && b.lap > Math.PI && !app.progress.has('orbit-nibble')) {
       this.halfway = true;

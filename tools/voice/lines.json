@@ -108,6 +108,10 @@
   "text": "Drag or tap parts to build."
  },
  {
+  "key": "drive really fast then jump and hold it",
+  "text": "Drive really fast, then jump and hold it!"
+ },
+ {
   "key": "dusty",
   "text": "Dusty!"
  },
@@ -326,6 +330,10 @@
  {
   "key": "keep holding go",
   "text": "Keep holding GO!"
+ },
+ {
+  "key": "keep holding jump to fire the jets",
+  "text": "Keep holding jump to fire the jets!"
  },
  {
   "key": "land on dusty",
@@ -664,6 +672,10 @@
   "text": "Point up and hold GO!"
  },
  {
+  "key": "psst",
+  "text": "Psst!"
+ },
+ {
   "key": "ringo",
   "text": "Ringo!"
  },
@@ -750,10 +762,6 @@
  {
   "key": "tap it to pick your buggy",
   "text": "Tap it to pick your buggy."
- },
- {
-  "key": "tap jump again to fire the jets",
-  "text": "Tap jump again to fire the jets!"
  },
  {
   "key": "tap or drag parts then press fly",

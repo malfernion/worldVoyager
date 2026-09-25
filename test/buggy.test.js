@@ -210,77 +210,143 @@ describe('buggy', () => {
   });
 
   describe('the Nibble orbit secret', () => {
-    // A kid: drive flat out, tap jump (a super hop), then keep tapping jump to fire the jets.
-    // Taps are 3 frames long, every half second; `brakeAfter` holds reverse once that far round.
-    function superHop(bodyId, { taps = 20, brakeAfter = Infinity, dir = [0, 1, 0], fwd = [1, 0, 0], seconds = 240 } = {}) {
+    // Start points all over Nibble, heading off in different directions.
+    const STARTS = [0, 1, 2, 3, 4, 5].map((n) => {
+      const a = n * 1.1, z = Math.cos(n * 1.7) * 0.7;
+      const dir = [Math.cos(a) * Math.sqrt(1 - z * z), Math.sin(a) * Math.sqrt(1 - z * z), z];
+      return { dir, fwd: vec.cross(dir, [0.3, 0.5, 1]) };
+    });
+
+    // A kid who's been told the trick: hold GO, then after a second press jump and either
+    // hold it (`hold`) or tap it about once a second, each tap 0.1-0.25 s, give or take 0.3 s.
+    // They let go once round (or after `taps` taps), and hold reverse once `brakeAfter` round.
+    function superHop(bodyId, { hold = false, letGo = true, taps = Infinity, brakeAfter = Infinity, dir = [0, 1, 0], fwd = [1, 0, 0], seconds = 240, seed = 1 } = {}) {
       const sys = createSystem();
       const body = sys.byId[bodyId];
       const b = new Buggy(body, BUGGIES.hopper);
       b.spawn(dir, fwd);
-      let hopAt = -1, orbitedAt = -1, landedAt = -1, maxR = 0, maxSpeed = 0, i = 0;
+      let rnd = seed;
+      const rand = () => ((rnd = (rnd * 16807) % 2147483647) / 2147483647);
+      let hopAt = -1, orbitedAt = -1, landedAt = -1, maxR = 0, maxSpeed = 0, lowest = Infinity, i = 0;
+      let tapped = 0, nextTap = 1, tapEnd = 0;
       for (; i < seconds * 60 && landedAt < 0; i++) {
-        const k = hopAt < 0 ? i - 90 : i - hopAt - 60;
-        const tap = k >= 0 && k % 30 < 3 && (hopAt < 0 || k / 30 < taps);
+        const t = i / 60;
+        if (t >= nextTap) {
+          tapped++;
+          tapEnd = t + 0.1 + rand() * 0.15;
+          nextTap = t + 0.7 + rand() * 0.6;
+        }
+        const done = (letGo && orbitedAt >= 0) || tapped > taps;
         const braking = b.lap > brakeAfter;
-        b.step(1 / 60, { throttle: braking ? -1 : 1, steer: 0, jump: tap && !braking });
+        const jump = !done && !braking && t >= 1 && (hold || t < tapEnd);
+        b.step(1 / 60, { throttle: braking ? -1 : 1, steer: 0, jump });
         if (b.superHop) {
           b.superHop = false;
-          if (hopAt < 0) hopAt = i;
+          if (orbitedAt < 0) hopAt = i; // the hop that went round (a bumpy first try can re-hop)
         }
         if (b.orbited) {
           b.orbited = false;
-          orbitedAt = i;
+          if (orbitedAt < 0) orbitedAt = i;
         }
         maxR = Math.max(maxR, vec.len(b.p));
         if (b.orbiting) maxSpeed = Math.max(maxSpeed, b.speed);
-        if (hopAt >= 0 && i > hopAt + 60 && b.grounded) landedAt = i;
+        if (b.orbiting && b.lap > 1 && orbitedAt < 0) lowest = Math.min(lowest, b.altitude);
+        if (hopAt >= 0 && i > hopAt + 60 && b.grounded && (done || braking)) landedAt = i;
       }
-      return { b, body, hopAt, orbitedAt, landedAt, maxR, maxSpeed };
+      const lapTime = orbitedAt >= 0 ? (orbitedAt - hopAt) / 60 : -1;
+      return { b, body, hopAt, orbitedAt, landedAt, lapTime, maxR, maxSpeed, lowest, tapped };
     }
 
-    it('the Hopper can super hop all the way round Nibble without leaving it', () => {
-      const { body, hopAt, orbitedAt, landedAt, maxR, maxSpeed } = superHop('nibble');
-      expect(hopAt).toBeGreaterThan(0);
-      expect(orbitedAt).toBeGreaterThan(hopAt); // a full lap without touching the ground
-      expect(maxR).toBeLessThan(2 * ORBIT.maxA);
-      expect(maxR).toBeLessThan(body.soi * 0.7);
-      expect(maxSpeed).toBeLessThan(Math.sqrt((2 * body.mu) / body.radius) * 0.9); // well below escape
-      // Stop tapping and the orbit sags back down on its own.
-      expect(landedAt).toBeGreaterThan(orbitedAt);
-      expect((landedAt - orbitedAt) / 60).toBeLessThan(90);
+    // A real orbit at ORBIT.height takes this long; the lap can't be quicker without leaving real physics.
+    const period = (body) => 2 * Math.PI * Math.sqrt(ORBIT.height ** 3 / body.mu);
+
+    it('holding jump after a super hop goes all the way round, then sags back down', () => {
+      STARTS.forEach(({ dir, fwd }, n) => {
+        const { body, hopAt, orbitedAt, landedAt, maxR, maxSpeed, lowest } = superHop('nibble', { hold: true, dir, fwd, seed: n + 1 });
+        expect(hopAt).toBeGreaterThan(0);
+        expect(orbitedAt).toBeGreaterThan(hopAt); // a full lap without touching the ground
+        expect(lowest).toBeGreaterThan(0);
+        expect(maxR).toBeLessThan(ORBIT.height + 3); // low and round
+        expect(maxSpeed).toBeLessThan(Math.sqrt((2 * body.mu) / body.radius) * 0.9); // well below escape
+        // Let go and the orbit sags back down on its own.
+        expect(landedAt).toBeGreaterThan(orbitedAt);
+        expect((landedAt - orbitedAt) / 60).toBeLessThan(90);
+      });
     });
 
-    it('stays inside Nibble\'s sphere of influence however hard you tap', () => {
+    it('tapping jump about once a second goes all the way round', () => {
+      STARTS.forEach(({ dir, fwd }, n) => {
+        // Tapping all the way round, or giving up after 20 taps (it was about 64 taps before).
+        for (const taps of [Infinity, 20]) {
+          const { hopAt, orbitedAt } = superHop('nibble', { dir, fwd, taps, seed: n + 7 });
+          expect(hopAt).toBeGreaterThan(0);
+          expect(orbitedAt).toBeGreaterThan(hopAt);
+        }
+      });
+    });
+
+    it('a lap takes about as long as a real orbit just above the lumps', () => {
+      for (const hold of [true, false]) {
+        const { body, lapTime } = superHop('nibble', { hold });
+        expect(ORBIT.height).toBeGreaterThan(body.maxSurface + 1); // clears Nibble's highest lumps
+        expect(lapTime).toBeGreaterThan(period(body) * 0.85);
+        expect(lapTime).toBeLessThan(period(body) * 1.1); // about 70 s (it was 75+ from higher up)
+      }
+    });
+
+    it('stays inside Nibble\'s sphere of influence however long you hold or tap', () => {
       for (let n = 0; n < 8; n++) {
         const a = n * 0.8, z = Math.cos(n * 1.7) * 0.6;
         const dir = [Math.cos(a) * Math.sqrt(1 - z * z), Math.sin(a) * Math.sqrt(1 - z * z), z];
         const fwd = vec.cross(dir, [0.3, 0.5, 1]);
-        const { body, maxR } = superHop('nibble', { taps: 400, dir, fwd, seconds: 200 });
-        expect(maxR).toBeLessThan(2 * ORBIT.maxA);
-        expect(maxR).toBeLessThan(body.soi * 0.7);
+        for (const hold of [true, false]) {
+          // Never letting go.
+          const { body, maxR } = superHop('nibble', { hold, dir, fwd, seconds: 200, seed: n + 3, letGo: false });
+          expect(maxR).toBeLessThan(2 * ORBIT.maxA);
+          expect(maxR).toBeLessThan(body.soi * 0.6);
+        }
       }
     });
 
     it('holding reverse in the air brings the Hopper back down', () => {
-      const { hopAt, orbitedAt, landedAt } = superHop('nibble', { brakeAfter: 1 });
-      expect(hopAt).toBeGreaterThan(0);
-      expect(orbitedAt).toBe(-1);
-      expect(landedAt).toBeGreaterThan(0);
+      for (const hold of [true, false]) {
+        const { hopAt, orbitedAt, landedAt } = superHop('nibble', { hold, brakeAfter: 1 });
+        expect(hopAt).toBeGreaterThan(0);
+        expect(orbitedAt).toBe(-1);
+        expect(landedAt).toBeGreaterThan(0);
+      }
     });
 
     it('a super hop without jets comes back down', () => {
-      const { hopAt, orbitedAt, landedAt } = superHop('nibble', { taps: 0 });
+      const { hopAt, orbitedAt, landedAt } = superHop('nibble', { taps: 1 });
       expect(hopAt).toBeGreaterThan(0);
       expect(orbitedAt).toBe(-1);
       expect((landedAt - hopAt) / 60).toBeLessThan(60);
     });
 
+    it('a slow jump on Nibble is just a jump', () => {
+      const sys = createSystem();
+      const b = new Buggy(sys.byId.nibble, BUGGIES.hopper);
+      b.spawn([0, 1, 0], [1, 0, 0]);
+      let hopped = false, maxR = 0;
+      for (let i = 0; i < 60 * 20; i++) {
+        // Creeping along below the trigger speed, holding jump.
+        b.step(1 / 60, { throttle: b.speed < b.topSpeed * ORBIT.trigger * 0.8 ? 1 : 0, steer: 0, jump: true });
+        hopped ||= !!b.superHop;
+        maxR = Math.max(maxR, vec.len(b.p));
+      }
+      expect(hopped).toBe(false);
+      expect(maxR).toBeLessThan(sys.byId.nibble.maxSurface + 15);
+    });
+
     for (const world of ['pebble', 'frosty', 'homestead', 'dusty']) {
       it(`is only on Nibble: no super hop on ${world}`, () => {
-        const { b, body, hopAt, maxR } = superHop(world, { seconds: 60 });
-        expect(hopAt).toBe(-1);
-        expect(b.orbiting).toBe(false);
-        expect(maxR).toBeLessThan(body.maxSurface + body.radius * 1.5);
+        for (const hold of [true, false]) {
+          const { b, body, hopAt, maxR } = superHop(world, { hold, seconds: 60 });
+          expect(hopAt).toBe(-1);
+          expect(b.orbiting).toBe(false);
+          expect(maxR).toBeLessThan(body.maxSurface + body.radius * 1.5);
+        }
       });
     }
 
@@ -290,6 +356,11 @@ describe('buggy', () => {
       expect(new Buggy(sys.byId.nibble, BUGGIES.rover).canOrbit).toBe(false);
       expect(new Buggy(sys.byId.nibble, BUGGIES.truck).canOrbit).toBe(false);
       expect(new Buggy(sys.byId.pebble, BUGGIES.hopper).canOrbit).toBe(false);
+      // Other buggies holding jump flat out on Nibble stay on (or near) the ground.
+      for (const kind of ['rover', 'truck']) {
+        const { maxR } = drive('nibble', kind, 60, { throttle: 1, steer: 0, jump: true });
+        expect(maxR).toBeLessThan(sys.byId.nibble.maxSurface + 5);
+      }
     });
   });
 });

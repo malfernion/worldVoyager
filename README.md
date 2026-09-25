@@ -31,7 +31,7 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   its colour). After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
   compass points back to your rocket, and 🏠 takes you home. Bonk! Trees and moon rocks are
   in the way: back up and steer around them (or hop over the small ones). (Psst: on tiny
-  Nibble, try jumping the Hopper when it's going really fast, then tap jump again…)
+  Nibble, drive the Hopper really fast, then jump and hold it…)
 - **Keyboard:** ←/→ or A/D turn, Space/↑/W fire, M map, `.`/`,` warp, `/` normal speed,
   R rewind, O orbit, L land, B buggy out / home. When driving: ↑/W go, ↓/S reverse,
   Space jump (Hopper).

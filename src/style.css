@@ -1497,6 +1497,28 @@ h1 {
   transition: transform 0.1s linear;
 }
 
+/* The Nibble orbit secret: a ring that fills as the Hopper goes round (--lap: 0..1). */
+#orbit-ring {
+  --lap: 0;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: conic-gradient(var(--glow) calc(var(--lap) * 1turn), rgba(255, 255, 255, 0.18) 0);
+}
+
+#orbit-ring span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgb(20, 16, 36);
+  font-size: 14px;
+}
+
 #flight-screen.driving #goal-banner {
   display: none;
 }

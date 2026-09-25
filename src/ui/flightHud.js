@@ -248,6 +248,11 @@ export class FlightHud {
     if (driving && s.homeCompass) {
       compass.firstChild.style.transform = `rotate(${s.homeCompass.angle}rad)`;
       this.el('home-dist').textContent = `${fmt(s.drive.distanceToRocket)} m`;
+      // Super hopping round Nibble: the ring fills as we go.
+      const bg = s.drive.buggy;
+      const ring = this.el('orbit-ring');
+      ring.classList.toggle('hidden', !bg?.orbiting);
+      if (bg?.orbiting) ring.style.setProperty('--lap', Math.min(1, bg.lap / (2 * Math.PI)).toFixed(3));
     }
     if (driving) {
       this.el('where').textContent = `${b.icon} ${b.name}`;

@@ -24,20 +24,27 @@ export const vec = { add, sub, mul, dot, cross, len, norm, rotate };
 
 const STEP = 1 / 120;
 
-// The Nibble orbit secret: at top speed, a jump press on Nibble is a super hop that leaps
-// forward at nearly orbit speed; more jump presses in the air puff the jets forward until
-// we're falling all the way round. Speeds in m/s, accelerations in m/s².
+// The Nibble orbit secret: going fast, a jump on Nibble is a super hop that leaps forward
+// at nearly orbit speed; then holding jump (or tapping it) fires the jets, which steer
+// gently towards a round, low orbit until we're falling all the way round.
+// Speeds in m/s, accelerations in m/s².
 export const ORBIT = {
   world: 'nibble',
+  trigger: 0.75, // a jump (tap or held) from this fraction of top speed is a super hop
   hopAhead: 0.75, // super hop: this many times the local circular speed, level with the horizon...
   hopUp: 1.5, // ...plus this much off the ground (a big hop on its own, not quite an orbit)
-  puff: 0.5, // each jump press in the air fires the jets forward this much
+  // Jets: while jump is held (or for `tap` seconds after each tap) they push, at most `thrust`,
+  // towards a round orbit at `height` from the middle: circular speed sideways, climbing or
+  // sinking at most `climb`. Nibble's lumps reach about 44, so 46 just clears them.
+  height: 46,
+  thrust: 0.6,
+  climb: 1.5,
+  tap: 0.6,
   brake: 2.5, // holding reverse in the air fires them backwards to come down
   // Energy cap: the orbit's semi-major axis never passes maxA, so the highest point (at most
-  // 2 × maxA = 100) stays far inside Nibble's sphere of influence (170). Nibble's lumps reach
-  // about 44 from the middle, so there's room for a low orbit above them.
+  // 2 × maxA = 100) stays far inside Nibble's sphere of influence (170).
   maxA: 50,
-  sag: 0.01, // after a full lap the orbit slowly sags, so it always comes back down
+  sag: 0.01, // after a full lap, with the jets off, the orbit slowly sags back down
 };
 
 // Trees and rocks: bucketed into a coarse 3D grid once per world, so each substep only looks
@@ -99,8 +106,10 @@ export class Buggy {
     this.jumpCooldown = 0;
     this.jumpWasDown = false;
     this.orbiting = false; // in a super hop (the Nibble secret)
+    this.jets = false; // the Hopper's jets are firing (in a super hop)
+    this.jetTime = 0; // a tap keeps the jets going this much longer (s)
     this.lap = 0; // how far round the world we've flown since the super hop (radians)
-    this.obstacles = []; // [{ p: [x,y,z], r }] e.g. the parked rocket (r: its own radius)
+    this.obstacles = []; // [{ p: [x,y,z], r, top }] e.g. the parked rocket (r: its own radius, top: its height)
     this.grid = null; // ObstacleGrid of the world's trees or rocks
     this.bumped = 0; // hardest bump since the scene last looked (m/s), and what we hit
     this.bumpedInto = null;
@@ -163,7 +172,7 @@ export class Buggy {
 
   /** input: { throttle: -1..1, steer: -1..1 (positive = left), jump: bool } */
   step(dt, input) {
-    // A fresh press (not holding) is what does the super hop and the jet puffs.
+    // A fresh press fires a burst of jets (holding jump keeps them going).
     const press = !!input.jump && !this.jumpWasDown;
     this.jumpWasDown = !!input.jump;
     let left = Math.min(dt, 0.1);
@@ -235,8 +244,9 @@ export class Buggy {
       const roll = Math.min(1, Math.abs(vf) / 2) * Math.sign(vf || 1);
       if (input.steer) this.f = rotate(this.f, n, input.steer * k.turn * h * roll);
 
-      if (press && this.canOrbit && vf > this.topSpeed * 0.9 && !this.inWater) {
-        // Super hop: already flat out, so leap sideways fast enough to fall around Nibble.
+      const hop = press || (input.jump && this.jumpCooldown === 0);
+      if (hop && this.canOrbit && vf > this.topSpeed * ORBIT.trigger && !this.inWater) {
+        // Super hop: going fast, so leap sideways nearly fast enough to fall around Nibble.
         // Level with the horizon (not the slope, so hills don't fling us sky-high), but
         // always leaving the ground (so an uphill doesn't catch us straight away).
         const ahead = Math.sqrt(body.mu / r) * ORBIT.hopAhead;
@@ -259,18 +269,30 @@ export class Buggy {
     }
 
     this.braking = false;
+    this.jets = false;
     if (this.orbiting) {
-      // Jets: a puff forward for each jump press, or hold reverse to slow down and land.
+      // Jets: hold jump (or tap it) to steer towards a round orbit; hold reverse to come down.
       if (press && !this.grounded) {
-        this.v = add(this.v, mul(this.f, ORBIT.puff));
+        this.jetTime = ORBIT.tap;
         this.puffed = true;
       }
+      this.jetTime = Math.max(0, this.jetTime - h);
       if (input.throttle < 0) {
         const vf = dot(this.v, this.f);
         if (vf > 0) this.v = sub(this.v, mul(this.f, Math.min(vf, ORBIT.brake * h)));
         this.braking = true;
+      } else if (!this.grounded && (input.jump || this.jetTime > 0)) {
+        // A gentle trim: towards circular speed sideways, climbing or sinking towards `height`.
+        this.jets = true;
+        const vr = dot(this.v, u);
+        const side = sub(this.v, mul(u, vr));
+        const along = len(side) > 0.1 ? norm(side) : this.f;
+        const climb = Math.max(-ORBIT.climb, Math.min(ORBIT.climb, 0.15 * (ORBIT.height - r)));
+        const dv = sub(add(mul(along, Math.sqrt(body.mu / r)), mul(u, climb)), this.v);
+        const m = len(dv);
+        if (m > 1e-6) this.v = add(this.v, mul(dv, Math.min(1, (ORBIT.thrust * h) / m)));
       }
-      if (this.lap > 2 * Math.PI) this.v = mul(this.v, Math.exp(-ORBIT.sag * h));
+      if (this.lap > 2 * Math.PI && !this.jets) this.v = mul(this.v, Math.exp(-ORBIT.sag * h));
       // Never enough energy to fly off: the highest point stays below 2 × maxA.
       const most = Math.sqrt(body.mu * (2 / r - 1 / ORBIT.maxA));
       const sp = len(this.v);
@@ -309,8 +331,9 @@ export class Buggy {
   bump(o, u, h) {
     let d = sub(this.p, o.p);
     const above = dot(d, u);
-    // Wheels clear of the top: jumped over. The rocket only counts when super hopping over it.
-    if (o.h !== undefined ? above - this.kind.ride > o.h : this.orbiting && above > 12) return;
+    // Wheels clear of the top: jumped over. The rocket (`top`: its height) can only be cleared
+    // by super hopping over it; the low orbit passes just above an ordinary one.
+    if (o.h !== undefined ? above - this.kind.ride > o.h : this.orbiting && above > (o.top ?? 12)) return;
     d = sub(d, mul(u, above));
     const dist = len(d);
     const r = o.r + (this.kind.reach ?? 1);
