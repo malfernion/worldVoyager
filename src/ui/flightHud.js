@@ -184,6 +184,32 @@ export class FlightHud {
     this.el('target-name').textContent = `${body.icon} ${body.name}`;
   }
 
+  /**
+   * Layout check (#22): which visible HUD controls overlap, poke off screen or are too small
+   * to tap. Run `app.hud.layoutProblems()` in the console at each screen size and mode.
+   */
+  layoutProblems() {
+    const items = [...document.querySelectorAll('#flight-screen .btn, #flight-screen > .chip, #readout, #zoom-box, #height-meter, #vel-dial, #target-card, #crash-card')]
+      .filter((el) => el.getClientRects().length && !el.closest('.hidden'))
+      .map((el) => ({ el, r: el.getBoundingClientRect(), name: el.id || el.dataset.helper || el.className }));
+    const out = [];
+    const W = window.innerWidth, H = window.innerHeight;
+    for (const a of items) {
+      if (a.r.left < 0 || a.r.top < 0 || a.r.right > W || a.r.bottom > H) out.push(`${a.name} is off screen`);
+      if (a.el.matches('.helper, .steer, .go-btn') && Math.min(a.r.width, a.r.height) < 56) out.push(`${a.name} is small (${Math.round(a.r.width)} px)`);
+    }
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i], b = items[j];
+        if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+        const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+        if (w > 1 && h > 1) out.push(`${a.name} overlaps ${b.name}`);
+      }
+    }
+    return out;
+  }
+
   showCrash() {
     this.el('crash-card').classList.remove('hidden');
   }
@@ -240,7 +266,15 @@ export class FlightHud {
     const b = st.body;
     const alt = Math.max(0, f.altitude);
     const driving = s.mode === 'drive';
-    this.el('flight-screen').classList.toggle('driving', driving);
+    // Classes the CSS lays the HUD out by: driving, map, and crashed (only the crash card's choices).
+    const screen = this.el('flight-screen');
+    screen.classList.toggle('driving', driving);
+    screen.classList.toggle('map', s.mode === 'map');
+    screen.classList.toggle('crashed', s.crashed);
+    // Only the helpers that make sense now: on the ground, 🚙 Drive and 🌀 Orbit (plus the 🧭 switch).
+    for (const id of ['faster', 'slower', 'land']) {
+      document.querySelector(`.helper[data-helper="${id}"]`).classList.toggle('hidden', st.landed);
+    }
     this.el('drive-btn').classList.toggle('hidden', !s.drive.canDeploy());
     this.el('jump-btn').classList.toggle('hidden', !(driving && s.drive.kind?.jump));
     const compass = this.el('home-compass');

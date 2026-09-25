@@ -452,18 +452,39 @@ h1 {
   pointer-events: none;
 }
 
-#helpers {
+/*
+ * Thumb zone (#22): steering bottom-left, GO bottom-right, and the helper buttons (or the buggy's
+ * tools) in one row between them. If the row doesn't fit it wraps upwards. Sizes live in these
+ * variables so the row always knows where the steering and GO end.
+ */
+#flight-screen {
+  --steer: 84px;
+  --go: 116px;
+  --tool: 66px;
+}
+
+#helpers,
+#drive-tools {
   position: absolute;
-  right: calc(16px + var(--safe-right));
-  bottom: calc(150px + var(--safe-bottom));
+  left: calc(16px + 2 * var(--steer) + 14px + 14px + var(--safe-left));
+  right: calc(16px + var(--go) + 14px + var(--safe-right));
+  bottom: calc(18px + var(--safe-bottom));
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
   gap: 10px;
+  pointer-events: none;
+}
+
+/* The row is wide and empty in places; only the buttons take touches (pinch and pan go through). */
+#helpers > *,
+#drive-tools > * {
+  pointer-events: auto;
 }
 
 .btn.helper {
-  width: 66px;
-  height: 66px;
+  width: var(--tool);
+  height: var(--tool);
   padding: 0;
   font-size: 28px;
   border-radius: 20px;
@@ -499,8 +520,8 @@ h1 {
 }
 
 .btn.steer {
-  width: 84px;
-  height: 84px;
+  width: var(--steer);
+  height: var(--steer);
   border-radius: 50%;
   font-size: 44px;
   padding: 0;
@@ -511,8 +532,8 @@ h1 {
   position: absolute;
   right: calc(16px + var(--safe-right));
   bottom: calc(18px + var(--safe-bottom));
-  width: 116px;
-  height: 116px;
+  width: var(--go);
+  height: var(--go);
   border-radius: 50%;
   font-size: 36px;
   font-family: 'Rye', serif;
@@ -530,7 +551,7 @@ h1 {
 
 #target-card {
   position: absolute;
-  bottom: calc(122px + var(--safe-bottom));
+  bottom: calc(18px + var(--steer) + 20px + var(--safe-bottom));
   left: calc(12px + var(--safe-left));
   display: flex;
   align-items: center;
@@ -575,6 +596,7 @@ h1 {
   transform: translate(-50%, -50%);
   padding: 16px 20px 22px;
   text-align: center;
+  width: max-content;
   max-width: calc(100vw - 32px);
 }
 
@@ -984,27 +1006,35 @@ h1 {
     padding: 6px 10px;
   }
 
-  #helpers {
+  #flight-screen {
+    --steer: 70px;
+    --go: 100px;
+    --tool: 58px;
+  }
+
+  /* Narrow portrait: no room between steering and GO, so the row sits just above them. */
+  #helpers,
+  #drive-tools {
     gap: 8px;
-    right: calc(20px + var(--safe-right));
-    bottom: calc(132px + var(--safe-bottom));
+    left: calc(16px + var(--safe-left));
+    right: calc(16px + var(--safe-right));
+    bottom: calc(18px + var(--go) + 14px + var(--safe-bottom));
+    justify-content: flex-end;
+  }
+
+  #target-card {
+    bottom: calc(18px + var(--go) + 14px + var(--tool) + 14px + var(--safe-bottom));
   }
 
   .btn.helper {
-    width: 58px;
-    height: 58px;
     font-size: 24px;
   }
 
   .btn.steer {
-    width: 70px;
-    height: 70px;
     font-size: 36px;
   }
 
   .go-btn {
-    width: 100px;
-    height: 100px;
     font-size: 30px;
   }
 
@@ -1033,19 +1063,65 @@ h1 {
   }
 }
 
+/* Short landscape phones: the helper row stays between steering and GO (a smaller GO makes
+   room for five), and the target card moves right of the height meter. The zoom box is at the
+   end of the file. */
 @media (max-height: 500px) {
-  #helpers {
-    flex-direction: row;
-    gap: 8px;
-    right: calc(140px + var(--safe-right));
-    bottom: calc(18px + var(--safe-bottom));
+  #flight-screen {
+    --go: 100px;
+    --tool: 58px;
   }
 
-  /* A row of five (six with the buggy) has to fit between the steering and GO buttons. */
+  #helpers,
+  #drive-tools {
+    gap: 8px;
+    left: calc(16px + 2 * var(--steer) + 14px + 12px + var(--safe-left));
+    right: calc(16px + var(--go) + 12px + var(--safe-right));
+    bottom: calc(18px + var(--safe-bottom));
+    justify-content: center;
+  }
+
   .btn.helper {
-    width: 58px;
-    height: 58px;
     font-size: 24px;
+  }
+
+  .go-btn {
+    font-size: 30px;
+  }
+
+  /* A slimmer card that fits between the status line and the steering. */
+  #target-card {
+    left: calc(76px + var(--safe-left));
+    bottom: calc(18px + var(--steer) + 10px + var(--safe-bottom));
+    padding: 6px 8px 6px 6px;
+  }
+
+  #target-card img {
+    width: 48px;
+    height: 48px;
+  }
+
+  #target-card .target-info {
+    gap: 4px;
+  }
+
+  #target-card .small-go {
+    padding: 8px 10px;
+  }
+
+  #crash-card {
+    top: calc(50% + 28px);
+    padding: 10px 16px 16px;
+  }
+
+  #crash-card h2 {
+    font-size: 30px;
+    margin-bottom: 8px;
+  }
+
+  #crash-card .btn.big {
+    font-size: 20px;
+    padding: 12px 18px;
   }
 
   #goal-banner {
@@ -1054,10 +1130,6 @@ h1 {
 
   #height-meter {
     height: 26vh;
-  }
-
-  #vel-dial {
-    top: calc(96px + 26vh + var(--safe-top));
   }
 }
 
@@ -1090,8 +1162,8 @@ h1 {
 #go-hint {
   position: absolute;
   right: calc(16px + var(--safe-right));
-  bottom: calc(140px + var(--safe-bottom));
-  width: 116px;
+  bottom: calc(18px + var(--go) + 8px + var(--safe-bottom));
+  width: var(--go);
   text-align: center;
   font-family: 'Rye', serif;
   font-size: 22px;
@@ -1443,12 +1515,7 @@ h1 {
 /* ---------- driving ---------- */
 
 #drive-tools {
-  position: absolute;
-  right: calc(16px + var(--safe-right));
-  bottom: calc(150px + var(--safe-bottom));
   display: none;
-  flex-direction: column;
-  gap: 10px;
 }
 
 #flight-screen.driving #drive-tools {
@@ -1523,18 +1590,64 @@ h1 {
   display: none;
 }
 
+/* ---------- HUD layout (#22), last so it wins over the rules above ---------- */
+
+/* Crashed: only the top bar and the crash card's three choices. The map has no height meter. */
+#flight-screen.crashed > :not(.topbar, #crash-card),
+#flight-screen.map #vel-dial {
+  display: none !important;
+}
+
+/* One line, clear of the zoom box on the right. */
+#status-line {
+  max-width: calc(100vw - 160px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 640px) {
-  #drive-tools {
-    right: calc(20px + var(--safe-right));
-    bottom: calc(132px + var(--safe-bottom));
-    gap: 8px;
+  /* Below the two-line top bar. */
+  #height-meter {
+    top: calc(104px + var(--safe-top));
+    height: 22vh;
+  }
+
+  #vel-dial {
+    top: calc(114px + 22vh + var(--safe-top));
+  }
+
+  #status-line {
+    top: calc(160px + var(--safe-top));
+  }
+
+  /* HOLD! / LET GO! between the thumbs, next to GO (the helper row is above it). */
+  #go-hint {
+    right: calc(16px + var(--go) + 2px + var(--safe-right));
+    bottom: calc(18px + var(--go) / 2 - 16px + var(--safe-bottom));
+    width: 88px;
+    font-size: 19px;
   }
 }
 
 @media (max-height: 500px) {
-  #drive-tools {
-    flex-direction: row;
-    right: calc(140px + var(--safe-right));
-    bottom: calc(18px + var(--safe-bottom));
+  #go-hint {
+    right: calc(16px + var(--safe-right));
+    bottom: calc(18px + var(--go) + 8px + var(--safe-bottom));
+    width: var(--go);
+    font-size: 22px;
+  }
+
+  /* A shorter zoom slider, so it ends above GO (pinch and scroll still zoom). */
+  #zoom-box {
+    top: calc(72px + var(--safe-top));
+  }
+
+  #zoom-slider {
+    height: 18vh;
+  }
+
+  #vel-dial {
+    top: calc(96px + 26vh + var(--safe-top));
   }
 }

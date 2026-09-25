@@ -15,15 +15,19 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
 - **Zoom:** pinch, scroll, or the slider on the right. The camera follows further back as you
   climb, but you can always zoom right up to the rocket (about 12 m) or out to see a whole
   world; on the map, from one world up close out to the whole solar system.
-- **🧭 Coach switch** (top of the helper buttons): choose how the helpers help. It's remembered.
+- **🧭 Coach switch** (first of the helper buttons): choose how the helpers help. It's remembered.
   - **On** (bright, green light): "I'll tell you when to hold GO!" You fly: an arrow shows
     where to point, the right turn button glows, and GO says HOLD! / LET GO!.
   - **Off** (dim): "I'll fly, you watch!" The helpers fly the rocket for you.
   On your very first launch Pip offers it ("Tap the compass!"); tapping it then starts a
   coached launch into orbit. Flipping it while a helper is running switches that helper over.
 - **Helpers:** 🌀 Orbit, 🛬 Land (tap again to stop), ⏫ Faster / ⏬ Slower (hold; always flown
-  for you). With the coach on, Orbit teaches the launch and Land teaches the landing: point up
-  at the arrow, then HOLD / LET GO to keep the descent gentle (Pip steps in if it gets too fast).
+  for you). They sit in a row between the turn buttons and GO (just above them on narrow
+  phones). Only the useful ones show: on the ground that's 🧭, 🌀 Orbit and 🚙 Drive; Land,
+  Faster and Slower appear once you're flying. With the coach on, Orbit teaches the launch
+  and Land teaches the landing: point up at the arrow, then HOLD / LET GO to keep the descent
+  gentle (Pip steps in if it gets too fast). After a crash only the three choices show: go
+  back, launch pad, or build.
 - **Go somewhere:** open the map, tap a world, then the trip button: **🧭 Let's go!** with the
   coach on (you fly there and land, Pip tells you how) or **🤖 Take me there!** with it off
   (Pip flies, you watch). Tap it again (✋ Stop) to stop.

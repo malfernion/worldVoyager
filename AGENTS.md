@@ -78,7 +78,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
 src/world/             three.js visuals: planets, ambient (plumes/dust), trees, rocks (moon boulders), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
-src/ui/                flightHud.js (controls, readouts, gestures), narrator.js (Pip's voice), speech.js (sentence splitting),
+src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
 src/audio/audio.js     All sound is generated live: music sequencer, SFX, voice channel + music ducking
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
@@ -134,6 +134,12 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   Useful: `app.flightScene.toggleMap()`, `.focusMapOn(app.system.byId.sizzle)`,
   `.setTarget(body)`, `.setCoaching(true)` (the 🧭 switch), `.helper('goto', { coach: true })`, `.drive.deploy()`,
   `app.newAdventure()`. Watch the console for shader errors.
+- **HUD layout (#22):** at each screen size run `app.hud.layoutProblems()` in the console; it
+  lists visible HUD controls that overlap, poke off screen, or are smaller than 56 px (helpers,
+  steering, GO). Check 375×667, 390×844, 667×375, 844×390, 1024×768 and 768×1024 in flight, on
+  the pad (🚙 with a garage), the map with the target card, the crash card and driving. The
+  thumb row's sizes are CSS variables on `#flight-screen` (`--steer`, `--go`, `--tool`), so
+  change sizes there and the helper row, target card and GO hint follow.
 - After deploying, GitHub Pages can serve the old version for a few minutes; hard-refresh
   (or add `?v=2`).
 
@@ -190,6 +196,10 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   prediction is still right (it's an impact). `segmentPoints()` samples near-radial segments
   (`nearRadial()`: p < 0.1 × start radius) in time with `propagate()`, and the ▲ marker uses
   `radialApex()`. Use those rather than conic geometry for anything that can be vertical (#19).
+- `src/style.css` has several `@media` blocks for small screens, and a plain rule further down
+  the file beats an earlier media rule of the same specificity (the landscape `#vel-dial` fix
+  silently did nothing for a while). HUD overrides for small screens go in the last section of
+  the file.
 - Line2 / LineMaterial widths are in pixels; update `resolution` on resize (flight.js does).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).
