@@ -63,8 +63,8 @@ export class FlightScene {
       const b = v.body;
       if (!b.parent) continue;
       const pts = [];
-      for (let i = 0; i <= 256; i++) {
-        const a = (i / 256) * Math.PI * 2;
+      for (let i = 0; i <= 720; i++) {
+        const a = (i / 720) * Math.PI * 2;
         pts.push(Math.cos(a) * b.orbitRadius, Math.sin(a) * b.orbitRadius, 0);
       }
       const line = this.makeLine(pts, b.color, 2, 0.45);
@@ -658,14 +658,13 @@ export class FlightScene {
   updateLines() {
     const map = this.mode === 'map';
     const s = this.flight.state;
-    // Planet orbits (map only).
+    // Planet and moon orbits: bold in the map, faint trails in the flight view.
     for (const [b, line] of this.orbitLines) {
-      line.visible = map;
-      if (!map) continue;
       const w = b.parent.worldPos(s.t, this.tmp2);
       line.position.set(w.x - this.origin.x, w.y - this.origin.y, 0);
-      line.material.opacity = b === this.target ? 0.9 : 0.35;
-      line.material.linewidth = b === this.target ? 3 : 2;
+      const target = b === this.target;
+      line.material.opacity = map ? (target ? 0.9 : 0.35) : target ? 0.35 : 0.16;
+      line.material.linewidth = map ? (target ? 3 : 2) : 1.5;
     }
     // Predicted path (geometry only rebuilt when the prediction changes).
     const pred = this.prediction;

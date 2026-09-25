@@ -77,14 +77,16 @@ class App {
       this.audio.play('tap');
       $('journal-screen').classList.add('hidden');
     });
-    $('settings-btn').addEventListener('click', () => {
+    const openSettings = () => {
       this.audio.play('tap');
+      // Pause the flight while the menu is open.
+      if (this.screen === 'flight') this.flightScene.input = { left: false, right: false, go: false };
       const st = this.progress.settings;
       $('set-music').checked = st.music;
       $('set-sfx').checked = st.sfx;
       $('set-voice').checked = st.voice;
       $('settings-card').classList.remove('hidden');
-    });
+    };
     for (const [id, key] of [['set-music', 'music'], ['set-sfx', 'sfx'], ['set-voice', 'voice']]) {
       $(id).addEventListener('change', (e) => {
         this.progress.settings[key] = e.target.checked;
@@ -92,6 +94,8 @@ class App {
         this.applySettings();
       });
     }
+    $('settings-btn').addEventListener('click', openSettings);
+    $('flight-settings-btn').addEventListener('click', openSettings);
     $('settings-close').addEventListener('click', () => $('settings-card').classList.add('hidden'));
     $('reset-btn').addEventListener('click', () => {
       if (!window.confirm('Start a brand new adventure? Your stickers will be cleared.')) return;
@@ -211,6 +215,11 @@ class App {
       this.renderer.render(this.builder.scene, this.builder.camera);
     } else {
       const fs = this.flightScene;
+      if (this.screen === 'flight' && !$('settings-card').classList.contains('hidden')) {
+        this.audio.setEngine(0);
+        this.renderer.render(fs.scene, fs.camera);
+        return;
+      }
       if (this.screen === 'title') {
         fs.input = { left: false, right: false, go: false };
         fs.zoom = 2.2;
