@@ -14,6 +14,7 @@ import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
 import { landingFinds, ringGapCrossed, flareSeen, sunDirection } from '../physics/discoveries.js';
+import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
@@ -73,7 +74,11 @@ export class FlightScene {
 
     this.drive = new DriveMode(this);
     // Discoveries (#15): what the landmarks need to know each frame, and the ring gap's watch.
-    this.landmarkCtx = { found: (id) => this.app.progress.has(id), aim: null };
+    // Friends (#16): who we just met (they wave), where the buggy is, and the Full Band party.
+    this.landmarkCtx = { found: (id) => this.app.progress.has(id), aim: null, hello: null, listener: null, party: false };
+    this.buggyAt = { body: null, p: null };
+    this.bandWait = 0;
+    this.bandUntil = -Infinity;
     this.lastPos = { body: null, x: 0, y: 0 };
     this.gapAt = null;
     this.labels = document.getElementById('labels');
@@ -393,14 +398,18 @@ export class FlightScene {
           app.pip('Bump! Try flying higher next time!', { speak: true });
           break;
         }
-        const found = landingFinds(b, this.flight.state.landAngle, { time: this.time, toSun: sunDirection(b, this.flight.state.t), has: (x) => app.progress.has(x) });
+        const has = (x) => app.progress.has(x);
+        const found = landingFinds(b, this.flight.state.landAngle, { time: this.time, toSun: sunDirection(b, this.flight.state.t), has });
+        const met = landingMeets(b, this.flight.state.landAngle, has); // right by a friend (#16)
         const first = app.progress.earn(id);
         if (first) this.burst(b, 'confetti');
-        else if (!found) app.pip(`Touchdown on ${b.name}! ${b.icon}`, { speak: true });
+        else if (!found && !met) app.pip(`Touchdown on ${b.name}! ${b.icon}`, { speak: true });
         this.warpIndex = 0;
         this.discover(b);
         // Landed right by (or in) a discovery: straight away, or after the landing sticker.
-        if (found) setTimeout(() => this.found(found), first ? 7500 : 0);
+        const wait = first ? 7500 : 0;
+        if (found) setTimeout(() => this.found(found), wait);
+        if (met) setTimeout(() => this.metFriend(met), wait + (found ? 7500 : 0));
         break;
       }
       case 'crash': {
@@ -438,6 +447,70 @@ export class FlightScene {
     app.progress.earn(id);
   }
 
+  /**
+   * Said hello to a friend (#16), from the buggy or by landing next to them: they wave, a
+   * chime and a strum, sparkles, their sticker pops and Pip chats. Their part joins the music.
+   */
+  metFriend(id) {
+    const app = this.app;
+    const has = (x) => app.progress.has(x);
+    if (has(id)) return;
+    app.audio.play('friend');
+    if (this.drive.active) this.drive.sparkle();
+    else this.burst(this.flight.state.body, 'sparkle');
+    this.landmarkCtx.hello = { id, time: this.time };
+    this.discover();
+    app.progress.earn(id);
+    // The last one: time to take everyone home (after Pip's hello).
+    if (allFound(has) && !has(FULL_BAND)) {
+      setTimeout(() => app.pip('That\'s everyone! Let\'s go home to the campfire!', { speak: true }), 10000);
+    }
+  }
+
+  /**
+   * Full Band (#16): with every friend found, being back on Homestead's ground (landed, or
+   * driving) for a few seconds brings everyone together at the campfire: a big strum, confetti,
+   * the sticker, and the whole band plays loud for a while.
+   */
+  checkBand(dt, onHomeGround) {
+    const app = this.app;
+    if (app.screen !== 'flight' || this.crashed || !fullBandReady((x) => app.progress.has(x), onHomeGround)) {
+      this.bandWait = 0;
+      return;
+    }
+    this.bandWait += dt;
+    if (this.bandWait < 4) return;
+    this.bandWait = 0;
+    app.audio.play('band');
+    if (this.drive.active) this.drive.sparkle();
+    else this.burst(this.flight.state.body, 'confetti');
+    this.bandUntil = this.time + 45;
+    app.progress.earn(FULL_BAND);
+  }
+
+  /**
+   * Where we're listening from, for how loud each friend is (#16): the buggy while driving,
+   * otherwise the rocket (in the world frame of the world we're at). Fills `w` (no allocation).
+   */
+  listener(w) {
+    const s = this.flight.state;
+    const home = this.system.home;
+    const b = this.drive.active ? this.drive.buggy : null;
+    if (b) {
+      w.body = b.body;
+      w.p[0] = b.p[0]; w.p[1] = b.p[1]; w.p[2] = b.p[2];
+      w.ground = true;
+      w.home = b.body === home;
+    } else {
+      w.body = s.body;
+      w.p[0] = s.x; w.p[1] = s.y; w.p[2] = 0;
+      w.ground = s.landed;
+      w.home = s.body === home && (s.landed || this.flight.altitude < home.spaceLine);
+    }
+    w.party = this.time < this.bandUntil;
+    return w;
+  }
+
   burst(body, kind) {
     const s = this.flight.state;
     const up = Math.atan2(s.y, s.x);
@@ -468,6 +541,7 @@ export class FlightScene {
 
   update(dt) {
     this.time += dt;
+    this.lastDt = dt;
     const f = this.flight;
     const ap = this.autopilot;
     const s = f.state;
@@ -578,6 +652,7 @@ export class FlightScene {
     this.updateAtmospheres();
     this.updateMarkers();
     this.updateMood();
+    this.checkBand(dt, this.drive.buggy?.body === this.system.home);
   }
 
   checkGoals() {
@@ -593,6 +668,7 @@ export class FlightScene {
     if (s.body === home && inStableOrbit(f)) p.earn('orbit');
     if (s.body.kind === 'star' && Math.hypot(s.x, s.y) < s.body.radius * 3) p.earn('sun');
     this.checkDiscoveries();
+    this.checkBand(this.lastDt ?? 0, s.body === home && s.landed);
   }
 
   /**
@@ -655,8 +731,15 @@ export class FlightScene {
       if (v.landmarks) {
         // Ember's flares rise on the rocket's side when it's in Ember's space.
         const s = this.flight.state;
-        this.landmarkCtx.aim = s.body === v.body ? Math.atan2(s.y, s.x) : null;
-        v.landmarks.update(this.time, t, this.landmarkCtx);
+        const ctx = this.landmarkCtx;
+        ctx.aim = s.body === v.body ? Math.atan2(s.y, s.x) : null;
+        // Friends (#16) wave when the buggy comes close, and bounce about at the Full Band.
+        const b = this.drive.active ? this.drive.buggy : null;
+        this.buggyAt.body = b?.body ?? null;
+        this.buggyAt.p = b?.p ?? null;
+        ctx.listener = b ? this.buggyAt : null;
+        ctx.party = this.time < this.bandUntil;
+        v.landmarks.update(this.time, t, ctx);
       }
     }
   }

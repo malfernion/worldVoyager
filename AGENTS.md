@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights, buggy, discoveries, speech, zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights, buggy, discoveries, friends (+ the band's music), speech, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -66,7 +66,7 @@ Only push work that is tested and ready for players.
 
 ```
 src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
-src/progress.js        Goals, stickers (incl. discoveries' facts and hints), saved design + settings (incl. the 🧭 coach switch; localStorage)
+src/progress.js        Goals, stickers (incl. discoveries' facts and hints, friends' hellos and hints), saved design + settings (incl. the 🧭 coach switch; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
   bodies.js            The solar system: on-rails orbits (round, or Ducky the comet's Kepler ellipse), SOIs, per-world surfaces
@@ -74,17 +74,20 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
                        the ring gap, flares), and the ✨ compass's targets
+  friends.js           Pip's friends, the space band (#16): where each campfire is, saying hello (buggy near / landing next to),
+                       the 🎵 compass targets, how loud each friend's part is from where you are, Full Band
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
   autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner (+ comet windows and homing)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets)
 src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), trees, rocks (moon boulders),
-                       landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares), effects, sky, materials, thumbnails
+                       landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares; the friends' campfires
+                       and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
-src/audio/audio.js     All sound is generated live: music sequencer, SFX, voice channel + music ducking
+src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
 src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): playback audio session, tap-to-resume,
                        silent unlock buffer, older-iOS silent <audio>, promise-safe decoding, debugState()
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
@@ -146,6 +149,15 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   ink); only moving or glowing bits are separate. The ✨ compass takes a list of
   `{ id, p, icon }` targets (`discoveryTargets()`), so other kinds of target (#16) can join it.
   Discovery stickers are never goals: no checklist.
+- **Pip's friends live in one table too** (#16, `FRIENDS` in `src/physics/friends.js`, stickers
+  `friend-…` and `full-band` in `progress.js`). Campfires sit about 17 m in front of the flight
+  plane (outside the rocks' strip, close enough to land next to), clear of discoveries, vents
+  and craters; rocks keep 8 m clear. Each friend's music part has its own gain and low-pass
+  (`FRIEND_PARTS` in `audio.js`) feeding the music bus, so the music switch and the voice
+  ducking apply. How loud is decided only by the pure `friendLevels()` (tested), a few times a
+  second (`App.updateBand`); the engine only glides (`setTargetAtTime`) when a level really
+  changes and schedules no notes for silent parts. Friends' parts play **only chord tones** of
+  the sequencer's current chord (a test checks), so any mix of them fits.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).
@@ -289,5 +301,7 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   `transform: translate(...)`, and CSS applies the `scale` property on top of that, so a
   bobbing marker drifted away from its spot by up to 30% of its screen position (the 🚀 pin
   did, #15). Wrap the content in a `<span>` and animate that.
+- **Friends' campfire glow in daylight:** an additive glow sprite is nearly invisible on a bright
+  day-side surface at low opacity; the orbit glow needs ~0.7 opacity and a deep orange to show.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

@@ -8,6 +8,8 @@ import { createSky } from '../world/sky.js';
 import { toon, glowTexture, woodTexture, withOutline } from '../world/materials.js';
 import { mulberry32 } from '../physics/noise.js';
 import { createForest } from '../world/trees.js';
+import { buildFriend, lookOf } from '../world/friendMesh.js';
+import { FRIENDS } from '../physics/friends.js';
 
 const PROBLEMS = {
   crew: 'Pip needs a cabin! Add a Cabin or a Bubble.',
@@ -124,6 +126,17 @@ export class BuilderScene {
     fire.add(this.fireLight);
     fire.position.set(8.5, -0.8, 3);
     s.add(fire);
+    // Pip's friends found so far (#16) sit round the workshop fire, playing along.
+    this.band = FRIENDS.map((fr, i) => {
+      const who = buildFriend(lookOf(fr.id), 1);
+      const a = 0.3 + (i / (FRIENDS.length - 1)) * 2.5;
+      const x = 8.5 + Math.cos(a) * 2.7, z = 3 - Math.sin(a) * 2.7;
+      who.group.position.set(x, -0.7, z);
+      who.group.rotation.y = Math.atan2(8.5 - x, 9 - z);
+      who.group.visible = false;
+      s.add(who.group);
+      return { id: fr.id, who };
+    });
   }
 
   // ---- UI ----------------------------------------------------------------
@@ -520,5 +533,9 @@ export class BuilderScene {
     this.fireLight.intensity = 34 + 10 * Math.sin(this.time * 17) * Math.sin(this.time * 5);
     if (this.indicator.visible) this.indicator.material.opacity = 0.6 + 0.4 * Math.sin(this.time * 8);
     for (const [i, l] of this.rocket.lights.entries()) l.visible = Math.sin(this.time * 3 + i * 1.7) > -0.3;
+    for (const { id, who } of this.band) {
+      who.group.visible = this.app.progress.has(id);
+      if (who.group.visible) who.update(this.time, 'play');
+    }
   }
 }

@@ -152,7 +152,8 @@ the duck's lumps stick up a long way, and a lopsided orbit skimmed them). Pip al
   drawn at most 8× longer, like the worlds are drawn bigger).
 - **Music.** Karplus–Strong banjo and guitar, a reedy harmonica, saw-pad strings and a triangle
   bass, played by a generative sequencer with a lazy swing. Three moods (campfire, space,
-  discovery) crossfade at bar lines.
+  discovery) crossfade at bar lines. Pip's friends (#16) each add a part on top, as loud as
+  where you are says (below).
 
 ## Breakdown (as built)
 
@@ -282,7 +283,7 @@ world's picture), and Pip says the fact in short sentences.
   devils where they are now). It grows and glows as you get close, twinkles when you're
   nearly there, and a ✨ floats over the spot within 60 m. The first time (until a first
   discovery) Pip says "Psst! Follow the sparkles to find a secret!" The compass takes a list
-  of `{ id, p, icon }` targets, so other kinds of target (#16) can join it. A headless test
+  of `{ id, p, icon }` targets, so Pip's friends (#16) join it with a 🎵. A headless test
   drives a pretend kid along it from four landing spots on each world and finds everything.
 - **Landing counts too.** A rocket landing by (or in) a discovery finds it; the landmarks
   keep clear of the flight plane so they never hide the rocket, so in practice that's
@@ -300,6 +301,64 @@ world's picture), and Pip says the fact in short sentences.
 - **The sticker book** has a ✨ Discoveries section: found ones show their sticker; the rest show
   their world's icon with a ❓. Tapping one has Pip say the fact again, or a gentle hint ("I
   heard a strange hum on Frosty. Park by a deep crack when it is dark!").
+
+## Pip's friends: the space band (#16)
+
+Like Outer Wilds' travellers: a warm, musical reason to visit every world. Pip plays the banjo
+(the sequencer's banjo is Pip's part), and five friends are camped by little campfires, each
+with an instrument, a look of their own (round critters in Pip's style) and a campfire prop:
+
+| World | Friend | Instrument | Their part in the music |
+|---|---|---|---|
+| Pebble | Mossy, a sleepy moon-hermit (nightcap, tent) | harmonica | soft two-note breaths (third and fifth) on the beats |
+| Dusty | Bolt, a rover-mechanic (goggles, toolbox) | hand drum | doum on one, dum on four, teks between |
+| Nibble | Crumb, a tiny critter (big ears) | kalimba (thumb piano) | a twinkly broken chord on the off-beats, high up |
+| Sizzle | Toasty, a lava-watcher who likes it warm (sunglasses) | double bass | a plucked (Karplus-Strong) walking line |
+| Frosty | Flurry, an ice-fisher (bobble hat, fishing hole) | tin whistle | a little two-bar tune |
+
+Flip, Ducky and Tumble have no friend: five is a band a child can find, and Tumble has no ground.
+
+- **Same key, same chords.** Every friend's note is a chord tone of the sequencer's current chord
+  (the moods' progressions are all in G), so any mix of friends fits. A test plays minutes of
+  every mood with every part on and checks each note.
+- **How loud** (`friendLevel()` in `src/physics/friends.js`, pure and tested), as a gain and a
+  brightness (each part's low-pass filter opens from 500 Hz to 8 kHz with it):
+  - on their world's ground (landed or driving): 0.12 far away, rising to 1 by the fire, as the
+    square of how far along you are between 160 m and 8 m (about 0.65 at 40 m, 0.35 at 80 m), so
+    every few metres closer is clearly louder, and clearer as it gets louder: you can find them
+    by ear;
+  - flying in their world's space: 0.12, swelling to at most 0.3 (still muffled) over the fire;
+  - at home (on Homestead below the space line, or in the workshop): every friend found plays
+    at 0.55 (0.85 for 45 s after the Full Band); tapping a found friend in the sticker book
+    plays them at 1 for a few seconds;
+  - anywhere else: silent.
+  The app works this out ten times a second and hands it to the engine, which glides each
+  part's gain and filter there (`setTargetAtTime`, 0.5 s) only when it really changes, and
+  schedules no notes at all for silent parts. Parts feed the music bus, so the music switch
+  and the ducking under Pip's voice apply. The loudest moment (every part's loudest note
+  together, at the party level) is about as loud as the campfire band's own, and the master
+  compressor catches the rest.
+- **Finding them.** Each campfire has a big soft glow you can spot on the world's face from low
+  orbit. While driving, the on-planet compass (#15) also lists friends still to meet, with a 🎵
+  instead of ✨, and a 🎵 floats over the fire within 60 m. The first time the compass points
+  at a friend Pip says "Listen! Can you hear music? Follow the notes!"
+- **Saying hello:** the buggy within 8 m of the fire, or the rocket landing within 28 m (the
+  campfires sit about 17 m in front of the flight plane, so landing right below one counts).
+  They wave (they also wave whenever the buggy is close), a chime and a banjo strum, sparkles,
+  their sticker pops, and Pip introduces them ("Hello, Mossy! … Now Mossy is in our band!").
+  From then on their part plays in the campfire song at home, and they sit round Homestead's
+  campfire by the launch pad and the workshop's fire, playing along.
+- **Full Band:** with all five met, Pip says "That's everyone! Let's go home to the campfire!"
+  Being on Homestead's ground (landed anywhere, or driving) for 4 s then brings everyone
+  together: a big strum with drums and a whistle flourish, confetti, the 🎶 Full Band sticker,
+  the friends bounce round the campfire and the whole band plays louder for 45 s. Launching
+  from the pad counts too, so an older save with everyone found gets it on the next launch.
+- **Saved** as ordinary stickers (`friend-…`, `full-band`) in the same `done` map, so older saves
+  just load with none found. Not goals: no checklist. The sticker book's 🎵 Band section shows Pip
+  and each friend (or their world and a ❓, with a spoken hint), then Full Band.
+- **Cheap:** each campfire's logs, stones and prop join the world's merged landmark mesh; each
+  friend is one merged vertex-coloured mesh plus ink and a waving arm (4 draw calls); glows are
+  sprites (no extra lights, which would recompile every material).
 
 ## Ideas for later
 

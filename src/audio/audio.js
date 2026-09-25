@@ -1,6 +1,7 @@
 // All sound is made on the fly with WebAudio: plucked banjo & guitar (Karplus-Strong),
 // a reedy harmonica, soft string pads and a little upright bass, played by a generative
-// campfire sequencer. Plus rocket rumble and cartoon sound effects.
+// campfire sequencer. Pip's friends (#16) each add their own part on top, over the same
+// chords, as loud as src/physics/friends.js says. Plus rocket rumble and cartoon sound effects.
 // The context's life (unlocking on iPad/iPhone, resuming after app switches) is in unlock.js.
 import { AudioUnlock, isAppleTouch, silentWav } from './unlock.js';
 
@@ -27,6 +28,29 @@ const MOODS = {
 };
 const PENTA = [0, 2, 4, 7, 9];
 
+// The friends' parts (#16). Each has its own gain (how loud that friend is from where we are,
+// times `mix`) and low-pass filter (muffled from far away), then joins the music bus, so the
+// music switch and the ducking under Pip's voice apply to them too. `mix` keeps the whole band
+// (every part at its home level together) about as loud again as the campfire band itself;
+// the master compressor catches the rest. `peak` is each part's loudest single note (gain),
+// kept here so a test can check the sum.
+export const FRIEND_PARTS = {
+  harmonica: { mix: 0.9, peak: 0.07 * 0.8 * 2 }, // two-note breaths
+  drum: { mix: 0.8, peak: 0.5 },
+  kalimba: { mix: 0.8, peak: 0.13 + 0.03 },
+  bass: { mix: 0.9, peak: 0.42 },
+  whistle: { mix: 0.7, peak: 0.09 * 0.9 },
+};
+// Crumb's kalimba: which chord note on each step (-1: rest); Flurry's whistle tunes for even and
+// odd bars: [chord note, length in eighths] on each step.
+const KALIMBA = [-1, 3, 4, -1, 5, 4];
+const WHISTLE = [
+  [[2, 2.6], null, null, [3, 1], [2, 1], [1, 0.9]],
+  [[3, 1.5], null, [4, 1], [2, 2.8], null, null],
+];
+// Filter cutoff for brightness 0 (muffled, from orbit) to 1 (right by the campfire).
+export const cutoffFor = (bright) => 500 * Math.pow(16, Math.max(0, Math.min(1, bright)));
+
 export class AudioEngine {
   constructor() {
     this.ctx = null;
@@ -36,6 +60,9 @@ export class AudioEngine {
     this.nextMood = 'camp';
     this.plucks = new Map();
     this.unlock = null;
+    // The friends' parts (#16): { gain, filter, level, bright, until } once started.
+    this.parts = {};
+    this.levels = {};
   }
 
   /**
@@ -101,6 +128,7 @@ export class AudioEngine {
 
     this.noise = this.makeNoise(2);
     this.setupEngine();
+    this.setupFriends();
     this.bar = 0;
     this.step = 0;
     this.nextTime = ctx.currentTime + 0.2;
@@ -149,6 +177,48 @@ export class AudioEngine {
     if (MOODS[mood]) this.nextMood = mood;
   }
 
+  /**
+   * How loud each friend's part is (#16): [{ part, gain, bright }] from friendLevels() in
+   * src/physics/friends.js. Call it a few times a second; it only touches the audio graph when
+   * a level really changes, and then glides there (setTargetAtTime), never jumps.
+   */
+  setFriendLevels(levels) {
+    for (const l of levels) {
+      const want = this.levels[l.part] ??= { gain: 0, bright: 0 };
+      want.gain = l.gain;
+      want.bright = l.bright;
+      const p = this.parts[l.part];
+      if (p) this.applyPart(p, want);
+    }
+  }
+
+  applyPart(p, want) {
+    const now = this.ctx.currentTime;
+    if (Math.abs(want.gain - p.level) < 0.004 && Math.abs(want.bright - p.bright) < 0.02) return;
+    // Fading out: keep playing notes while the gain glides down.
+    if (want.gain <= 0.01 && p.level > 0.01) p.until = now + 3;
+    p.level = want.gain;
+    p.bright = want.bright;
+    p.gain.gain.setTargetAtTime(want.gain * FRIEND_PARTS[p.name].mix, now, 0.5);
+    p.filter.frequency.setTargetAtTime(cutoffFor(want.bright), now, 0.5);
+  }
+
+  setupFriends() {
+    const ctx = this.ctx;
+    for (const name of Object.keys(FRIEND_PARTS)) {
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = cutoffFor(0);
+      filter.Q.value = 0.5;
+      gain.connect(filter).connect(this.music);
+      const p = { name, gain, filter, level: 0, bright: 0, until: 0 };
+      this.parts[name] = p;
+      if (this.levels[name]) this.applyPart(p, this.levels[name]);
+    }
+  }
+
   // ---- building blocks ---------------------------------------------------
 
   makeImpulse(seconds) {
@@ -181,15 +251,16 @@ export class AudioEngine {
     const period = sr / f - 0.5;
     const N = Math.floor(period);
     const frac = period - N;
-    const len = Math.floor(sr * (kind === 'banjo' ? 1.6 : 2.6));
+    const len = Math.floor(sr * (kind === 'banjo' ? 1.6 : kind === 'bass' ? 1.4 : 2.6));
     const buf = ctx.createBuffer(1, len, sr);
     const y = buf.getChannelData(0);
-    const decay = kind === 'banjo' ? 0.9965 : 0.9985;
+    // Decay is per trip round the string (a period), so low notes ring on longer.
+    const decay = kind === 'banjo' ? 0.9965 : kind === 'bass' ? 0.993 : 0.9985;
     let prev = 0;
     for (let i = 0; i < N + 2; i++) {
       let n = Math.random() * 2 - 1;
       if (kind !== 'banjo') {
-        n = prev + (n - prev) * 0.45; // darker pick for guitar
+        n = prev + (n - prev) * (kind === 'bass' ? 0.25 : 0.45); // darker pick for guitar, darker still for the bass
         prev = n;
       }
       y[i] = n * 0.8;
@@ -214,8 +285,8 @@ export class AudioEngine {
     const src = ctx.createBufferSource();
     src.buffer = this.pluckBuffer(midi, kind);
     const g = ctx.createGain();
-    g.gain.value = vel * (kind === 'banjo' ? 0.28 : 0.32);
-    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    g.gain.value = vel * (kind === 'banjo' ? 0.28 : kind === 'bass' ? 0.42 : 0.32);
+    const pan = ctx.createStereoPanner && kind !== 'bass' ? ctx.createStereoPanner() : null;
     let node = src;
     if (kind === 'banjo') {
       const peak = ctx.createBiquadFilter();
@@ -227,7 +298,7 @@ export class AudioEngine {
     } else {
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
-      lp.frequency.value = 2600;
+      lp.frequency.value = kind === 'bass' ? 900 : 2600;
       node.connect(lp);
       node = lp;
     }
@@ -284,7 +355,7 @@ export class AudioEngine {
     o.stop(time + 1.2);
   }
 
-  lead(midi, time, dur, kind, vol = 1) {
+  lead(midi, time, dur, kind, vol = 1, dest = this.music) {
     const ctx = this.ctx;
     const o = ctx.createOscillator();
     o.type = kind === 'whistle' ? 'sine' : 'sawtooth';
@@ -313,7 +384,7 @@ export class AudioEngine {
       o.connect(bp).connect(lp);
       node = lp;
     }
-    node.connect(g).connect(this.music);
+    node.connect(g).connect(dest);
     o.start(time);
     vib.start(time);
     o.stop(time + dur + 0.2);
@@ -394,6 +465,108 @@ export class AudioEngine {
     if (Math.random() < mood.banjo) {
       const roll = [2, 3, 4, 1, 3, 5];
       this.pluck(chordNote(roll[(s + this.bar) % roll.length], root + 24), time, 0.55 + Math.random() * 0.3, 'banjo');
+    }
+    this.playFriends(s, time, mood, root, chordNote);
+  }
+
+  /** Is a friend's part worth scheduling notes for? (Silent parts cost nothing.) */
+  partOn(name) {
+    const p = this.parts[name];
+    return p && (p.level > 0.01 || this.ctx.currentTime < p.until) ? p : null;
+  }
+
+  /**
+   * The friends' parts (#16), a step at a time, over the same chords as the band: only chord
+   * tones, so everything fits whichever friends are playing. s: step in the bar (0-5, beats on
+   * 0 and 3, a lazy 6/8); chordNote(i, base): the chord's i-th note up from `base`.
+   */
+  playFriends(s, time, mood, root, chordNote) {
+    const e = mood.eighth;
+    const even = this.bar % 2 === 0;
+    let p;
+    // Mossy's harmonica: soft two-note breaths (the chord's third and fifth) on the beats.
+    if ((p = this.partOn('harmonica'))) {
+      if (s === 0) {
+        this.lead(chordNote(1, root + 24), time, e * 2.6, 'harmonica', 0.8, p.gain);
+        this.lead(chordNote(2, root + 24), time, e * 2.6, 'harmonica', 0.8, p.gain);
+      } else if (s === 3 && Math.random() < 0.7) {
+        this.lead(chordNote(0, root + 24), time, e * 1.8, 'harmonica', 0.6, p.gain);
+        this.lead(chordNote(1, root + 24), time, e * 1.8, 'harmonica', 0.6, p.gain);
+      }
+    }
+    // Bolt's hand drum: doum on one, dum on four, teks in between.
+    if ((p = this.partOn('drum'))) {
+      if (s === 0) this.drum(time, 'low', 1, p.gain);
+      else if (s === 3) this.drum(time, 'mid', 0.7, p.gain);
+      else if (s === 2 || s === 5) this.drum(time, 'tek', 0.7, p.gain);
+      else if (s === 4 && Math.random() < 0.5) this.drum(time, 'tek', 0.35, p.gain);
+    }
+    // Crumb's kalimba: a twinkly broken chord on the off-beats, high up.
+    if ((p = this.partOn('kalimba'))) {
+      const idx = s === 5 && !even ? 6 : KALIMBA[s];
+      if (idx >= 0 && Math.random() < 0.9) this.kalimba(chordNote(idx, root + 12), time, s === 1 ? 1 : 0.75, p.gain);
+    }
+    // Toasty's double bass: a plucked, walking line under the band.
+    if ((p = this.partOn('bass'))) {
+      if (s === 0) this.pluck(root, time, 1, 'bass', p.gain);
+      else if (s === 2 && Math.random() < 0.7) this.pluck(root + 7, time, 0.55, 'bass', p.gain);
+      else if (s === 3) this.pluck(root + 12, time, 0.7, 'bass', p.gain);
+      else if (s === 5 && Math.random() < 0.6) this.pluck(chordNote(1, root + 12), time, 0.6, 'bass', p.gain);
+    }
+    // Flurry's tin whistle: a little tune from the chord, one shape on even bars, one on odd.
+    if ((p = this.partOn('whistle'))) {
+      const n = (even ? WHISTLE[0] : WHISTLE[1])[s];
+      if (n) this.lead(chordNote(n[0], root + 24), time, e * n[1] * 0.95, 'whistle', 0.9, p.gain);
+    }
+  }
+
+  /** A hand drum: a deep doum, a middle dum, or a slappy tek off the rim. */
+  drum(time, kind, vol, dest) {
+    const ctx = this.ctx;
+    if (kind === 'tek') {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 2800;
+      f.Q.value = 1.4;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.3 * vol, time);
+      g.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
+      src.connect(f).connect(g).connect(dest);
+      src.start(time, Math.random());
+      src.stop(time + 0.1);
+      return;
+    }
+    const [from, to, len] = kind === 'low' ? [120, 62, 0.45] : [180, 115, 0.3];
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(from, time);
+    o.frequency.exponentialRampToValueAtTime(to, time + len * 0.4);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(0.5 * vol, time + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, time + len);
+    o.connect(g).connect(dest);
+    o.start(time);
+    o.stop(time + len + 0.05);
+  }
+
+  /** A kalimba (thumb piano) tine: a soft bell with a quick click of overtone. */
+  kalimba(midi, time, vol, dest) {
+    const ctx = this.ctx;
+    const f = midiHz(midi);
+    for (const [mul, peak, len] of [[1, 0.13, 1.3], [4, 0.03, 0.12]]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f * mul;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, time);
+      g.gain.linearRampToValueAtTime(peak * vol, time + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.001, time + len);
+      o.connect(g).connect(dest);
+      o.start(time);
+      o.stop(time + len + 0.05);
     }
   }
 
@@ -499,6 +672,17 @@ export class AudioEngine {
       case 'discover': // a twinkly rising chime for a secret found (#15)
         [84, 88, 91, 96, 100, 103].forEach((m, i) => this.tone(midiHz(m), 0.6, { vol: 0.08, type: 'sine', delay: i * 0.06 }));
         this.noiseBurst(0.6, 7000, { vol: 0.05, q: 0.8 });
+        break;
+      case 'friend': // saying hello to a friend (#16): a twinkle and a happy banjo strum
+        this.play('discover');
+        [55, 59, 62, 67, 71].forEach((m, i) => this.pluck(m + 12, now + 0.45 + i * 0.05, 0.8, 'banjo', this.sfx));
+        break;
+      case 'band': // the Full Band together (#16): a big strum, drum hits and a whistle flourish
+        [43, 50, 55, 59, 62, 67, 71, 74, 79].forEach((m, i) => this.pluck(m + 12, now + i * 0.04, 0.9, i < 3 ? 'guitar' : 'banjo', this.sfx));
+        this.drum(now, 'low', 0.8, this.sfx);
+        this.drum(now + 0.45, 'mid', 0.6, this.sfx);
+        this.drum(now + 0.6, 'low', 0.8, this.sfx);
+        [79, 83, 86, 91].forEach((m, i) => this.lead(m, now + 0.6 + i * 0.12, 0.3, 'whistle', 0.8, this.sfx));
         break;
       case 'beep': // the old rover's sleepy beep-boop
         this.tone(988, 0.16, { vol: 0.12, type: 'square', delay: 0.5 });

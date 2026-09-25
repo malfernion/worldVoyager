@@ -44,6 +44,10 @@
   "text": "A spacecraft called Cassini dived through the gap next to Saturn twenty two times!"
  },
  {
+  "key": "a whistle is tooting on frosty",
+  "text": "A whistle is tooting on Frosty."
+ },
+ {
   "key": "add a cabin or a bubble",
   "text": "Add a Cabin or a Bubble."
  },
@@ -144,8 +148,16 @@
   "text": "Blast off!"
  },
  {
+  "key": "bolt fixes rovers on dusty",
+  "text": "Bolt fixes rovers on Dusty."
+ },
+ {
   "key": "bonk",
   "text": "Bonk!"
+ },
+ {
+  "key": "boom boom",
+  "text": "Boom, boom!"
  },
  {
   "key": "boosters need a tube to hold on to",
@@ -174,6 +186,10 @@
  {
   "key": "can you find it in the buggy",
   "text": "Can you find it in the buggy?"
+ },
+ {
+  "key": "can you hear music",
+  "text": "Can you hear music?"
  },
  {
   "key": "can you land in it or drive in",
@@ -206,6 +222,10 @@
  {
   "key": "could something live down there",
   "text": "Could something live down there?"
+ },
+ {
+  "key": "crumb is tiny just like nibble",
+  "text": "Crumb is tiny, just like Nibble."
  },
  {
   "key": "drag or tap parts to build",
@@ -280,6 +300,14 @@
   "text": "Every great explorer crashes sometimes."
  },
  {
+  "key": "everyone is here",
+  "text": "Everyone is here!"
+ },
+ {
+  "key": "find all our friends then come home to the campfire",
+  "text": "Find all our friends, then come home to the campfire!"
+ },
+ {
   "key": "fins need a tube to hold on to",
   "text": "Fins need a tube to hold on to."
  },
@@ -320,6 +348,10 @@
   "text": "Flip's geysers leave dark marks on the ice."
  },
  {
+  "key": "flurry goes fishing in the ice on frosty",
+  "text": "Flurry goes fishing in the ice on Frosty."
+ },
+ {
   "key": "fly close to it but not too close",
   "text": "Fly close to it, but not too close!"
  },
@@ -342,6 +374,14 @@
  {
   "key": "follow the arrow and hold go to make our path nice and round",
   "text": "Follow the arrow and hold GO to make our path nice and round."
+ },
+ {
+  "key": "follow the music",
+  "text": "Follow the music!"
+ },
+ {
+  "key": "follow the notes",
+  "text": "Follow the notes!"
  },
  {
   "key": "follow the sparkles to find a secret",
@@ -396,12 +436,32 @@
   "text": "He saw the rings, but he thought they were ears!"
  },
  {
+  "key": "hello bolt",
+  "text": "Hello, Bolt!"
+ },
+ {
+  "key": "hello crumb",
+  "text": "Hello, Crumb!"
+ },
+ {
   "key": "hello dusty the red planet",
   "text": "Hello Dusty, the red planet!"
  },
  {
+  "key": "hello flurry",
+  "text": "Hello, Flurry!"
+ },
+ {
+  "key": "hello mossy",
+  "text": "Hello, Mossy!"
+ },
+ {
   "key": "hello pebble",
   "text": "Hello Pebble!"
+ },
+ {
+  "key": "hello toasty",
+  "text": "Hello, Toasty!"
  },
  {
   "key": "hmm i cant find a path to ducky right now",
@@ -472,8 +532,20 @@
   "text": "Howdy, space explorer!"
  },
  {
+  "key": "i can hear a harmonica on pebble",
+  "text": "I can hear a harmonica on Pebble."
+ },
+ {
   "key": "i heard a strange hum on frosty",
   "text": "I heard a strange hum on Frosty."
+ },
+ {
+  "key": "i play the banjo",
+  "text": "I play the banjo."
+ },
+ {
+  "key": "i play the banjo and all our friends play too",
+  "text": "I play the banjo, and all our friends play too."
  },
  {
   "key": "i spotted something wooden on a hilltop not far from home",
@@ -700,6 +772,10 @@
   "text": "Let's go for a drive on Sizzle!"
  },
  {
+  "key": "lets go home to the campfire",
+  "text": "Let's go home to the campfire!"
+ },
+ {
   "key": "lets land on ducky",
   "text": "Let's land on Ducky."
  },
@@ -780,6 +856,30 @@
   "text": "Lights need a tube to hold on to."
  },
  {
+  "key": "listen",
+  "text": "Listen!"
+ },
+ {
+  "key": "listen bolt plays the drum",
+  "text": "Listen, Bolt plays the drum!"
+ },
+ {
+  "key": "listen crumb plays the thumb piano",
+  "text": "Listen, Crumb plays the thumb piano!"
+ },
+ {
+  "key": "listen flurry plays the whistle",
+  "text": "Listen, Flurry plays the whistle!"
+ },
+ {
+  "key": "listen mossy plays the harmonica",
+  "text": "Listen, Mossy plays the harmonica!"
+ },
+ {
+  "key": "listen toasty plays the big bass",
+  "text": "Listen, Toasty plays the big bass!"
+ },
+ {
   "key": "long ago galileo looked at saturn with a tiny telescope",
   "text": "Long ago, Galileo looked at Saturn with a tiny telescope."
  },
@@ -798,6 +898,10 @@
  {
   "key": "mars has the biggest volcano in the whole solar system",
   "text": "Mars has the biggest volcano in the whole solar system!"
+ },
+ {
+  "key": "mossy was having a nap on pebble",
+  "text": "Mossy was having a nap on Pebble."
  },
  {
   "key": "next catch ducky the comet and land on it",
@@ -892,12 +996,32 @@
   "text": "Now!"
  },
  {
+  "key": "now bolt is in our band",
+  "text": "Now Bolt is in our band!"
+ },
+ {
+  "key": "now crumb is in our band",
+  "text": "Now Crumb is in our band!"
+ },
+ {
+  "key": "now flurry is in our band",
+  "text": "Now Flurry is in our band!"
+ },
+ {
   "key": "now lets land together",
   "text": "Now let's land together."
  },
  {
+  "key": "now mossy is in our band",
+  "text": "Now Mossy is in our band!"
+ },
+ {
   "key": "now point up at the arrow",
   "text": "Now point up at the arrow."
+ },
+ {
+  "key": "now toasty is in our band",
+  "text": "Now Toasty is in our band!"
  },
  {
   "key": "now we glide up to the top",
@@ -1088,8 +1212,16 @@
   "text": "Some go four hundred kilometres high!"
  },
  {
+  "key": "somebody is drumming on dusty",
+  "text": "Somebody is drumming on Dusty."
+ },
+ {
   "key": "somebody left something on pebble",
   "text": "Somebody left something on Pebble."
+ },
+ {
+  "key": "somebody on sizzle plays a big deep bass",
+  "text": "Somebody on Sizzle plays a big, deep bass."
  },
  {
   "key": "something bounced on ducky and hid in the shade",
@@ -1102,6 +1234,10 @@
  {
   "key": "something on pebble is very shiny",
   "text": "Something on Pebble is very shiny."
+ },
+ {
+  "key": "something tiny is making music on nibble",
+  "text": "Something tiny is making music on Nibble."
  },
  {
   "key": "sometimes ember flares up",
@@ -1180,6 +1316,10 @@
   "text": "That's Dusty!"
  },
  {
+  "key": "thats everyone",
+  "text": "That's everyone!"
+ },
+ {
   "key": "thats flip",
   "text": "That's Flip!"
  },
@@ -1190,6 +1330,10 @@
  {
   "key": "thats homestead",
   "text": "That's Homestead!"
+ },
+ {
+  "key": "thats me",
+  "text": "That's me!"
  },
  {
   "key": "thats nibble",
@@ -1252,8 +1396,16 @@
   "text": "They are made of ice and rock."
  },
  {
+  "key": "this is the best campfire song ever",
+  "text": "This is the best campfire song ever!"
+ },
+ {
   "key": "to land point up and hold go to slow down",
   "text": "To land, point up and hold GO to slow down."
+ },
+ {
+  "key": "toasty loves to watch the warm lava",
+  "text": "Toasty loves to watch the warm lava."
  },
  {
   "key": "too fast",
@@ -1666,6 +1818,10 @@
  {
   "key": "when you go sideways fast enough you keep falling around the moon and never hit the ground",
   "text": "When you go sideways fast enough, you keep falling around the moon and never hit the ground!"
+ },
+ {
+  "key": "who is playing it",
+  "text": "Who is playing it?"
  },
  {
   "key": "whoa a solar flare",

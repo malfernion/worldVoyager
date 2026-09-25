@@ -107,10 +107,48 @@ export const STICKERS = {
     say: 'A little lander, hiding in the shade! A real lander called Philae landed on a comet. It bounced twice and stopped in a shady spot. Then its solar panels could not get enough sunlight.',
     hint: 'Something bounced on Ducky and hid in the shade. Can you find it?',
   },
+
+  // Pip's friends, the space band (#16): where they are, what they play and how loud they are is
+  // src/physics/friends.js. `say` is Pip's hello (and again when tapped in the sticker book);
+  // `hint` is what Pip says when one still to find is tapped.
+  'friend-mossy': {
+    icon: '😴', name: 'Mossy', world: 'pebble',
+    say: 'Hello, Mossy! Mossy was having a nap on Pebble. Listen, Mossy plays the harmonica! Now Mossy is in our band!',
+    hint: 'I can hear a harmonica on Pebble. Who is playing it?',
+  },
+  'friend-bolt': {
+    icon: '🥁', name: 'Bolt', world: 'dusty',
+    say: 'Hello, Bolt! Bolt fixes rovers on Dusty. Listen, Bolt plays the drum! Now Bolt is in our band!',
+    hint: 'Boom, boom! Somebody is drumming on Dusty.',
+  },
+  'friend-crumb': {
+    icon: '🐭', name: 'Crumb', world: 'nibble',
+    say: 'Hello, Crumb! Crumb is tiny, just like Nibble. Listen, Crumb plays the thumb piano! Now Crumb is in our band!',
+    hint: 'Something tiny is making music on Nibble.',
+  },
+  'friend-toasty': {
+    icon: '🎻', name: 'Toasty', world: 'sizzle',
+    say: 'Hello, Toasty! Toasty loves to watch the warm lava. Listen, Toasty plays the big bass! Now Toasty is in our band!',
+    hint: 'Somebody on Sizzle plays a big, deep bass.',
+  },
+  'friend-flurry': {
+    icon: '🎣', name: 'Flurry', world: 'frosty',
+    say: 'Hello, Flurry! Flurry goes fishing in the ice on Frosty. Listen, Flurry plays the whistle! Now Flurry is in our band!',
+    hint: 'A whistle is tooting on Frosty. Follow the music!',
+  },
+  'full-band': {
+    icon: '🎶', name: 'Full Band', world: 'homestead',
+    say: 'Everyone is here! I play the banjo, and all our friends play too. This is the best campfire song ever!',
+    hint: 'Find all our friends, then come home to the campfire!',
+  },
 };
 
 /** Discovery stickers (#15), in sticker-book order. */
 export const DISCOVERY_IDS = Object.keys(STICKERS).filter((id) => id.startsWith('find-'));
+
+/** The band's stickers (#16): each friend, then Full Band, in sticker-book order. */
+export const FRIEND_IDS = Object.keys(STICKERS).filter((id) => id.startsWith('friend-'));
+export const BAND_IDS = [...FRIEND_IDS, 'full-band'];
 
 function load() {
   try {

@@ -10,6 +10,7 @@ import { createRocks } from './rocks.js';
 import { createLandmarks } from './landmarks.js';
 import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS, OBSERVATORY } from '../physics/terrain.js';
 import { discoveriesOn } from '../physics/discoveries.js';
+import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
 
 const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36, flip: 32, ducky: 20 };
@@ -240,6 +241,9 @@ function rocks(body, group) {
   const rand = mulberry32(body.radius * 7 + def.count);
   // Lava vents, geysers, Dusty's caldera and the discoveries' landmarks (#15) stay clear.
   const hot = [...(HOT[body.id] ?? []), ...discoveriesOn(body).flatMap((d) => d.spots ?? [])];
+  // And friends' campfires (#16), by at least 8 m even on tiny Nibble.
+  const camps = friendsOn(body).map((f) => f.spot);
+  const campCos = Math.cos(Math.max(0.12, 8 / body.radius));
   const spots = [];
   for (let tries = 0; tries < 5000 && spots.length < def.count; tries++) {
     const z = rand() * 2 - 1;
@@ -251,6 +255,7 @@ function rocks(body, group) {
     const zw = z * body.radius;
     if (zw > -4 && zw < 16) continue;
     if (hot.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > Math.cos(0.12))) continue;
+    if (camps.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > campCos)) continue;
     const h = body.terrainFn.height(up.x, up.y, up.z);
     const size = def.size[0] + rand() * (def.size[1] - def.size[0]);
     spots.push({ position: up.clone().multiplyScalar(body.radius + h - 0.1), up, size });
@@ -407,7 +412,8 @@ export function createBodyVisual(body) {
       out.updates.push((time) => site.update(time));
     }
     if (ROCKS[body.id]) out.rocks = rocks(body, group);
-    // Discoveries (#15): the observatory, footprints, mirror, rover, lander, glowing cracks.
+    // Discoveries (#15): the observatory, footprints, mirror, rover, lander, glowing cracks;
+    // and Pip's friends' campfires (#16).
     out.landmarks = createLandmarks(body);
     if (out.landmarks) group.add(out.landmarks.group);
   }

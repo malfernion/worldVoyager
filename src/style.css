@@ -964,25 +964,29 @@ h1 {
   opacity: 0.45;
 }
 
-/* Discoveries (#15): tap one to hear Pip's fact, or her hint for one still to find. */
-#journal-discoveries {
+/* Discoveries (#15) and the band (#16): tap one to hear Pip's fact (or hello), or her hint for one still to find. */
+#journal-discoveries,
+#journal-band {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-#journal-discoveries .mini-sticker {
+#journal-discoveries .mini-sticker,
+#journal-band .mini-sticker {
   cursor: pointer;
 }
 
-#journal-discoveries .mini-sticker.locked span {
+#journal-discoveries .mini-sticker.locked span,
+#journal-band .mini-sticker.locked span {
   filter: none;
   opacity: 0.8;
   background: #e6dcc6;
   border-style: dashed;
 }
 
-#journal-discoveries .mini-sticker.locked span::after {
+#journal-discoveries .mini-sticker.locked span::after,
+#journal-band .mini-sticker.locked span::after {
   content: '?';
   position: absolute;
   right: -4px;
@@ -996,7 +1000,8 @@ h1 {
   line-height: 20px;
 }
 
-#journal-discoveries .mini-sticker span {
+#journal-discoveries .mini-sticker span,
+#journal-band .mini-sticker span {
   position: relative;
 }
 

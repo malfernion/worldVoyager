@@ -1,6 +1,8 @@
 // The discoveries' landmarks (#15): an old observatory, footprints and a flag, a laser mirror,
 // a sleeping rover, a little comet lander, Frosty's glowing cracks and Ember's solar flares.
 // Where they are and what finds them is src/physics/discoveries.js.
+// Also Pip's friends' campfires (#16, src/physics/friends.js), and the friends found so far
+// sitting round Homestead's campfire.
 // Cheap on purpose: each world's still parts are merged into one vertex-coloured mesh (plus its
 // ink outline, plus one un-inked mesh for flat things like footprints), all sharing one material;
 // only the few moving or glowing bits are separate.
@@ -10,6 +12,8 @@ import { toon, withOutline, glowTexture } from './materials.js';
 import { DISCOVERY_BY_ID, groundPoint, sunDirection, isNight, flareAt, flareNumber } from '../physics/discoveries.js';
 import { FROSTY_GLOWS } from '../physics/terrain.js';
 import { mulberry32 } from '../physics/noise.js';
+import { friendsOn, FRIENDS, homeCampfire } from '../physics/friends.js';
+import { buildFriend, lookOf } from './friendMesh.js';
 
 let shared = null;
 function mats() {
@@ -321,9 +325,113 @@ function flares(body, group, out) {
   });
 }
 
+// ---- Pip's friends (#16) ---------------------------------------------------------------------
+
+// A little campfire: logs and a ring of stones (merged into the world's kit), flickering flames,
+// and a big soft glow that shows on the world's face from low orbit. Returns the flicker.
+function campfire(body, kit, group, at, spin) {
+  const f = frameAt(body, at, { lift: -0.05, spin });
+  for (let i = 0; i < 5; i++) kit.add(new THREE.CylinderGeometry(0.16, 0.16, 1.5, 6), 0x5c3d24, f, { y: 0.3, rz: Math.PI / 2 - 0.5, ry: (i / 5) * Math.PI * 2 });
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    kit.add(new THREE.DodecahedronGeometry(0.28), 0x8d8a86, f, { x: Math.cos(a) * 1.05, y: 0.1, z: Math.sin(a) * 1.05 });
+  }
+  kit.solid(body, at, 1.3, 1);
+  const flames = [];
+  for (const [sz, c, y] of [[2.2, 'rgba(255,140,40,1)', 0.85], [1.4, 'rgba(255,220,120,1)', 0.65]]) {
+    const s = new THREE.Sprite(mats().glow(c, 'rgba(255,80,20,0)'));
+    s.position.copy(new THREE.Vector3(0, y, 0).applyMatrix4(f));
+    s.userData.size = sz;
+    group.add(s);
+    flames.push(s);
+  }
+  // The glow you spot from orbit: warm, soft, and big for the world's size.
+  const glow = new THREE.Sprite(mats().glow('rgba(255,150,50,1)', 'rgba(255,80,20,0)'));
+  glow.position.copy(new THREE.Vector3(0, 1.2, 0).applyMatrix4(f));
+  const big = Math.min(22, body.radius * 0.35);
+  group.add(glow);
+  return (time) => {
+    const k = 1 + Math.sin(time * 13) * 0.08 + Math.sin(time * 7.3) * 0.08;
+    flames[0].scale.set(2.2 * k, 3.1 * (2 - k), 1);
+    flames[1].scale.set(1.4 * (2 - k), 2 * k, 1);
+    glow.scale.setScalar(big * (0.95 + 0.05 * Math.sin(time * 5)));
+    glow.material.opacity = 0.7 + 0.1 * Math.sin(time * 9) * Math.sin(time * 3);
+  };
+}
+
+// Each friend's own bits by their campfire, in the campfire's frame (+z: away from the flight plane).
+const CAMP_EXTRAS = {
+  // Mossy's little tent, for naps.
+  'friend-mossy': (kit, f) => kit.add(new THREE.ConeGeometry(1.3, 1.7, 4).translate(0, 0.85, 0), 0x8fa7d9, f, { x: -1.2, z: 2.8, ry: 0.5 }),
+  // Bolt's red toolbox and a spare wheel.
+  'friend-bolt': (kit, f) => {
+    kit.add(box(0.8, 0.45, 0.45), 0xd8423a, f, { x: -1.9, z: 0.8, ry: 0.4 });
+    kit.add(new THREE.CylinderGeometry(0.45, 0.45, 0.25, 12).rotateZ(Math.PI / 2).translate(0, 0.45, 0), 0x3a3336, f, { x: -1.6, z: 2, ry: 0.9 });
+  },
+  // Crumb's tiny cushion.
+  'friend-crumb': (kit, f) => kit.add(cyl(0.45, 0.5, 0.18, 10), 0xe0a13c, f, { x: 1.6, z: 0.5 }),
+  // Toasty's comfy log, for watching the lava.
+  'friend-toasty': (kit, f) => kit.add(cyl(0.3, 0.3, 1.8, 8).rotateZ(Math.PI / 2).translate(0, 0.3, 0), 0x6b4a2e, f, { x: 1.8, z: 1.5, ry: 0.5 }),
+  // Flurry's fishing hole in the ice, with a rod.
+  'friend-flurry': (kit, f) => {
+    kit.add(cyl(0.6, 0.6, 0.04, 14), 0x1d4f7a, f, { x: -1.8, z: 1.2, ink: false });
+    kit.add(cyl(0.03, 0.03, 1.8, 5).translate(0, 0.9, 0), 0x8a5a33, f, { x: -0.9, z: 1.3, rz: 0.9 });
+  },
+};
+
+// A friend by their campfire: sitting beside it, facing back towards the flight plane (where
+// the rocket lands and the buggy comes from). Waves when the buggy comes close, and to say hello.
+function friendCamp(body, kit, group, out, fr) {
+  const spin = 0.4;
+  out.push(campfire(body, kit, group, fr.spot, spin));
+  const f = frameAt(body, fr.spot, { lift: -0.05, spin });
+  CAMP_EXTRAS[fr.id]?.(kit, f);
+  // A bit bigger than Pip, so they're easy to spot from the buggy.
+  const who = buildFriend(lookOf(fr.id), 1.6);
+  who.group.applyMatrix4(new THREE.Matrix4().multiplyMatrices(f, new THREE.Matrix4().compose(
+    new THREE.Vector3(2.6, 0, -0.4), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI + 0.4), new THREE.Vector3(1, 1, 1),
+  )));
+  group.add(who.group);
+  const spot = V(groundPoint(body, fr.spot));
+  kit.solid(body, fr.spot, 3.4, 2);
+  const p = new THREE.Vector3();
+  out.push((time, t, ctx) => {
+    const hello = ctx.hello?.id === fr.id && time - ctx.hello.time < 8;
+    let near = false;
+    if (ctx.listener?.body === body) near = p.fromArray(ctx.listener.p).distanceTo(spot) < 14;
+    who.update(time, hello || near ? 'wave' : 'play');
+  });
+}
+
+// Homestead: the friends found so far, sitting round the campfire by the launch pad and
+// playing along; bouncing about while the Full Band plays.
+function homeBand(body, group, out) {
+  const fire = homeCampfire(body);
+  const band = FRIENDS.map((fr, i) => {
+    const a = 0.25 + (i / (FRIENDS.length - 1)) * 2.6; // an arc behind the fire
+    const x = fire[0] + Math.cos(a) * 3.6, z = fire[2] - Math.sin(a) * 3.6;
+    const l = Math.hypot(x, fire[1], z);
+    const dir = { x: x / l, y: fire[1] / l, z: z / l };
+    const who = buildFriend(lookOf(fr.id), 1.3);
+    // Standing on the ground, facing the fire and the camera.
+    who.group.position.copy(V(groundPoint(body, dir, -0.05)));
+    who.group.rotation.y = Math.atan2(fire[0] - x, fire[2] + 6 - z);
+    who.group.visible = false;
+    group.add(who.group);
+    return { fr, who };
+  });
+  out.push((time, t, ctx) => {
+    for (const { fr, who } of band) {
+      who.group.visible = ctx.found(fr.id);
+      if (who.group.visible) who.update(time, ctx.party ? 'party' : 'play');
+    }
+  });
+}
+
 /**
  * The landmarks on one world, or null: { group, obstacles, update(time, t, ctx) }, where time is
- * the scene clock, t the flight time and ctx { found(id), aim }. obstacles are
+ * the scene clock, t the flight time and ctx { found(id), aim, hello: { id, time } (a friend just
+ * met), listener: { body, p } (the buggy, while driving), party (the Full Band is playing) }. obstacles are
  * [{ position, up, radius, height }] like the rocks, for the buggy to bump into.
  */
 export function createLandmarks(body) {
@@ -332,14 +440,16 @@ export function createLandmarks(body) {
   const kit = new Kit();
   const updates = [];
   switch (body.id) {
-    case 'homestead': observatory(body, kit, group, updates); break;
+    case 'homestead': observatory(body, kit, group, updates); homeBand(body, group, updates); break;
     case 'pebble': footprints(body, kit); mirror(body, kit, group, updates); break;
     case 'dusty': rover(body, kit, group, updates); break;
     case 'ducky': philae(body, kit); break;
     case 'frosty': oceanGlow(body, group, updates); break;
     case 'ember': flares(body, group, updates); break;
+    case 'nibble': case 'sizzle': break; // only a friend (#16)
     default: return null;
   }
+  for (const fr of friendsOn(body)) friendCamp(body, kit, group, updates, fr);
   kit.build(group);
   return {
     group,

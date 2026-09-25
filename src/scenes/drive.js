@@ -6,7 +6,8 @@ import { BUGGIES, DEFAULT_BUGGY, garageOf } from '../rocket/parts.js';
 import { buildBuggy } from '../rocket/buggyMesh.js';
 import { clamp, DRIVE_ZOOM } from '../ui/zoom.js';
 import { buggyFinds, discoveryTargets, nearestTarget, sunDirection } from '../physics/discoveries.js';
-import { DISCOVERY_IDS } from '../progress.js';
+import { buggyMeets, friendTargets } from '../physics/friends.js';
+import { DISCOVERY_IDS, FRIEND_IDS } from '../progress.js';
 
 const LEAVES = [0x5d8c3a, 0x7aa84a, 0x3f6b2e, 0xd08a3a];
 
@@ -379,8 +380,8 @@ export class DriveMode {
   }
 
   /**
-   * Discoveries (#15): a few times a second, is the buggy finding one? And where are the
-   * secrets still to find (for the ✨ compass)? Other kinds of target (#16) can join the list.
+   * Discoveries (#15) and friends (#16): a few times a second, is the buggy finding one? And
+   * where are the ones still to find (for the ✨ / 🎵 compass)?
    */
   seek(dt) {
     this.seekWait -= dt;
@@ -394,14 +395,28 @@ export class DriveMode {
     sunDirection(b.body, fs.flight.state.t, this.toSun);
     const id = buggyFinds(b.body, b, ctx);
     if (id) this.discovered(id);
+    // Pip's friends (#16): drive up to one to say hello; the compass points to them too (🎵).
+    const met = buggyMeets(b.body, b.p, ctx.has);
+    if (met) fs.metFriend(met);
+    if (id || met) this.sought = -10; // let Pip finish before any compass hint
     discoveryTargets(b.body, ctx, this.targets);
+    friendTargets(b.body, ctx.has, this.targets);
     this.nearest = nearestTarget(this.targets, b.p);
-    // Until the first discovery, Pip points out the sparkly compass (once a session).
-    if (this.nearest && !this.compassHinted && !DISCOVERY_IDS.some((d) => app.progress.has(d))) {
+    // Until the first discovery (or friend), Pip points out the compass (once a session each).
+    const friend = this.nearest?.target.icon === '🎵';
+    const hinted = friend ? this.notesHinted : this.compassHinted;
+    const done = friend ? FRIEND_IDS : DISCOVERY_IDS;
+    if (this.nearest && !hinted && !done.some((d) => app.progress.has(d))) {
       this.sought = (this.sought || 0) + 0.1;
       if (this.sought > 3) {
-        this.compassHinted = true;
-        app.pip('Psst! Follow the sparkles to find a secret!', { speak: true });
+        this.sought = 0;
+        if (friend) {
+          this.notesHinted = true;
+          app.pip('Listen! Can you hear music? Follow the notes!', { speak: true });
+        } else {
+          this.compassHinted = true;
+          app.pip('Psst! Follow the sparkles to find a secret!', { speak: true });
+        }
       }
     }
   }

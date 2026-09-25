@@ -9,7 +9,8 @@ import { BuilderScene } from './scenes/builder.js';
 import { FlightHud } from './ui/flightHud.js';
 import { Narrator } from './ui/narrator.js';
 import { AudioEngine } from './audio/audio.js';
-import { Progress, GOALS, STICKERS, DISCOVERY_IDS } from './progress.js';
+import { Progress, GOALS, STICKERS, DISCOVERY_IDS, BAND_IDS } from './progress.js';
+import { friendLevels, FRIEND_BY_ID } from './physics/friends.js';
 import { defaultDesign } from './rocket/parts.js';
 
 const $ = (id) => document.getElementById(id);
@@ -50,6 +51,13 @@ class App {
     this.flightScene.zoom = 2.2;
     this.show('title');
     $('loading').textContent = '';
+
+    // Pip's friends' parts in the music (#16): where we're listening from, and how loud each is.
+    this.where = { body: null, p: [0, 0, 0], ground: false, home: false, party: false, solo: null };
+    this.levels = [];
+    this.has = (id) => this.progress.has(id);
+    this.bandTimer = 0;
+    this.solo = { id: null, until: 0 };
 
     this.last = performance.now();
     this.renderer.setAnimationLoop(() => this.frame());
@@ -231,7 +239,7 @@ class App {
     const stickers = $('journal-stickers');
     stickers.innerHTML = '';
     for (const [id, st] of Object.entries(STICKERS)) {
-      if (DISCOVERY_IDS.includes(id)) continue;
+      if (DISCOVERY_IDS.includes(id) || BAND_IDS.includes(id)) continue;
       const d = document.createElement('div');
       d.className = `mini-sticker${this.progress.has(id) ? '' : ' locked'}`;
       d.innerHTML = `<span>${st.icon}</span>${this.progress.has(id) ? st.name : '?'}`;
@@ -255,6 +263,34 @@ class App {
       });
       found.appendChild(d);
     }
+    // The band (#16): Pip on banjo, then each friend (found: their sticker, and tapping one has
+    // Pip say hello again while their part plays up loud; not yet: their world and a hint),
+    // then Full Band.
+    const band = $('journal-band');
+    band.innerHTML = '';
+    const pip = document.createElement('div');
+    pip.className = 'mini-sticker';
+    pip.innerHTML = '<span>🪕</span>Pip';
+    pip.addEventListener('click', () => {
+      this.audio.play('tap');
+      this.pip('That\'s me! I play the banjo.', { speak: true });
+    });
+    band.appendChild(pip);
+    for (const id of BAND_IDS) {
+      const st = STICKERS[id];
+      const has = this.progress.has(id);
+      const world = this.system.byId[st.world];
+      const d = document.createElement('div');
+      d.className = `mini-sticker${has ? '' : ' locked'}`;
+      d.innerHTML = `<span>${has ? st.icon : world.icon}</span>${has ? st.name : world.name}`;
+      d.addEventListener('click', () => {
+        this.audio.play('tap');
+        const line = has ? st.say : st.hint;
+        this.pip(line, { speak: true, duration: Math.max(6000, line.length * 70) });
+        if (has && FRIEND_BY_ID[id]) this.solo = { id, until: performance.now() + 9000 };
+      });
+      band.appendChild(d);
+    }
     $('journal-screen').classList.remove('hidden');
   }
 
@@ -265,10 +301,32 @@ class App {
     this.builder.resize(w, h);
   }
 
+  /**
+   * A few times a second: how loud is each friend's part from where we are (#16)? In the
+   * workshop we're home at the campfire; otherwise we listen from the rocket or the buggy.
+   */
+  updateBand(dt, now) {
+    this.bandTimer -= dt;
+    if (this.bandTimer > 0) return;
+    this.bandTimer = 0.1;
+    const w = this.where;
+    if (this.screen === 'builder') {
+      w.body = null;
+      w.home = true;
+      w.party = this.flightScene.time < this.flightScene.bandUntil;
+    } else {
+      this.flightScene.listener(w);
+    }
+    w.solo = now < this.solo.until ? this.solo.id : null;
+    friendLevels(w, this.has, this.levels);
+    this.audio.setFriendLevels(this.levels);
+  }
+
   frame() {
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
+    this.updateBand(dt, now);
     if (this.screen === 'builder') {
       this.builder.update(dt);
       this.renderer.render(this.builder.scene, this.builder.camera);

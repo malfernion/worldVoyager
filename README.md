@@ -58,16 +58,27 @@ little lander hiding in the shade on Ducky. While you drive, a ✨ next to the r
 points to the nearest secret still to find on that world, and grows and twinkles as you get
 close. Finding one plays a chime, pops a sticker and Pip tells you the real fact.
 
-Collect stickers for reaching space, orbiting, landing on every world and your discoveries. Tap
-a world in the 📖 sticker book to hear a real space fact. Tap a discovery to hear its fact
-again, or a ❓ one for a hint from Pip.
+**Pip's friends, the space band:** Pip plays the banjo, and five friends are camped by little
+campfires on other worlds, each with an instrument: sleepy Mossy on Pebble (harmonica), Bolt
+the rover-mechanic on Dusty (hand drum), tiny Crumb on Nibble (thumb piano), Toasty the
+lava-watcher on Sizzle (double bass) and Flurry the ice-fisher on Frosty (whistle). Look for a
+warm glow from low orbit. On their world you can hear their instrument drifting into the
+music, getting louder and clearer as you get closer, and the compass shows a 🎵 pointing to
+them. Drive up (or land right next to them) to say hello: they wave, Pip chats, you get their
+sticker, and from then on they play along in the campfire song back home (and sit round the
+fire by the launch pad and in the workshop). Find all five, then come home to Homestead's
+ground for the **Full Band**.
+
+Collect stickers for reaching space, orbiting, landing on every world, your discoveries and the
+band. Tap a world in the 📖 sticker book to hear a real space fact. Tap a discovery to hear its
+fact again, or a ❓ one for a hint from Pip. Tap a friend in the 🎵 Band to hear them play.
 
 ## Develop
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coach-mode flights, buggy, discoveries
+npm test         # physics, autopilot missions, coach-mode flights, buggy, discoveries, friends
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```
