@@ -1,6 +1,8 @@
 // All sound is made on the fly with WebAudio: plucked banjo & guitar (Karplus-Strong),
 // a reedy harmonica, soft string pads and a little upright bass, played by a generative
 // campfire sequencer. Plus rocket rumble and cartoon sound effects.
+// The context's life (unlocking on iPad/iPhone, resuming after app switches) is in unlock.js.
+import { AudioUnlock, isAppleTouch, silentWav } from './unlock.js';
 
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -33,17 +35,40 @@ export class AudioEngine {
     this.mood = 'camp';
     this.nextMood = 'camp';
     this.plucks = new Map();
+    this.unlock = null;
   }
 
-  /** Must be called from a user gesture (tap) so browsers allow sound. */
-  start() {
-    if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
-      return;
+  /**
+   * Listen for taps anywhere: the first one starts the sound, and later ones resume it if iOS
+   * stopped it (app switch, phone call). Also pauses the sound while the page is hidden.
+   */
+  listen(doc = document, win = window, nav = navigator) {
+    let silentEl = null;
+    if (!nav.audioSession && isAppleTouch(nav) && typeof Audio !== 'undefined') {
+      // Older-iOS fallback only. Never in the DOM, no controls; paused while the page is hidden.
+      silentEl = new Audio();
+      silentEl.src = silentWav();
+      silentEl.loop = true;
+      silentEl.preload = 'auto';
+      silentEl.disableRemotePlayback = true;
+      silentEl.setAttribute('x-webkit-airplay', 'deny');
+      silentEl.setAttribute('playsinline', '');
     }
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    const ctx = (this.ctx = new AC());
+    this.unlock = new AudioUnlock({ win, nav, silentEl });
+    const tap = () => this.start();
+    // touch pointerdown doesn't count as a gesture for audio; touchend, pointerup and click do.
+    for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+      doc.addEventListener(type, tap, { capture: true, passive: true });
+    }
+    doc.addEventListener('visibilitychange', () => (doc.hidden ? this.unlock.hide() : this.unlock.show()));
+  }
+
+  /** Call from a user gesture (tap) so browsers allow sound. Cheap once running. */
+  start() {
+    if (!this.unlock) this.listen();
+    const ctx = this.unlock.gesture();
+    if (!ctx || this.ctx) return;
+    this.ctx = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = 0.9;
     const comp = ctx.createDynamicsCompressor();
@@ -80,10 +105,22 @@ export class AudioEngine {
     this.step = 0;
     this.nextTime = ctx.currentTime + 0.2;
     this.timer = setInterval(() => this.schedule(), 60);
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) ctx.suspend();
-      else ctx.resume();
-    });
+  }
+
+  /** For checking sound on a real device: `app.audio.debugState()` in the console. */
+  debugState() {
+    return this.unlock ? this.unlock.debugState() : { ctxState: 'none', listening: false };
+  }
+
+  /** A small on-screen readout of debugState() (open the game with ?audiodebug). */
+  showDebug() {
+    const el = document.createElement('pre');
+    el.style.cssText = 'position:fixed;left:4px;top:4px;z-index:9999;margin:0;padding:6px;max-width:90vw;'
+      + 'font:11px/1.3 monospace;color:#fff;background:rgba(0,0,0,.7);pointer-events:none;white-space:pre-wrap';
+    document.body.appendChild(el);
+    const draw = () => (el.textContent = JSON.stringify(this.debugState(), null, 1));
+    draw();
+    setInterval(draw, 500);
   }
 
   setMusic(on) {

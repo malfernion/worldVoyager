@@ -23,6 +23,8 @@ class App {
 
     this.progress = new Progress();
     this.audio = new AudioEngine();
+    this.audio.listen(); // the first tap anywhere starts the sound (#24)
+    if (/[?&]audiodebug/.test(location.search)) this.audio.showDebug();
     this.narrator = new Narrator(this.audio);
     this.applySettings();
 

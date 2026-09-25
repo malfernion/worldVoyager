@@ -3,6 +3,7 @@
 // clips play one after another. Anything without a recording falls back to the browser's
 // own speech so Pip never goes silent.
 import { sentencesOf, keyOf } from './speech.js';
+import { decodeAudio } from '../audio/unlock.js';
 
 const BASE = './voice/';
 const GAP = 0.12; // seconds between sentences
@@ -39,7 +40,7 @@ export class Narrator {
       const ctx = this.audio.ctx;
       const p = fetch(BASE + file)
         .then((r) => r.arrayBuffer())
-        .then((b) => ctx.decodeAudioData(b))
+        .then((b) => decodeAudio(ctx, b)) // callback form too, for older WebKit
         .catch((e) => {
           this.buffers.delete(file);
           throw e;

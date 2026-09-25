@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights, buggy, speech, zoom
+npm test             # vitest: physics, autopilot missions, coach flights, buggy, speech, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -81,6 +81,8 @@ src/scenes/            builder.js (workshop), flight.js (flight + map views), dr
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
 src/audio/audio.js     All sound is generated live: music sequencer, SFX, voice channel + music ducking
+src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): playback audio session, tap-to-resume,
+                       silent unlock buffer, older-iOS silent <audio>, promise-safe decoding, debugState()
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
 tools/voice/           Recording pipeline for Pip's voice (see below)
 test/                  vitest suites; missions.js has the shared headless flights (autopilot, pretend kid, trips, tours)
@@ -160,6 +162,23 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   the pad (🚙 with a garage), the map with the target card, the crash card and driving. The
   thumb row's sizes are CSS variables on `#flight-screen` (`--steer`, `--go`, `--tool`), so
   change sizes there and the helper row, target card and GO hint follow.
+- **Sound on iPad / iPhone (#24):** every iPad browser, Chrome included, is WebKit, and we
+  can't emulate its audio rules here, so this needs the real device. On the iPad open the game
+  with `?audiodebug` (e.g. `https://malfernion.github.io/worldVoyager/?audiodebug`): a small
+  readout in the top-left shows `app.audio.debugState()`. Or, with a Mac: iPad Settings → (Apps →)
+  Safari → Advanced → Web Inspector on (Chrome: Settings → Content Settings → Web Inspector),
+  plug in, Mac Safari → Develop → *the iPad* → the page, and run `app.audio.debugState()` in
+  the console. Check:
+  1. Before any tap: `ctxState: 'none'`. On iPadOS 16.4+ `audioSession: 'playback'`,
+     `sessionSet: true`; older: `audioSession: 'unsupported'`, `silentAudio: 'ready'`.
+  2. Tap Play: music and Pip. `ctxState: 'running'`, `unlocked: true` (older iOS:
+     `silentAudio: 'playing'`), `lastError: null`.
+  3. **Silent mode on** (Control Centre bell, or the switch on older devices): still sound.
+  4. **Switch apps and come back** (and try a Siri request or a call): the readout may show
+     `suspended` / `interrupted`; one tap anywhere must bring the sound back (`resumes` goes up).
+     Nothing should keep playing, or show a player on the lock screen, while the game is hidden.
+  5. Fly and land: sound effects, rocket rumble, and Pip's recorded voice (not the robot
+     fallback voice).
 - After deploying, GitHub Pages can serve the old version for a few minutes; hard-refresh
   (or add `?v=2`).
 
@@ -244,5 +263,14 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - The Orbit helper's "going round" burn pushes sideways against gravity; on the comet (gravity
   under 1 m/s²) it ran away and flung the rocket out, so on a comet `catchComet()` does that
   part too.
+- **iPad/iPhone audio (#24).** All iPad browsers are WebKit. It mutes Web Audio in silent mode
+  unless we ask for `navigator.audioSession.type = 'playback'` (iOS 16.4+; older iOS: a looping
+  silent `<audio>`, only started there), and it only starts or resumes a context inside a
+  tap, and a touch `pointerdown` doesn't count (use `touchend` / `pointerup` / `click`). A
+  context can also go `interrupted` (calls, Siri). So `AudioEngine.listen()` resumes on every
+  tap anywhere (`AudioUnlock.gesture()`, cheap once running), not only on some buttons, and
+  resuming from `visibilitychange` alone isn't enough. Decode clips with `decodeAudio()`: older
+  WebKit only has the callback form of `decodeAudioData`. Headless Chromium can't check any
+  of this; see "Sound on iPad / iPhone" above.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

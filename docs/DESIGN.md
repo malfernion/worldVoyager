@@ -87,7 +87,8 @@ src/world/     three.js visuals: planets, rings, atmospheres, sky, effects, thum
 src/rocket/    parts catalogue + stats, procedural rocket meshes
 src/scenes/    builder (drag & drop workshop) and flight (flight cam + map)
 src/ui/        flight HUD & gestures, narrator
-src/audio/     procedural campfire music + sound effects (WebAudio, no asset files)
+src/audio/     procedural campfire music + sound effects (WebAudio, no asset files), and the
+               iPad/iPhone unlock (first tap anywhere starts the sound, later taps resume it)
 ```
 
 Key techniques:
