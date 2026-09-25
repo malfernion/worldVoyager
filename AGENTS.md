@@ -1,0 +1,144 @@
+# AGENTS.md: working on World Voyager
+
+World Voyager is a three.js space game for **5-year-olds**: build a rocket, fly it with real
+orbital mechanics (KSP-style), explore a tiny cartoon solar system (Outer Wilds mood), drive a
+buggy on other worlds. It's mobile-first and deployed to GitHub Pages at
+https://malfernion.github.io/worldVoyager/.
+
+Read this file, then [`docs/DESIGN.md`](docs/DESIGN.md) (design, reasoning, architecture) and
+the [README](README.md) (how to play).
+
+## What to work on next
+
+1. Open the pinned **Roadmap** issue (#17, label `roadmap`): `gh issue view 17`.
+2. Take the **first unchecked item**; read it with `gh issue view <n>`.
+3. Unscheduled issues are only picked up when the owner asks.
+
+## Commands
+
+```bash
+npm install
+npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
+npm test             # vitest: physics, autopilot missions, coach flights, buggy, speech
+npm run build        # static site in dist/
+npm run voice:check  # which of Pip's sentences still need recording
+```
+
+**Pushing to `main` deploys** (`.github/workflows/deploy.yml`: test, build, GitHub Pages).
+Only push work that is tested and ready for players.
+
+## Workflow
+
+- **One issue at a time.** Each issue is one focused commit (or a small series). When
+  orchestrating sub-agents, run one at a time in a git worktree, then review, merge, test and push
+  before starting the next.
+- **Worktrees start from the pushed `main`**, so push after each merge. Agent worktrees live
+  in `.claude/` (git-ignored, excluded from vitest).
+- **Commit messages:** a summary line, a short body, then a blank line, `Closes #<n>`, then
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. The deploy then closes the issue.
+  Tick the item in the roadmap issue.
+- **Before pushing:** `npm test` green, `npm run build` succeeds, and a visual check in a
+  browser (see below). Report anything you couldn't verify.
+- Match the code style: plain ES modules, 2-space indent, single quotes, short comments that
+  say *why*, no framework, no over-engineering.
+
+## Code map
+
+```
+src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
+src/progress.js        Goals, stickers, saved design + settings (localStorage)
+src/physics/           Pure, headless, unit-tested; no three.js here
+  orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
+  bodies.js            The solar system: circular on-rails orbits, SOIs, per-world surfaces
+  terrain.js           Height + colour functions per world (shared by physics and meshes)
+  sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
+  predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
+  autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner
+  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity)
+src/world/             three.js visuals: planets, ambient (plumes/dust), trees, effects, sky, materials, thumbnails
+src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
+src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
+src/ui/                flightHud.js (controls, readouts, gestures), narrator.js (Pip's voice), speech.js (sentence splitting)
+src/audio/audio.js     All sound is generated live: music sequencer, SFX, voice channel + music ducking
+public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
+tools/voice/           Recording pipeline for Pip's voice (see below)
+test/                  vitest suites
+```
+
+## Invariants: don't break these
+
+- **Flight happens in one plane (z = 0).** Rockets, planets and orbits are 2D (patched
+  conics); the 3D is visual. Only the buggy uses full 3D, on the surface of one world, while the
+  rocket stays parked on the plane.
+- **Buggies can never reach orbit.** Speeds are capped below orbital speed so every jump
+  comes back down (the Nibble orbit secret, #5, is the one deliberate exception).
+- **The physics ground is the visible mesh.** Planet meshes come from `terrain.js`, then the
+  physics surface is rebuilt from the mesh's z = 0 slice (`surfaceFromMesh`).
+- **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map
+  focus. Never put raw world coordinates (up to ~40 km) into three.js positions.
+- **Kid-first UX.** Everything must work without reading: icons, big buttons, Pip speaks.
+  Failure is funny and cheap (rewind). Spoken lines are short and cheerful.
+- **Phones first.** Watch draw calls and triangle counts (instancing, shared materials,
+  no per-frame allocation in hot paths).
+- **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
+  imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
+  safety takeovers (`ap.driving`).
+
+## Verifying your work
+
+- **Physics, autopilot and coach:** headless vitest missions in `test/physics.test.js`.
+  `kidFlies()` simulates a late-reacting child (binary GO, 8-frame lag) following the coach
+  cues. Any coach feature should have a test like it.
+- **Visual check:** run `npm run dev` and open it in a browser. `window.app` is the debug
+  handle (`app.flightScene`, `app.builder`, `app.system`, `app.progress`).
+  **Background tabs pause `requestAnimationFrame`**, so when driving the page from a script,
+  step frames yourself:
+  ```js
+  const step = (n) => { for (let i = 0; i < n; i++) { app.last = performance.now() - 1000 / 60; app.frame(); } };
+  document.getElementById('play-btn').click(); document.getElementById('launch-btn').click();
+  app.flightScene.helper('orbit'); step(60 * 15);
+  ```
+  Useful: `app.flightScene.toggleMap()`, `.focusMapOn(app.system.byId.sizzle)`,
+  `.setTarget(body)`, `.helper('goto', { coach: true })`, `.drive.deploy()`,
+  `app.newAdventure()`. Watch the console for shader errors.
+- After deploying, GitHub Pages can serve the old version for a few minutes; hard-refresh
+  (or add `?v=2`).
+
+## Pip's voice
+
+Pip's lines are pre-recorded with **Orpheus TTS** (3B, run locally in llama.cpp), voice
+**jess**, one clip per *sentence*. `src/ui/narrator.js` splits messages into sentences
+(`src/ui/speech.js`) and plays the matching clips, falling back to browser speech for anything
+unrecorded. **Adding or changing spoken text means recording new clips.**
+
+```bash
+# One-time setup (macOS, Apple Silicon)
+brew install llama.cpp
+mkdir -p ~/models/orpheus && curl -L -o ~/models/orpheus/orpheus-3b-0.1-ft-Q8_0.gguf \
+  https://huggingface.co/unsloth/orpheus-3b-0.1-ft-GGUF/resolve/main/orpheus-3b-0.1-ft-Q8_0.gguf   # 3.5 GB
+python3 -m venv tools/voice/.venv && tools/voice/.venv/bin/pip install snac numpy   # SNAC decoder downloads on first use
+
+# Each time
+llama-server -m ~/models/orpheus/orpheus-3b-0.1-ft-Q8_0.gguf -ngl 99 -c 8192 --port 8089
+npm run voice:check                                         # lists missing sentences
+tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only what's missing
+```
+
+- Sampling uses the reference Orpheus settings (`REFERENCE` in `tools/voice/orpheus.py`:
+  top-k 50, no min-p, long repeat window). They sounded clearly better than llama.cpp's defaults.
+- `<gasp>` and `<chuckle>` tags are OK with jess but **use them sparingly** (the `PERFORMANCE`
+  map in `record.py`). No `<laugh>`.
+- Sentences come from scanning the source for spoken strings plus goals, stickers and world
+  facts (`tools/voice/lines.mjs`); world names in templates are expanded. Keep spoken text
+  in plain string literals so the scanner finds it.
+- `tools/voice/compare.py` renders side-by-side takes for auditioning voices or settings.
+- Generation runs at about a quarter of real time on an M4: roughly 10 s per sentence.
+
+## Gotchas we've hit
+
+- llama-server rejects `repeat_last_n: -1`; use a large number instead.
+- Vitest will pick up tests inside `.claude/` worktrees unless excluded (it is, in `vite.config.js`).
+- `MeshToonMaterial` ignores `flatShading` in this three.js version; build facets into geometry.
+- Line2 / LineMaterial widths are in pixels; update `resolution` on resize (flight.js does).
+- Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
+  `src/world/ambient.js` for examples).

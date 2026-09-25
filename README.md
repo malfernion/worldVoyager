@@ -45,4 +45,7 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the research, design and architecture n
 ## Backlog
 
 Planned work and ideas live in [GitHub Issues](https://github.com/malfernion/worldVoyager/issues),
-labelled `visuals`, `gameplay`, `audio`, `polish` and `devices`.
+labelled `visuals`, `gameplay`, `audio`, `polish` and `devices`. The order is in the pinned
+[Roadmap issue](https://github.com/malfernion/worldVoyager/issues/17).
+
+Working on the code (human or AI agent)? Start with [AGENTS.md](AGENTS.md).
