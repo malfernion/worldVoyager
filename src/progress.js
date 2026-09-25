@@ -81,8 +81,10 @@ export class Progress {
     return GOALS.find((g) => !this.done[g.id]) || null;
   }
 
+  /** Forget everything about this adventure (stickers, goals, saved rocket). Settings stay. */
   reset() {
     this.done = {};
+    this.design = null;
     this.save();
   }
 }

@@ -10,6 +10,7 @@ import { FlightHud } from './ui/flightHud.js';
 import { Narrator } from './ui/narrator.js';
 import { AudioEngine } from './audio/audio.js';
 import { Progress, GOALS, STICKERS } from './progress.js';
+import { defaultDesign } from './rocket/parts.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -98,11 +99,34 @@ class App {
     $('flight-settings-btn').addEventListener('click', openSettings);
     $('settings-close').addEventListener('click', () => $('settings-card').classList.add('hidden'));
     $('reset-btn').addEventListener('click', () => {
-      if (!window.confirm('Start a brand new adventure? Your stickers will be cleared.')) return;
-      this.progress.reset();
-      $('settings-card').classList.add('hidden');
-      this.updateGoalChip();
+      if (!window.confirm('Start a brand new adventure? Your rocket, stickers and progress will be cleared.')) return;
+      this.newAdventure();
     });
+  }
+
+  /** Wipe the adventure and start again from the title screen, as on the very first visit. */
+  newAdventure() {
+    this.progress.reset();
+    this.narrator.stop();
+    clearTimeout(this.pipTimer);
+    clearTimeout(this.stickerTimer);
+    for (const id of ['settings-card', 'garage-panel', 'journal-screen', 'sticker-pop', 'pip']) $(id).classList.add('hidden');
+
+    const b = this.builder;
+    b.design = defaultDesign();
+    b.pendingGarage = false;
+    b.rebuild(false);
+
+    const fs = this.flightScene;
+    fs.drive.cancel();
+    fs.autopilot.stop();
+    fs.input = { left: false, right: false, go: false };
+    fs.flight = null; // so the clock (and the planets) start from the beginning again
+    fs.start(b.design);
+    fs.setTarget(null);
+    fs.zoom = 2.2;
+    this.audio.setEngine(0);
+    this.show('title');
   }
 
   show(name) {
