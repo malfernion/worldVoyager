@@ -90,6 +90,7 @@ export class Autopilot {
   start(mode, target = null, { coach = false } = {}) {
     this.stop();
     this.coach = coach;
+    this.coachSession = coach;
     this.mode = mode;
     this.target = target;
     const programs = {
@@ -114,6 +115,7 @@ export class Autopilot {
       this.flight.targetAngle = null;
     }
     this.coach = false;
+    this.coachSession = false;
   }
 
   update(realDt) {

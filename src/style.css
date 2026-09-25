@@ -530,8 +530,8 @@ h1 {
 
 #target-card {
   position: absolute;
-  top: calc(130px + var(--safe-top));
-  right: calc(12px + var(--safe-right));
+  bottom: calc(122px + var(--safe-bottom));
+  left: calc(12px + var(--safe-left));
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1047,4 +1047,100 @@ h1 {
   #height-meter {
     height: 26vh;
   }
+}
+
+/* ---------- coaching ---------- */
+
+.coach-glow {
+  animation: coach-glow 0.7s infinite alternate;
+}
+
+@keyframes coach-glow {
+  from {
+    box-shadow: 0 5px 0 var(--ink), 0 0 0 0 rgba(255, 224, 138, 0.9);
+  }
+  to {
+    box-shadow: 0 5px 0 var(--ink), 0 0 0 12px rgba(255, 224, 138, 0);
+    background: var(--glow);
+  }
+}
+
+.go-btn.coach-glow {
+  animation: go-glow 0.6s infinite alternate;
+}
+
+@keyframes go-glow {
+  to {
+    box-shadow: 0 7px 0 var(--ink), 0 0 0 14px rgba(255, 160, 80, 0.35), 0 0 40px rgba(255, 200, 100, 0.9);
+  }
+}
+
+#go-hint {
+  position: absolute;
+  right: calc(16px + var(--safe-right));
+  bottom: calc(140px + var(--safe-bottom));
+  width: 116px;
+  text-align: center;
+  font-family: 'Rye', serif;
+  font-size: 22px;
+  color: var(--paper);
+  text-shadow: 0 3px 0 var(--ink);
+  pointer-events: none;
+}
+
+#go-hint.hold {
+  color: var(--glow);
+  animation: bob 0.5s infinite alternate;
+}
+
+#go-hint.letgo {
+  color: #ff9a8a;
+  animation: bob 0.3s infinite alternate;
+}
+
+#go-hint.wait {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+#helpers.coaching {
+  display: none;
+}
+
+.guide-arrow {
+  translate: -50% -50%;
+}
+
+.guide-arrow .ring {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 3px dashed rgba(255, 224, 138, 0.35);
+  position: relative;
+}
+
+.guide-arrow .arrow {
+  position: absolute;
+  left: 50%;
+  top: -22px;
+  translate: -50% 0;
+  width: 0;
+  height: 0;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+  border-bottom: 30px solid #ff9a5c;
+  filter: drop-shadow(0 0 4px #000);
+}
+
+.guide-arrow.aligned .arrow {
+  border-bottom-color: #7dff9a;
+}
+
+.guide-arrow.aligned .ring {
+  border-color: rgba(125, 255, 154, 0.6);
+}
+
+#target-card .small-go {
+  width: 100%;
 }

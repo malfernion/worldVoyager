@@ -29,6 +29,7 @@ export class FlightHud {
     click('rewind-btn', () => this.scene.rewind());
     click('build-btn', () => this.app.toBuilder());
     click('goto-btn', () => this.scene.helper('goto'));
+    click('coach-btn', () => this.scene.helper('goto', { coach: true }));
     click('target-close', () => this.scene.setTarget(null));
     click('zoom-in', () => (this.scene.mapZoom /= 1.6));
     click('zoom-out', () => (this.scene.mapZoom *= 1.6));
@@ -160,7 +161,33 @@ export class FlightHud {
     this.el('crash-card').classList.add('hidden');
   }
 
+  /** Coaching cues: glow the right turn button and tell them when to hold or let go. */
+  updateCoach() {
+    const s = this.scene;
+    const ap = s.autopilot;
+    const st = s.flight.state;
+    const on = ap.coachSession && !ap.driving && !s.crashed;
+    let turn = 0, hint = '';
+    if (on && ap.cmd.angle !== null && !st.landed) {
+      const d = Math.atan2(Math.sin(ap.cmd.angle - st.angle), Math.cos(ap.cmd.angle - st.angle));
+      if (Math.abs(d) > 0.12) turn = Math.sign(d);
+    }
+    if (on) {
+      if (ap.cmd.throttle > 0 && turn === 0) hint = 'HOLD!';
+      else if (ap.cmd.throttle > 0) hint = 'Turn first';
+      else if (s.input.go) hint = 'LET GO!';
+    }
+    this.el('left-btn').classList.toggle('coach-glow', turn > 0);
+    this.el('right-btn').classList.toggle('coach-glow', turn < 0);
+    this.el('go-btn').classList.toggle('coach-glow', hint === 'HOLD!');
+    const h = this.el('go-hint');
+    h.classList.toggle('hidden', !hint);
+    h.textContent = hint;
+    h.className = hint ? (hint === 'HOLD!' ? 'hold' : hint === 'LET GO!' ? 'letgo' : 'wait') : 'hidden';
+  }
+
   update(dt) {
+    this.updateCoach();
     this.timer -= dt;
     if (this.timer > 0) return;
     this.timer = 0.1;
@@ -181,8 +208,10 @@ export class FlightHud {
     this.el('map-btn').textContent = s.mode === 'map' ? '🚀' : '🗺️';
     this.el('map-tools').classList.toggle('hidden', s.mode !== 'map');
     for (const btn of document.querySelectorAll('.helper')) btn.classList.toggle('active', s.autopilot.mode === btn.dataset.helper);
-    this.el('goto-btn').classList.toggle('active', s.autopilot.mode === 'goto');
-    this.el('goto-btn').textContent = s.autopilot.mode === 'goto' ? '✋ Stop' : '✨ Take me there!';
+    const going = s.autopilot.mode === 'goto';
+    const coaching = going && s.autopilot.coachSession;
+    this.el('goto-btn').textContent = going && !coaching ? '✋ Stop' : '🤖 Fly me there';
+    this.el('coach-btn').textContent = coaching ? '✋ Stop' : '🧭 Show me how';
     const status = this.el('status-line');
     status.classList.toggle('hidden', !s.autopilot.status);
     status.textContent = s.autopilot.status ? `🤖 ${s.autopilot.status}` : '';

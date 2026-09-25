@@ -414,7 +414,7 @@ export class BuilderScene {
     if (!this.drag) this.spin += dt * 0.35;
     this.rocket.group.rotation.y = Math.sin(this.spin) * 0.6;
     const h = Math.max(4, this.rocket.height);
-    const w = window.innerWidth, hh = window.innerHeight;
+    const hh = window.innerHeight;
     const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
     const fitH = (h * 0.5 + 2.2) / tan;
     const fitW = (3.2 + 1.5) / (tan * this.camera.aspect);
@@ -424,7 +424,6 @@ export class BuilderScene {
     const sway = Math.sin(this.time * 0.2) * 0.12;
     this.camera.position.set(Math.sin(sway) * dist, h * 0.5 + dist * 0.12, Math.cos(sway) * dist);
     this.camera.lookAt(0, h * 0.5 - shift, 0);
-    void w;
     const k = 1 + Math.sin(this.time * 13) * 0.08 + Math.sin(this.time * 7.3) * 0.08;
     this.fireSprites[0].scale.set(2.6 * k, 3.6 * (2 - k), 1);
     this.fireSprites[1].scale.set(1.6 * (2 - k), 2.2 * k, 1);

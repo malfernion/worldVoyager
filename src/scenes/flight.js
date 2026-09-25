@@ -211,15 +211,15 @@ export class FlightScene {
     this.app.audio.play('rewind');
   }
 
-  helper(mode) {
+  helper(mode, { coach = false } = {}) {
     if (this.crashed) return;
-    if (this.autopilot.mode === mode) {
+    if (this.autopilot.mode === mode && this.autopilot.coachSession === coach) {
       this.autopilot.stop();
       return;
     }
     if (mode === 'goto' && !this.target) return;
     this.warpIndex = 0;
-    this.autopilot.start(mode, mode === 'goto' ? this.target : null);
+    this.autopilot.start(mode, mode === 'goto' ? this.target : null, { coach });
   }
 
   holdHelper(mode, on) {
@@ -237,7 +237,7 @@ export class FlightScene {
     this.target = body;
     this.prediction = null;
     this.app.hud.showTarget(body);
-    if (body) this.app.pip(`That's ${body.name}! Tap "Take me there" to fly there.`, { speak: true });
+    if (body) this.app.pip(`That's ${body.name}! Tap "Show me how" and I'll help you fly there.`, { speak: true });
   }
 
   // ---- events --------------------------------------------------------------
@@ -247,10 +247,9 @@ export class FlightScene {
     if (m.visiting) this.discover(m.visiting);
   }
 
-  discover(body) {
+  discover() {
     this.discoverUntil = this.time + 40;
     this.app.audio.setMood('discover');
-    void body;
   }
 
   onFlightEvent(type, d) {
@@ -352,11 +351,11 @@ export class FlightScene {
     const ap = this.autopilot;
     const s = f.state;
 
-    // Manual controls take over from the helpers.
+    // Manual controls take over from the helpers (a coach just talks, so you keep flying).
     const manualTurn = (this.input.left ? 1 : 0) - (this.input.right ? 1 : 0);
     const manual = manualTurn !== 0 || this.input.go;
-    if (manual && ap.active) ap.stop();
-    if (!ap.active) {
+    if (manual && ap.driving && !ap.coachSession) ap.stop();
+    if (!ap.driving) {
       f.turn = manualTurn;
       f.targetAngle = null;
       f.throttle = this.input.go && !this.crashed ? 1 : 0;
@@ -365,7 +364,7 @@ export class FlightScene {
       f.turn = 0;
     }
 
-    let warp = this.warp;
+    let warp = f.throttle > 0 && !ap.driving ? 1 : this.warp;
     // Slow down time before something important happens (a new world, or the ground).
     if (this.prediction && warp > 1 && !s.landed) {
       const seg = this.prediction.segments[0];
@@ -414,8 +413,8 @@ export class FlightScene {
       this.origin.y = fw.y + this.pan.y;
     }
     this.placeBodies(s.t);
-    this.placeRocket(rw, dt);
-    this.updateEffects(dt, rw);
+    this.placeRocket(rw);
+    this.updateEffects(dt);
     this.updateCamera(dt);
     this.updateLines();
     this.sky.position.copy(this.camera.position);
@@ -464,7 +463,7 @@ export class FlightScene {
     }
   }
 
-  placeRocket(rw, dt) {
+  placeRocket(rw) {
     const s = this.flight.state;
     const g = this.rocketHolder;
     g.position.set(rw.x - this.origin.x, rw.y - this.origin.y, 0);
@@ -480,10 +479,9 @@ export class FlightScene {
     });
     // In the map, the rocket shows as a marker instead.
     g.visible = !this.crashed && this.mode === 'flight';
-    void dt;
   }
 
-  updateEffects(dt, rw) {
+  updateEffects(dt) {
     const f = this.flight;
     const s = f.state;
     if (!this.crashed && f.throttle > 0) {
@@ -507,7 +505,6 @@ export class FlightScene {
     }
     this.particles.update(dt, s.t, this.origin);
     this.debris.update(dt, s.t, this.origin);
-    void rw;
   }
 
   updateCamera(dt) {
@@ -719,6 +716,22 @@ export class FlightScene {
         this.placeMarker(this.marker('burn', 'event burn', '🔥'), w.x - this.origin.x + m.x, w.y - this.origin.y + m.y);
       }
     }
+    // Coach arrow: which way to point.
+    const ap = this.autopilot;
+    if (ap.coachSession && !ap.driving && ap.cmd.angle !== null && !this.crashed && !s.landed) {
+      const rwp = this.flight.worldPos({});
+      const mid = this.mode === 'map' ? 0 : this.rocket.height / 2;
+      const c = { x: rwp.x - this.origin.x + Math.cos(s.angle) * mid, y: rwp.y - this.origin.y + Math.sin(s.angle) * mid };
+      const centre = new THREE.Vector3(c.x, c.y, 0).project(this.camera);
+      const tip = new THREE.Vector3(c.x + Math.cos(ap.cmd.angle), c.y + Math.sin(ap.cmd.angle), 0).project(this.camera);
+      const dx = (tip.x - centre.x) * window.innerWidth, dy = -(tip.y - centre.y) * window.innerHeight;
+      const el = this.marker('guide', 'guide-arrow', '<div class="ring"><div class="arrow"></div></div>');
+      const scr = this.placeMarker(el, c.x, c.y);
+      if (scr) el.firstChild.style.transform = `rotate(${Math.atan2(dx, -dy)}rad)`;
+      const d = Math.atan2(Math.sin(ap.cmd.angle - s.angle), Math.cos(ap.cmd.angle - s.angle));
+      el.classList.toggle('aligned', Math.abs(d) < 0.3);
+    }
+
     // Rocket icon: always in the map; in flight when the rocket is too small to see.
     const rw = this.flight.worldPos({});
     const rel = { x: rw.x - this.origin.x, y: rw.y - this.origin.y };
