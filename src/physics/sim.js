@@ -5,6 +5,39 @@ import { LAUNCH_ANGLE } from './bodies.js';
 
 const MAX_STEP_DIST = 15;
 const THRUST_STEP = 1 / 120;
+// Nothing real gets this far from the body it's orbiting (the whole system is ~40 km).
+const MAX_RADIUS = 1e7;
+
+/** Coasting conserves orbital energy; a propagation that doesn't is a numerical blow-up (#30). */
+function keplerOk(mu, a, b) {
+  if (!(Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy))) return false;
+  const ra = Math.hypot(a.x, a.y), rb = Math.hypot(b.x, b.y);
+  const va2 = a.vx * a.vx + a.vy * a.vy, vb2 = b.vx * b.vx + b.vy * b.vy;
+  const drift = Math.abs(vb2 / 2 - mu / rb - (va2 / 2 - mu / ra));
+  return drift <= 1e-3 * (va2 + vb2 + mu / ra + mu / rb);
+}
+
+/** Plain leapfrog under point gravity: slow but can't blow up; the fallback when Kepler fails. */
+export function leapfrog(mu, a, h, out = {}) {
+  const n = Math.min(4000, Math.max(8, Math.ceil(Math.abs(h) / 0.002)));
+  const dt = h / n;
+  let { x, y, vx, vy } = a;
+  let r3 = Math.hypot(x, y) ** 3;
+  vx -= (mu * x / r3) * dt / 2; vy -= (mu * y / r3) * dt / 2;
+  for (let i = 0; i < n; i++) {
+    x += vx * dt; y += vy * dt;
+    r3 = Math.hypot(x, y) ** 3;
+    const k = i === n - 1 ? dt / 2 : dt;
+    vx -= (mu * x / r3) * k; vy -= (mu * y / r3) * k;
+  }
+  out.x = x; out.y = y; out.vx = vx; out.vy = vy;
+  return out;
+}
+
+function stateOk(s) {
+  return Number.isFinite(s.x) && Number.isFinite(s.y) && Number.isFinite(s.vx) && Number.isFinite(s.vy)
+    && Number.isFinite(s.t) && Math.hypot(s.x, s.y) < MAX_RADIUS;
+}
 
 export class Flight {
   constructor(system, stats) {
@@ -15,6 +48,7 @@ export class Flight {
     this.turn = 0; // -1..1 manual turn input
     this.targetAngle = null; // autopilot steering target (world angle), or null
     this.dvUsed = 0; // total speed change from the engine, used by the helpers
+    this.lastGood = {}; // state before the current substep, to fall back to (#30)
     this.resetToPad(0);
   }
 
@@ -118,7 +152,12 @@ export class Flight {
       if (this.throttle > 0) h = Math.min(h, THRUST_STEP);
       if (speed > 0) h = Math.min(h, MAX_STEP_DIST / speed);
       h = Math.max(h, 1e-4);
-      this.substep(h);
+      // Never commit a broken state: keep the last good one and skip the rest of this frame.
+      Object.assign(this.lastGood, s);
+      if (!this.substep(h) || !stateOk(s)) {
+        Object.assign(s, this.lastGood);
+        return;
+      }
       remaining -= h;
     }
   }
@@ -142,7 +181,11 @@ export class Flight {
     const ax = a * Math.cos(s.angle);
     const ay = a * Math.sin(s.angle);
     const start = { x: s.x, y: s.y, vx: s.vx + ax * h * 0.5, vy: s.vy + ay * h * 0.5 };
-    const out = propagate(mu, start.x, start.y, start.vx, start.vy, h);
+    let out = propagate(mu, start.x, start.y, start.vx, start.vy, h);
+    // Should never happen since #30, but if Kepler breaks, integrate this bit by hand so the
+    // rocket keeps flying instead of freezing.
+    if (!keplerOk(mu, start, out)) out = leapfrog(mu, start, h, out);
+    if (!keplerOk(mu, start, out)) return false;
     out.vx += ax * h * 0.5;
     out.vy += ay * h * 0.5;
     s.x = out.x; s.y = out.y; s.vx = out.vx; s.vy = out.vy;
@@ -167,10 +210,11 @@ export class Flight {
         s.t += hi - h;
         s.x = tmp.x; s.y = tmp.y; s.vx = tmp.vx; s.vy = tmp.vy;
         this.touchdown();
-        return;
+        return true;
       }
     }
     this.checkSoi();
+    return true;
   }
 
   touchdown() {

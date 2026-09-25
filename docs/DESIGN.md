@@ -40,7 +40,10 @@ borrow the vibe, not the content: all names, worlds and music are original.
 1. **Real physics, kid-sized.** Orbits are computed exactly: Kepler motion via universal
    variables, with SOI hand-offs. Distances are compressed (Homestead has a 300 m radius, low
    orbit takes about 45 s, a trip to Ringo about 20 minutes of game time) and time warp covers
-   the waits.
+   the waits. The Kepler solver keeps its root bracketed so it can't run away, and each flight
+   substep is checked (finite, energy kept while coasting) before it is committed; a bad one
+   is redone with a small hand integrator, or else falls back to the last good state, rather
+   than flinging the rocket off (#30).
 2. **You fly it; Pip helps as much as you want.** There are three levels of help:
    - *Manual:* ⟲ ⟳ to aim, hold **GO** to burn, map, time warp, rewind.
    Coach or autopilot is one remembered choice, the 🧭 switch on the flight HUD

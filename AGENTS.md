@@ -111,6 +111,11 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
   multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range
   depends only on the focused world and the screen, never on `fitMap()`'s default view.
+- **The sim never commits a broken state** (#30). `Flight.step()` checks every substep
+  (finite numbers, coasting keeps its orbital energy, not absurdly far away). If Kepler
+  propagation fails the check, that substep is integrated by hand (`leapfrog()`) so the rocket
+  keeps flying; only if that fails too does it keep the last good state. It should never fire;
+  if it does, fix the cause in `orbit.js`.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).
@@ -198,6 +203,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   prediction is still right (it's an impact). `segmentPoints()` samples near-radial segments
   (`nearRadial()`: p < 0.1 × start radius) in time with `propagate()`, and the ▲ marker uses
   `radialApex()`. Use those rather than conic geometry for anything that can be vertical (#19).
+- `propagate()`'s hyperbolic starting guess (a log formula meant for long hops) comes out with
+  the **wrong sign for short steps** on near-radial escape paths, e.g. blasting straight up off
+  tiny Nibble faster than its escape speed. The unguarded solver then ran off to a huge chi where
+  sinh/cosh explode: the rocket landed at ~1e33 km (#30). The iteration now keeps the root
+  bracketed (F rises with chi, F(0) = -sqrt(mu)·dt) and bisects when a step leaves the bracket.
 - `src/style.css` has several `@media` blocks for small screens, and a plain rule further down
   the file beats an earlier media rule of the same specificity (the landscape `#vel-dial` fix
   silently did nothing for a while). HUD overrides for small screens go in the last section of

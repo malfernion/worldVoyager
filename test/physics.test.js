@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { propagate, elements, anomalyOf, pointAt } from '../src/physics/orbit.js';
 import { createSystem } from '../src/physics/bodies.js';
-import { Flight } from '../src/physics/sim.js';
+import { Flight, leapfrog } from '../src/physics/sim.js';
 import { predict, segmentPoints, nearRadial, radialApex } from '../src/physics/predict.js';
 import { inStableOrbit, nextHop } from '../src/physics/autopilot.js';
 import { mission, kidFlies } from './missions.js';
@@ -81,6 +81,66 @@ describe('Flight', () => {
     expect(events.map((e) => e.type)).toContain('crash');
   });
 
+});
+
+describe('launching straight up from Nibble (#30)', () => {
+  const stats = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
+
+  it('propagates a short hop on a near-radial escape path', () => {
+    // Blasting up off tiny Nibble: already faster than escape speed, almost no sideways speed.
+    // The hyperbolic starting guess came out negative here and the solver ran off to ~1e33.
+    const mu = 810;
+    const s = { x: 53.646990604999935, y: 0, vx: 8.09986217405996, vy: -0.0014434105630828289 };
+    for (const dt of [1 / 120, 0.25, 1.9218821012702823, 30]) {
+      const a = propagate(mu, s.x, s.y, s.vx, s.vy, dt);
+      const b = rk4(mu, s, dt, 20000);
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(0.01);
+      expect(Math.hypot(a.vx - b.vx, a.vy - b.vy)).toBeLessThan(0.001);
+    }
+  });
+
+  it('flies up and away without being flung out of the solar system', () => {
+    const sys = createSystem();
+    const f = new Flight(sys, stats);
+    const nibble = sys.byId.nibble;
+    const up = Math.PI / 2;
+    f.state = { body: nibble, x: 0, y: 0, vx: 0, vy: 0, angle: up, t: 0, landed: true, landAngle: up, crashed: false, flightTime: 0 };
+    f.placeOnSurface();
+    f.throttle = 1;
+    const w = {};
+    for (let i = 0; i < 400; i++) {
+      if (i === 60) f.throttle = 0;
+      f.step(1 / 60, 1);
+      f.worldPos(w);
+      expect(Math.hypot(w.x, w.y)).toBeLessThan(40000);
+    }
+    expect(f.state.crashed).toBe(false);
+  });
+
+  it('has a hand-integrated fallback that agrees with Kepler', () => {
+    // Used if propagate() ever fails its energy check, so the rocket keeps flying.
+    const mu = 810;
+    for (const st of [{ x: 53.646990604999935, y: 0, vx: 8.09986217405996, vy: -0.0014434105630828289 },
+      { x: 60, y: 10, vx: -1, vy: 3.5 }]) {
+      for (const dt of [1 / 120, 0.25]) {
+        const a = leapfrog(mu, st, dt);
+        const b = propagate(mu, st.x, st.y, st.vx, st.vy, dt);
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(1e-4);
+        expect(Math.hypot(a.vx - b.vx, a.vy - b.vy)).toBeLessThan(1e-4);
+      }
+    }
+  });
+
+  it('keeps the last good state if a step would break', () => {
+    const sys = createSystem();
+    const f = new Flight(sys, stats);
+    f.throttle = 1;
+    for (let i = 0; i < 60; i++) f.step(1 / 60, 1);
+    const before = { ...f.state };
+    f.substep = function () { this.state.x = NaN; return true; };
+    f.step(1 / 60, 1);
+    expect(f.state).toEqual(before);
+  });
 });
 
 describe('predict', () => {

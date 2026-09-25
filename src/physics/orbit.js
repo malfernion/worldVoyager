@@ -48,6 +48,8 @@ export function propagate(mu, x, y, vx, vy, dt, out = {}) {
   if (alpha > 1e-12) {
     chi = sqmu * alpha * dt;
   } else if (alpha < -1e-12) {
+    // This log guess is only good for long hops; for short ones it can come out with the
+    // wrong sign (checked against the bracket below).
     const a = 1 / alpha;
     const s = Math.sign(dt);
     const arg = (-2 * mu * alpha * dt) / (rv + s * Math.sqrt(-mu * a) * (1 - r0 * alpha));
@@ -56,23 +58,44 @@ export function propagate(mu, x, y, vx, vy, dt, out = {}) {
     chi = sqmu * dt / r0;
   }
 
-  // Laguerre iteration (robust for all conic types).
+  // F(chi) (time-of-flight error) rises steadily with chi (dF = r > 0) and F(0) = -sqrt(mu) dt,
+  // so the root lies on dt's side of 0. Keep it bracketed: an unguarded Laguerre step on a
+  // near-radial hyperbola (a rocket blasting straight up off a tiny moon) could run off to a
+  // huge chi where sinh/cosh explode, flinging the rocket to ~1e33 (#30).
+  let lo = dt > 0 ? 0 : -Infinity;
+  let hi = dt > 0 ? Infinity : 0;
+  if (!(chi > lo && chi < hi)) chi = sqmu * dt / r0;
+  // Laguerre iteration (robust for all conic types), falling back to bisection / doubling.
   const c1 = rv / sqmu;
   const c2 = 1 - alpha * r0;
   let C = 0.5, S = 1 / 6, z = 0;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 100; i++) {
     z = alpha * chi * chi;
     C = stumpC(z);
     S = stumpS(z);
     const F = c1 * chi * chi * C + c2 * chi * chi * chi * S + r0 * chi - sqmu * dt;
-    const dF = c1 * chi * (1 - z * S) + c2 * chi * chi * C + r0;
-    const ddF = c1 * (1 - z * C) + c2 * chi * (1 - z * S);
-    const n = 5;
-    const disc = Math.sqrt(Math.abs((n - 1) * (n - 1) * dF * dF - n * (n - 1) * F * ddF));
-    const denom = dF + Math.sign(dF || 1) * disc;
-    const delta = denom !== 0 ? (n * F) / denom : F / dF;
-    chi -= delta;
-    if (Math.abs(delta) < 1e-9 * Math.max(1, Math.abs(chi))) break;
+    // Overflow only happens far from the root, on chi's own side of it.
+    if (!Number.isFinite(F) ? chi > 0 : F > 0) hi = chi; else lo = chi;
+    let next = NaN;
+    if (Number.isFinite(F)) {
+      const dF = c1 * chi * (1 - z * S) + c2 * chi * chi * C + r0;
+      const ddF = c1 * (1 - z * C) + c2 * chi * (1 - z * S);
+      const n = 5;
+      const disc = Math.sqrt(Math.abs((n - 1) * (n - 1) * dF * dF - n * (n - 1) * F * ddF));
+      const denom = dF + Math.sign(dF || 1) * disc;
+      next = chi - (denom !== 0 ? (n * F) / denom : F / dF);
+    }
+    const tol = 1e-9 * Math.max(1, Math.abs(chi));
+    if (Math.abs(next - chi) < tol) {
+      chi = next;
+      break;
+    }
+    if (!(next > lo && next < hi)) {
+      if (Number.isFinite(lo) && Number.isFinite(hi)) next = (lo + hi) / 2;
+      else next = Number.isFinite(hi) ? hi - 2 * Math.max(1, Math.abs(hi)) : lo + 2 * Math.max(1, Math.abs(lo));
+    }
+    chi = next;
+    if (hi - lo < tol) break;
   }
   z = alpha * chi * chi;
   C = stumpC(z);
