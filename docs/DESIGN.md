@@ -95,6 +95,22 @@ Key techniques:
 9. Procedural music + SFX ✅
 10. GitHub Pages CI ✅
 
+## Buggies
+
+A **Garage** section holds one buggy. You choose its type and colour in the workshop:
+Rover (easy), Monster Truck (big bouncy wheels, climbs), or Hopper (light, can jump).
+After landing on solid ground, 🚙 Drive rolls it down a ramp.
+
+- **Driving is fully 3D over the globe** (`src/physics/buggy.js`). It's arcade car physics:
+  real radial gravity, ground normals taken from the same terrain functions as the planet
+  mesh, tyre grip (less on icy Frosty), slower in Homestead's water, and bumping around the
+  parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
+- **Never orbit.** Top speed is capped at 70% of the world's orbit speed, and airborne
+  speed at 75% of local circular speed, so every jump comes back down. The rocket stays
+  parked on its flight plane the whole time, so driving never disturbs the flight model.
+- **Getting home.** 🏠 drives back into the garage when close, or whisks you back with
+  sparkles when far. A HUD compass always points to the rocket.
+
 ## Ideas for later
 
 - Coach mode for landing (point up, pulse GO) and a "free burn" tutorial for the gravity turn.

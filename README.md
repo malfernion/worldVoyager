@@ -16,7 +16,12 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   - **🧭 Show me how:** Pip tells you when to turn and when to burn. You fly!
   - **🤖 Fly me there:** Pip flies, you watch.
 - **Helpers:** 🌀 Orbit, ⏫ Faster / ⏬ Slower (hold), 🛬 Land.
-- **Keyboard:** ←/→ or A/D turn, Space/↑/W fire, M map, `.`/`,` warp, R rewind, O orbit, L land.
+- **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
+  its colour). After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
+  compass points back to your rocket, and 🏠 takes you home.
+- **Keyboard:** ←/→ or A/D turn, Space/↑/W fire, M map, `.`/`,` warp, `/` normal speed,
+  R rewind, O orbit, L land, B buggy out / home. When driving: ↑/W go, ↓/S reverse,
+  Space jump (Hopper).
 
 Collect stickers for reaching space, orbiting, and landing on every world. Tap a world in the 📖
 sticker book to hear a real space fact.

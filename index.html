@@ -80,13 +80,21 @@
           <span>🌌</span>
         </div>
         <div id="goal-banner" class="chip"></div>
+        <div id="home-compass" class="chip hidden"><span class="arrow">⬆</span><span>🚀</span><b id="home-dist"></b></div>
         <div id="status-line" class="chip hidden"></div>
 
         <div id="helpers">
+          <button id="drive-btn" class="btn helper drive hidden" aria-label="Drive the buggy">🚙<small>Drive</small></button>
           <button class="btn helper" data-helper="orbit" aria-label="Orbit helper">🌀<small>Orbit</small></button>
           <button class="btn helper hold" data-helper="faster" aria-label="Go faster">⏫<small>Faster</small></button>
           <button class="btn helper hold" data-helper="slower" aria-label="Slow down">⏬<small>Slower</small></button>
           <button class="btn helper" data-helper="land" aria-label="Land">🛬<small>Land</small></button>
+        </div>
+
+        <div id="drive-tools">
+          <button id="jump-btn" class="btn helper" aria-label="Jump">⤴️<small>Jump</small></button>
+          <button id="reverse-btn" class="btn helper" aria-label="Reverse">⏬<small>Back up</small></button>
+          <button id="home-btn" class="btn helper" aria-label="Back to the rocket">🏠<small>Rocket</small></button>
         </div>
 
         <div id="steer">
@@ -129,6 +137,13 @@
           <div id="journal-stickers"></div>
         </div>
       </section>
+
+      <div id="garage-panel" class="panel hidden">
+        <h2>Choose your buggy</h2>
+        <div id="buggy-choices"></div>
+        <div id="buggy-colors"></div>
+        <button id="garage-done" class="btn go">Done</button>
+      </div>
 
       <div id="settings-card" class="panel hidden">
         <h2>Settings</h2>

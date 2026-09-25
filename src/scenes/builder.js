@@ -1,9 +1,9 @@
 // The campfire workshop: drag (or just tap) parts to build a rocket, tap parts to paint
 // them, drag them off to throw them away.
 import * as THREE from 'three';
-import { PARTS, PAINTS, TRAY_ORDER, HOLDS_RADIAL, defaultDesign, randomDesign, rocketStats } from '../rocket/parts.js';
+import { PARTS, PAINTS, TRAY_ORDER, HOLDS_RADIAL, BUGGIES, DEFAULT_BUGGY, defaultDesign, randomDesign, rocketStats, garageOf } from '../rocket/parts.js';
 import { buildRocket, partIndexOf } from '../rocket/rocketMesh.js';
-import { partThumb } from '../world/thumbs.js';
+import { partThumb, buggyThumb } from '../world/thumbs.js';
 import { createSky } from '../world/sky.js';
 import { toon, glowTexture, woodTexture, withOutline } from '../world/materials.js';
 import { mulberry32 } from '../physics/noise.js';
@@ -161,6 +161,10 @@ export class BuilderScene {
       this.rebuild();
       this.app.pip('A fresh start! Drag or tap parts to build.', { speak: true });
     });
+    $('garage-done').addEventListener('click', () => {
+      this.app.audio.play('tap');
+      $('garage-panel').classList.add('hidden');
+    });
     $('launch-btn').addEventListener('click', () => {
       const stats = rocketStats(this.design);
       if (!stats.canFly) {
@@ -217,6 +221,14 @@ export class BuilderScene {
       return true;
     }
     const part = { type, paint };
+    if (def.garage) {
+      if (garageOf(this.design)) {
+        this.app.pip('One garage is plenty! Tap it to pick your buggy.', { speak: true });
+        return false;
+      }
+      part.buggy = { ...DEFAULT_BUGGY };
+      this.pendingGarage = true;
+    }
     const firstEngine = stack.findIndex((p) => PARTS[p.type].thrust);
     if (type === 'nose') stack.unshift(part);
     else if (def.crew) stack.splice(stack[0]?.type === 'nose' ? 1 : 0, 0, part);
@@ -251,6 +263,7 @@ export class BuilderScene {
         if (this.autoPlace(type)) {
           this.app.audio.play('snap');
           this.rebuild();
+          this.maybeOpenGarage();
         } else {
           this.app.audio.play('boing');
         }
@@ -283,7 +296,7 @@ export class BuilderScene {
         delete part.radial;
       } else {
         this.design.stack.splice(hit.index, 1);
-        item = { type: part.type, paint: part.paint, radial: false, carried: part.radial, thumb: PARTS[part.type].thumb };
+        item = { type: part.type, paint: part.paint, radial: false, carried: part.radial, buggy: part.buggy, thumb: PARTS[part.type].thumb };
       }
       this.app.audio.play('grab');
       this.rebuild(false);
@@ -292,8 +305,13 @@ export class BuilderScene {
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      // A tap paints the part a new colour.
+      // A tap paints the part a new colour (or opens the garage).
       const part = this.design.stack[hit.index];
+      if (!hit.radial && part.type === 'garage') {
+        this.app.audio.play('tap');
+        this.openGarage();
+        return;
+      }
       const target = hit.radial ? part.radial : part;
       const i = PAINTS.findIndex((p) => p.id === target.paint);
       target.paint = PAINTS[(i + 1) % PAINTS.length].id;
@@ -317,6 +335,55 @@ export class BuilderScene {
       return { index, radial };
     }
     return null;
+  }
+
+  /** Pick the buggy that lives in the garage: type and colour. */
+  openGarage() {
+    const g = garageOf(this.design);
+    if (!g) return;
+    g.buggy = g.buggy || { ...DEFAULT_BUGGY };
+    const choices = document.getElementById('buggy-choices');
+    const colors = document.getElementById('buggy-colors');
+    const render = () => {
+      choices.innerHTML = '';
+      for (const [kind, def] of Object.entries(BUGGIES)) {
+        const card = document.createElement('button');
+        card.className = `buggy-card${g.buggy.kind === kind ? ' chosen' : ''}`;
+        card.innerHTML = `<img src="${buggyThumb(kind, g.buggy.paint)}" alt=""><b>${def.name}</b>`;
+        card.addEventListener('click', () => {
+          g.buggy.kind = kind;
+          this.app.audio.play('snap');
+          const lines = { rover: 'The Rover! Nice and easy to drive.', truck: 'The Monster Truck! Big bouncy wheels that climb anything.', hopper: 'The Hopper! It can jump!' };
+          this.app.pip(lines[kind], { speak: true });
+          this.rebuild();
+          render();
+        });
+        choices.appendChild(card);
+      }
+      colors.innerHTML = '';
+      for (const p of PAINTS) {
+        const sw = document.createElement('button');
+        sw.className = `swatch${g.buggy.paint === p.id ? ' chosen' : ''}`;
+        sw.style.background = `#${p.hex.toString(16).padStart(6, '0')}`;
+        sw.setAttribute('aria-label', p.id);
+        sw.addEventListener('click', () => {
+          g.buggy.paint = p.id;
+          this.app.audio.play('paint');
+          this.rebuild();
+          render();
+        });
+        colors.appendChild(sw);
+      }
+    };
+    render();
+    document.getElementById('garage-panel').classList.remove('hidden');
+  }
+
+  maybeOpenGarage() {
+    if (!this.pendingGarage) return;
+    this.pendingGarage = false;
+    this.app.pip('A garage! Pick a buggy to drive around on other worlds.', { speak: true });
+    this.openGarage();
   }
 
   startDrag(item, ev) {
@@ -415,10 +482,21 @@ export class BuilderScene {
     } else {
       const part = { type: it.type, paint: it.paint };
       if (it.carried && HOLDS_RADIAL.has(it.type)) part.radial = it.carried;
+      if (PARTS[it.type].garage) {
+        if (garageOf(this.design)) {
+          this.app.pip('One garage is plenty! Tap it to pick your buggy.', { speak: true });
+          this.app.audio.play('boing');
+          this.rebuild();
+          return;
+        }
+        part.buggy = it.buggy || { ...DEFAULT_BUGGY };
+        if (!it.buggy) this.pendingGarage = true;
+      }
       this.design.stack.splice(d.drop.index, 0, part);
     }
     this.app.audio.play('snap');
     this.rebuild();
+    this.maybeOpenGarage();
   }
 
   // ---- frame -------------------------------------------------------------

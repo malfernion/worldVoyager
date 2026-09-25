@@ -1282,7 +1282,8 @@ h1 {
     justify-content: center;
   }
 
-  #flight-screen #goal-banner {
+  #flight-screen #goal-banner,
+  #home-compass {
     top: calc(118px + var(--safe-top));
   }
 
@@ -1320,5 +1321,160 @@ h1 {
     width: 34px;
     height: 34px;
     font-size: 14px;
+  }
+}
+
+/* ---------- garage ---------- */
+
+#garage-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 24px));
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  pointer-events: auto;
+  z-index: 40;
+}
+
+#garage-panel h2 {
+  margin: 0;
+  font-family: 'Rye', serif;
+  font-weight: 400;
+}
+
+#buggy-choices {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.buggy-card {
+  flex: 1;
+  max-width: 130px;
+  font-family: inherit;
+  background: #fff8e8;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  padding: 6px 4px 8px;
+  cursor: pointer;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.buggy-card img {
+  width: 100%;
+  max-width: 110px;
+  aspect-ratio: 1;
+}
+
+.buggy-card.chosen {
+  background: var(--glow);
+  box-shadow: 0 0 0 4px rgba(255, 224, 138, 0.6);
+}
+
+#buggy-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.swatch {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  cursor: pointer;
+}
+
+.swatch.chosen {
+  box-shadow: 0 0 0 4px var(--glow);
+  transform: scale(1.1);
+}
+
+/* ---------- driving ---------- */
+
+#drive-tools {
+  position: absolute;
+  right: calc(16px + var(--safe-right));
+  bottom: calc(150px + var(--safe-bottom));
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#flight-screen.driving #drive-tools {
+  display: flex;
+}
+
+#flight-screen.driving #helpers,
+#flight-screen.driving #speed,
+#flight-screen.driving #rewind-btn,
+#flight-screen.driving #map-btn,
+#flight-screen.driving #height-meter,
+#flight-screen.driving #vel-dial,
+#flight-screen.driving #target-card,
+#flight-screen.driving #status-line {
+  display: none !important;
+}
+
+.btn.helper.drive {
+  background: var(--glow);
+  animation: pulse 1.2s infinite;
+}
+
+.home-pin {
+  translate: -50% -50%;
+  font-size: 30px;
+  filter: drop-shadow(0 0 6px rgba(255, 224, 138, 0.9));
+  animation: bob 0.9s infinite alternate;
+}
+
+#home-compass {
+  position: absolute;
+  top: calc(124px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+  pointer-events: none;
+}
+
+#home-compass .arrow {
+  display: inline-block;
+  color: var(--glow);
+  font-size: 22px;
+  transition: transform 0.1s linear;
+}
+
+#flight-screen.driving #goal-banner {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  #drive-tools {
+    right: calc(20px + var(--safe-right));
+    bottom: calc(132px + var(--safe-bottom));
+    gap: 8px;
+  }
+}
+
+@media (max-height: 500px) {
+  #drive-tools {
+    flex-direction: row;
+    right: calc(140px + var(--safe-right));
+    bottom: calc(18px + var(--safe-bottom));
   }
 }

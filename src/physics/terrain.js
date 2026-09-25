@@ -55,6 +55,7 @@ function makeHome() {
     return n * 20 + m + 3;
   };
   return {
+    sea,
     height(x, y, z) {
       let h = raw(x, y, z);
       const d = Math.acos(Math.min(1, x * LAUNCH_DIR.x + y * LAUNCH_DIR.y + z * LAUNCH_DIR.z));

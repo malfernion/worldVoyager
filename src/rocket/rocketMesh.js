@@ -108,6 +108,36 @@ const builders = {
     g.add(s);
     return g;
   },
+  garage(p) {
+    const g = new THREE.Group();
+    const h = PARTS.garage.height;
+    const c = mesh(new THREE.CylinderGeometry(1, 1, h, 28), paintMat(p.paint));
+    c.position.y = h / 2;
+    g.add(c, stripe(0.2, 1.0, matCache.get('_dark')), stripe(h - 0.2, 1.0, matCache.get('_dark')));
+    // A roll-up door facing the camera, with a ramp folded up behind it.
+    const frame = mesh(new THREE.BoxGeometry(1.5, 1.55, 0.16), matCache.get('_dark'));
+    frame.position.set(0, 1.1, 0.93);
+    g.add(frame);
+    const door = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.24, 0.08), matCache.get(i % 2 ? '_brass' : '_metal'));
+      slat.position.y = 0.45 + i * 0.27;
+      door.add(slat);
+    }
+    door.position.set(0, 0, 1.03);
+    door.userData.door = true;
+    g.add(door);
+    const ramp = new THREE.Group();
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 1.6), matCache.get('_metal'));
+    plank.position.set(0, 0, 0.8);
+    ramp.add(plank);
+    ramp.position.set(0, 0.35, 1.02);
+    ramp.rotation.x = -Math.PI / 2;
+    ramp.visible = false;
+    ramp.userData.ramp = true;
+    g.add(ramp);
+    return g;
+  },
   engine(p) {
     return engineGroup(p, 1);
   },

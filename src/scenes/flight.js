@@ -12,6 +12,7 @@ import { buildRocket } from '../rocket/rocketMesh.js';
 import { rocketStats } from '../rocket/parts.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
+import { DriveMode } from './drive.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
@@ -72,6 +73,7 @@ export class FlightScene {
     }
     this.ghosts = new Map();
 
+    this.drive = new DriveMode(this);
     this.labels = document.getElementById('labels');
     this.markers = new Map();
   }
@@ -106,6 +108,7 @@ export class FlightScene {
     this.flight.on((type, d) => this.onFlightEvent(type, d));
     this.autopilot = new Autopilot(this.flight);
     this.autopilot.on((m) => this.onPilotMessage(m));
+    this.drive?.cancel();
     this.buildRocketMesh();
     this.snapshots = [];
     this.warpIndex = 0;
@@ -134,6 +137,7 @@ export class FlightScene {
   }
 
   resetToPad() {
+    this.drive.cancel();
     this.autopilot.stop();
     this.flight.resetToPad();
     this.crashed = false;
@@ -148,6 +152,7 @@ export class FlightScene {
   // ---- actions (called by the HUD) ---------------------------------------
 
   toggleMap() {
+    if (this.mode === 'drive') return;
     this.mode = this.mode === 'map' ? 'flight' : 'map';
     if (this.mode === 'map') {
       this.mapFocus = this.flight.state.body;
@@ -225,6 +230,7 @@ export class FlightScene {
   }
 
   rewind() {
+    if (this.mode === 'drive') return;
     if (this.snapshots.length < 2) {
       this.resetToPad();
       return;
@@ -385,6 +391,11 @@ export class FlightScene {
     const ap = this.autopilot;
     const s = f.state;
 
+    if (this.mode === 'drive' || this.drive.active) {
+      this.updateDriving(dt);
+      return;
+    }
+
     // Manual controls take over from the helpers (a coach just talks, so you keep flying).
     const manualTurn = (this.input.left ? 1 : 0) - (this.input.right ? 1 : 0);
     const manual = manualTurn !== 0 || this.input.go;
@@ -458,6 +469,34 @@ export class FlightScene {
     this.app.audio.setEngine(this.crashed ? 0 : f.throttle);
   }
 
+  /** Buggy time: the rocket waits on the pad while we drive around. */
+  updateDriving(dt) {
+    const f = this.flight;
+    const s = f.state;
+    f.throttle = 0;
+    f.turn = 0;
+    f.targetAngle = null;
+    f.step(dt, 1);
+    this.prediction = null;
+    this.drive.update(dt, this.input);
+    if (!this.drive.active) return; // just parked
+    this.origin.x = this.drive.world.x;
+    this.origin.y = this.drive.world.y;
+    this.drive.place(this.input);
+    this.placeBodies(s.t);
+    this.placeRocket(f.worldPos(this.tmp));
+    this.particles.update(dt, s.t, this.origin);
+    this.drive.updateCamera(dt, this.camera);
+    this.camera.far = 3e6;
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld();
+    this.updateLines();
+    this.sky.position.copy(this.camera.position);
+    this.updateAtmospheres();
+    this.updateMarkers();
+    this.updateMood();
+  }
+
   checkGoals() {
     const f = this.flight;
     const s = f.state;
@@ -513,7 +552,7 @@ export class FlightScene {
       if (o.userData.pip) o.rotation.y = Math.sin(this.time * 0.8) * 0.5;
     });
     // In the map, the rocket shows as a marker instead.
-    g.visible = !this.crashed && this.mode === 'flight';
+    g.visible = !this.crashed && this.mode !== 'map';
   }
 
   updateEffects(dt) {
@@ -853,6 +892,22 @@ export class FlightScene {
         }
       }
       this.velocity = { screenAngle: Math.atan2(dx, -dy), speed, zone, down: Math.max(0, -vr) };
+    }
+
+    // Driving: a pin over the parked rocket (stuck to the screen edge if it's out of view).
+    if (this.mode === 'drive' && this.drive.active) {
+      const foot = this.drive.rocketFoot();
+      const w = s.body.worldPos(s.t, {});
+      const up = foot.map((c) => c / Math.hypot(...foot));
+      const p = new THREE.Vector3(w.x + foot[0] + up[0] * (this.rocket.height + 3) - this.origin.x, w.y + foot[1] + up[1] * (this.rocket.height + 3) - this.origin.y, foot[2] + up[2] * (this.rocket.height + 3));
+      const v = p.clone().project(this.camera);
+      const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
+      if (onScreen) this.placeMarker(this.marker('home-pin', 'home-pin', '🚀'), p.x, p.y, p.z);
+      // Direction to the rocket for the HUD compass (flipped if it's behind us).
+      const sx = v.z > 1 ? -v.x : v.x, sy = v.z > 1 ? -v.y : v.y;
+      this.homeCompass = { angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight), visible: onScreen };
+    } else {
+      this.homeCompass = null;
     }
 
     // Rocket icon: always in the map; in flight when the rocket is too small to see.

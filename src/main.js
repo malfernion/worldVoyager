@@ -115,6 +115,7 @@ class App {
 
   toBuilder() {
     this.flightScene.input = { left: false, right: false, go: false };
+    this.flightScene.drive?.cancel();
     this.flightScene.autopilot?.stop();
     this.audio.setEngine(0);
     this.audio.setMood('camp');

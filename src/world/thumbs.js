@@ -1,6 +1,7 @@
 // Little picture icons (planets, rocket parts) rendered once with a tiny offscreen renderer.
 import * as THREE from 'three';
 import { buildRocket } from '../rocket/rocketMesh.js';
+import { buildBuggy } from '../rocket/buggyMesh.js';
 
 let renderer = null;
 function getRenderer(size) {
@@ -49,6 +50,21 @@ export function planetThumb(visual, size = 160) {
   obj.rotation.x = body.id === 'homestead' ? 0.5 : 0.25;
   obj.rotation.y = -0.4;
   camera.lookAt(0, 0, 0);
+  return snap(scene, camera, size);
+}
+
+export function buggyThumb(kind, paint, size = 128) {
+  const scene = new THREE.Scene();
+  const b = buildBuggy(kind, paint);
+  b.group.rotation.y = -0.7;
+  scene.add(b.group);
+  lights(scene, new THREE.Vector3(0.6, 0.8, 1));
+  const box = new THREE.Box3().setFromObject(b.group);
+  const centre = box.getCenter(new THREE.Vector3());
+  const r = box.getSize(new THREE.Vector3()).length() * 0.5;
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  camera.position.set(centre.x, centre.y + r * 1.2, centre.z + r * 3.2);
+  camera.lookAt(centre);
   return snap(scene, camera, size);
 }
 

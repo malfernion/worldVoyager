@@ -9,7 +9,7 @@ export class FlightHud {
     this.bindHold('go-btn', (on) => (this.scene.input.go = on));
     this.bindHold('left-btn', (on) => (this.scene.input.left = on));
     this.bindHold('right-btn', (on) => (this.scene.input.right = on));
-    for (const btn of document.querySelectorAll('.helper')) {
+    for (const btn of document.querySelectorAll('.helper[data-helper]')) {
       const mode = btn.dataset.helper;
       if (btn.classList.contains('hold')) {
         this.bindHold(btn, (on) => this.scene.holdHelper(mode, on));
@@ -25,6 +25,10 @@ export class FlightHud {
       fn();
     });
     click('map-btn', () => this.scene.toggleMap());
+    click('drive-btn', () => this.scene.drive.deploy());
+    click('home-btn', () => this.scene.drive.goHome());
+    this.bindHold('reverse-btn', (on) => (this.scene.input.back = on));
+    this.bindHold('jump-btn', (on) => (this.scene.input.jump = on));
     click('warp-btn', () => this.scene.setWarp(1));
     click('slower-btn', () => this.scene.setWarp(-1));
     click('normal-btn', () => this.scene.setWarp(0, true));
@@ -46,10 +50,11 @@ export class FlightHud {
   }
 
   // Zoom slider: logarithmic, left = close up, right = far away. Pinching moves it too.
-  static ZOOM = { flight: [0.35, 40], map: [0.02, 20] };
+  static ZOOM = { flight: [0.35, 40], map: [0.02, 20], drive: [0.4, 8] };
 
   zoomRange() {
-    return FlightHud.ZOOM[this.scene.mode === 'map' ? 'map' : 'flight'];
+    const m = this.scene.mode;
+    return FlightHud.ZOOM[m === 'map' || m === 'drive' ? m : 'flight'];
   }
 
   bindZoomSlider() {
@@ -61,6 +66,8 @@ export class FlightHud {
       if (s.mode === 'map') {
         s.mapZoom = v;
         s.mapEase = false;
+      } else if (s.mode === 'drive') {
+        s.drive.zoom = v;
       } else {
         s.zoom = v;
       }
@@ -72,7 +79,8 @@ export class FlightHud {
     const slider = this.el('zoom-slider');
     if (document.activeElement === slider) return;
     const [lo, hi] = this.zoomRange();
-    const v = this.scene.mode === 'map' ? this.scene.mapZoom : this.scene.zoom;
+    const m = this.scene.mode;
+    const v = m === 'map' ? this.scene.mapZoom : m === 'drive' ? this.scene.drive.zoom : this.scene.zoom;
     slider.value = String(Math.round((Math.log(v / lo) / Math.log(hi / lo)) * 1000));
   }
 
@@ -104,11 +112,16 @@ export class FlightHud {
   bindKeys() {
     const map = {
       ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
-      Space: 'go', ArrowUp: 'go', KeyW: 'go',
+      Space: 'go', ArrowUp: 'go', KeyW: 'go', ArrowDown: 'back', KeyS: 'back',
     };
     const handle = (e, down) => {
       if (this.app.screen !== 'flight') return;
-      const k = map[e.code];
+      let k = map[e.code];
+      if (this.scene.mode === 'drive' && e.code === 'Space') k = 'jump';
+      if (down && e.code === 'KeyB') {
+        if (this.scene.mode === 'drive') this.scene.drive.goHome();
+        else this.scene.drive.deploy();
+      }
       if (k) {
         e.preventDefault();
         this.scene.input[k] = down;
@@ -175,7 +188,8 @@ export class FlightHud {
 
   zoomBy(k) {
     const s = this.scene;
-    if (s.mode === 'map') s.mapZoom = Math.min(20, Math.max(0.02, s.mapZoom * k));
+    if (s.mode === 'drive') s.drive.zoom = Math.min(8, Math.max(0.4, s.drive.zoom * k));
+    else if (s.mode === 'map') s.mapZoom = Math.min(20, Math.max(0.02, s.mapZoom * k));
     else s.zoom = Math.min(40, Math.max(0.35, s.zoom * k));
   }
 
@@ -242,6 +256,23 @@ export class FlightHud {
     const st = f.state;
     const b = st.body;
     const alt = Math.max(0, f.altitude);
+    const driving = s.mode === 'drive';
+    this.el('flight-screen').classList.toggle('driving', driving);
+    this.el('drive-btn').classList.toggle('hidden', !s.drive.canDeploy());
+    this.el('jump-btn').classList.toggle('hidden', !(driving && s.drive.kind?.jump));
+    const compass = this.el('home-compass');
+    compass.classList.toggle('hidden', !driving || !s.homeCompass);
+    if (driving && s.homeCompass) {
+      compass.firstChild.style.transform = `rotate(${s.homeCompass.angle}rad)`;
+      this.el('home-dist').textContent = `${fmt(s.drive.distanceToRocket)} m`;
+    }
+    if (driving) {
+      this.el('where').textContent = `${b.icon} ${b.name}`;
+      this.el('alt').textContent = `🚙 ${s.drive.kind?.name ?? ''}`;
+      this.el('spd').textContent = `💨 ${fmt(s.drive.buggy?.speed ?? 0)}`;
+      this.syncZoomSlider();
+      return;
+    }
     this.el('where').textContent = `${b.icon} ${b.name}`;
     this.el('alt').textContent = st.landed ? '🛬 landed' : `⬆ ${fmt(alt)}`;
     this.el('spd').textContent = `💨 ${fmt(f.speed)}`;

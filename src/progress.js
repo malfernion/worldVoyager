@@ -31,6 +31,7 @@ export const STICKERS = {
   splash: { icon: '🌊', name: 'Splashdown!', say: 'Splash! You landed in the ocean!' },
   dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Ringo is all clouds, there is no ground to land on!' },
   sun: { icon: '☀️', name: 'Sunburnt', say: 'That is close enough to Ember! Stars are super hot.' },
+  drive: { icon: '🚙', name: 'Off-Roader', say: 'Vroom! Your first drive in the buggy! Steer with the arrows and hold GO to drive.' },
   kaboom: { icon: '💥', name: 'Kaboom Club', say: 'Kaboom! Every great explorer crashes sometimes. Let\'s try again!' },
 };
 
