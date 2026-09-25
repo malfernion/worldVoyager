@@ -45,7 +45,9 @@ borrow the vibe, not the content: all names, worlds and music are original.
      launch, gravity turn, transfer burn, capture brake and landing. The coached landing is: point
      up at the arrow, then HOLD / LET GO to keep the descent gentle (with hysteresis so cues don't
      flicker, and a short look-ahead for reaction time). Pip does only the tiny correction nudges,
-     emergency ground-avoidance, and takes over a landing that would be too fast.
+     the last little bit of going round and of a capture brake (a late LET GO on a tiny moon is
+     enough to fall out of orbit or fly off), dropping from a high or moon-crossing orbit to a cosy one, emergency
+     ground-avoidance, and takes over a landing that would be too fast.
    - *Autopilot* ("🤖 Fly me there", Orbit, Land): watch and learn.
    Helpers run closed-loop on the real state, so imperfect flying still works out.
 3. **Failure is funny and cheap.** Crashes are cartoon explosions with bouncing parts. **↺ Rewind**
@@ -78,8 +80,18 @@ Key techniques:
 - **Transfer planner.** For each leg (up to a parent, across to a sibling, or down to a moon) it
   estimates a Hohmann window, then grid-searches burn time × burn size with the real predictor,
   refines, and scores arrivals. Low periapsis, arriving past periapsis, hitting a moon first, going
-  the wrong way round and parking inside a moon's path all score worse. Course corrections happen
-  en route.
+  the wrong way round and parking inside a moon's path all score worse; meeting a moon (or the
+  ground) before the brake at the low point scores much worse. Course corrections happen en route.
+- **Staying out of moons' way** (#10). Only burns that happen before the current orbit drifts into
+  a moon are considered (after an "up" hop we still share the moon's path). A push that fell
+  short (a coached player letting go early) gets a small top-up, or a fresh plan, instead of a
+  loop that meets a moon. Paths are judged only once the engine has been off for a moment. While
+  waiting to brake inside the new world, Pip keeps checking for a moon in the way and steers
+  round it. Braking aims at a round orbit's velocity (never a dead stop), and an arrival orbit
+  that crosses a moon's path is lowered before we wait there or call it done (straight away if
+  we've just climbed out of that moon). Planning waits for a coached player's late LET GO.
+  `npm run stress` flies every pair of worlds at several start times, plus long tours from the
+  pad, with the autopilot and the pretend kid, and counts each kind of failure.
 - **Music.** Karplus–Strong banjo and guitar, a reedy harmonica, saw-pad strings and a triangle
   bass, played by a generative sequencer with a lazy swing. Three moods (campfire, space,
   discovery) crossfade at bar lines.

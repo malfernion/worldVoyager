@@ -3,7 +3,8 @@ import { propagate, elements } from '../src/physics/orbit.js';
 import { createSystem } from '../src/physics/bodies.js';
 import { Flight } from '../src/physics/sim.js';
 import { predict } from '../src/physics/predict.js';
-import { Autopilot, inStableOrbit, nextHop } from '../src/physics/autopilot.js';
+import { inStableOrbit, nextHop } from '../src/physics/autopilot.js';
+import { mission, kidFlies } from './missions.js';
 
 // Brute-force reference integrator (RK4, tiny steps).
 function rk4(mu, s, dt, steps) {
@@ -115,24 +116,6 @@ describe('predict', () => {
   });
 });
 
-function mission(stats) {
-  const sys = createSystem();
-  const flight = new Flight(sys, stats);
-  const ap = new Autopilot(flight);
-  const log = [];
-  flight.on((type, d) => log.push(`${type}:${d.body?.id ?? d.to?.id ?? ''}${d.reason ? ':' + d.reason : ''}`));
-  const run = (mode, target, maxFrames = 60 * 60 * 10) => {
-    ap.start(mode, target && sys.byId[target]);
-    for (let i = 0; i < maxFrames && ap.active; i++) {
-      ap.update(1 / 60);
-      flight.step(1 / 60, ap.warp ?? 1);
-      if (flight.state.crashed) break;
-    }
-    return !ap.active;
-  };
-  return { sys, flight, ap, log, run };
-}
-
 describe('helpers', () => {
   const stats = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
 
@@ -180,43 +163,6 @@ describe('coach mode', () => {
   const stats = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
   const noLegs = { accel: 17, turnRate: 1.6, safeSpeed: 6, maxTilt: 0.45 };
   const rescue = 'Whoa, too fast! I\'ll catch us this time.';
-
-  // A pretend kid: turns toward the arrow with the turn buttons, holds GO when told,
-  // and reacts a few frames late. `lazy` kids stop pressing GO once they're told to point up.
-  function kidFlies(m, mode, target, { lag = 8, lazy = false, maxFrames = 60 * 60 * 40 } = {}) {
-    const { flight, ap, sys } = m;
-    const said = [];
-    ap.on((e) => e.text && said.push(e.text));
-    ap.start(mode, target && sys.byId[target], { coach: true });
-    const queue = [];
-    let presses = 0;
-    let wasGo = false;
-    for (let i = 0; i < maxFrames && ap.active && !flight.state.crashed; i++) {
-      ap.update(1 / 60);
-      // Touched down: the game ignores a still-held GO until it's let go.
-      if (!ap.active) break;
-      const { angle, throttle } = ap.cmd;
-      let turn = 0;
-      if (angle !== null && !flight.state.landed) {
-        const d = Math.atan2(Math.sin(angle - flight.state.angle), Math.cos(angle - flight.state.angle));
-        turn = Math.abs(d) < 0.05 ? 0 : Math.sign(d);
-      }
-      const giveUp = lazy && said.some((t) => t.includes('point up'));
-      queue.push({ turn, go: throttle > 0.5 && !giveUp });
-      const act = queue.length > lag ? queue.shift() : { turn: 0, go: false };
-      if (!ap.driving) {
-        flight.turn = act.turn;
-        flight.throttle = act.go ? ap.goPower : 0;
-        if (act.go && !wasGo) presses++;
-        wasGo = act.go;
-      } else {
-        flight.turn = 0;
-        queue.length = 0;
-      }
-      flight.step(1 / 60, flight.throttle > 0 ? 1 : ap.warp ?? 1);
-    }
-    return { flight, ap, said, presses, done: !ap.active };
-  }
 
   it('talks a player from the pad all the way to Pebble, then down onto it', () => {
     const { flight, done, said } = kidFlies(mission(stats), 'goto', 'pebble');

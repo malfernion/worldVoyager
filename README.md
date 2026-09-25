@@ -38,6 +38,7 @@ npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
 npm test         # physics, autopilot missions, coach-mode flights
 npm run build    # static site in dist/
+npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```
 
 ## Deploy

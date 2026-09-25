@@ -46,14 +46,32 @@ function arrivalScore(pred, hop, now) {
     // Going around the same way as everything else makes later trips easy.
     if (hop.children.length && seg.el.dir !== Math.sign(hop.children[0].angularSpeed)) score += 1;
     // Park below any moons so we don't bump into them later.
-    for (const c of hop.children) if (seg.el.rp > c.orbitRadius - c.soi * 1.5) score += 2;
-    // Bumping into a moon (or the ground) before the low point spoils the arrival.
-    else if (seg.end !== 'none' && seg.end !== 'exit' && seg.t0 + seg.el.timeToPe > seg.t1) score += 3;
+    if (hop.children.some((c) => seg.el.rp > c.orbitRadius - c.soi * 1.5)) score += 2;
+    // Bumping into a moon (or the ground) before we've braked at the low point spoils the arrival.
+    if ((seg.end === 'encounter' || seg.end === 'impact') && seg.el.timeToPe !== null && seg.t1 < seg.t0 + seg.el.timeToPe + 20) score += 5;
     if (seg.el.e > 1.5) score += (seg.el.e - 1.5) * 0.5;
     score += (seg.t0 - now) / 20000;
     return score;
   }
   return pred.closest ? 1000 + pred.closest.dist / 1000 : 2000;
+}
+
+/** Does this orbit loop through the path of one of `body`'s moons (other than the one we're heading for)? */
+function crossesMoon(body, el, target = null) {
+  return body.children.some((c) => !c.isAncestorOf(target ?? body) && el.ra > c.orbitRadius - c.soi && el.rp < c.orbitRadius + c.soi);
+}
+
+/** When coasting from `state` first hits the ground or a moon other than `dest` (Infinity if not before `until`). */
+function strayTime(state, dest, until) {
+  let st = state;
+  // A closed orbit is predicted one lap at a time, so look a few laps ahead.
+  for (let lap = 0; lap < 20 && st.t < until; lap++) {
+    const seg = predict(st, { maxSegments: 1, maxTime: until - st.t }).segments[0];
+    if (seg.end === 'impact' || (seg.end === 'encounter' && seg.next !== dest)) return seg.t1;
+    if (seg.end !== 'none') break;
+    st = { body: seg.body, ...seg.endState, t: seg.t1 };
+  }
+  return Infinity;
 }
 
 export class Autopilot {
@@ -256,10 +274,12 @@ export class Autopilot {
     this.status = 'Going around!';
     if (this.coach) this.say(fromGround ? 'Turn sideways to the arrow and hold GO, so we go around!' : 'Follow the arrow and hold GO to make our path nice and round.');
     this.warp = 1;
+    const wasCoach = this.coach;
     let guard = 0;
     while (guard++ < 60 * 40) {
       if (f.state.body !== body) {
         this.setThrottle(0);
+        this.coach = wasCoach;
         return false;
       }
       const el = f.elements();
@@ -271,11 +291,19 @@ export class Autopilot {
       const pitch = clamp(-vr * 0.08, -0.4, 0.6);
       const ok = this.aim(up + dir * (Math.PI / 2 - pitch));
       const need = Math.abs(Math.sqrt(body.mu / r) - Math.abs(el.h) / r) + Math.abs(vr);
+      // A late LET GO on a small moon flings us right out of orbit, so Pip does the last bit.
+      if (this.coach && need < f.stats.accel * 0.5) {
+        this.coach = false;
+        if (quiet) this.say(`Let go! We're going around ${body.name}!`);
+      }
       this.setThrottle(ok ? clamp(need / (f.stats.accel * 0.5), 0.05, 1) : 0);
       yield;
     }
     this.setThrottle(0);
+    // The player finished it themselves (Pip didn't take the last bit)?
     if (this.coach && quiet) this.say(`Let go! We're going around ${body.name}!`);
+    if (wasCoach && !this.coach) f.targetAngle = null;
+    this.coach = wasCoach;
     if (!quiet) this.say(`Hooray! We're in orbit around ${body.name}! Round and round we go!`);
     return true;
   }
@@ -516,11 +544,12 @@ export class Autopilot {
     let legs = 0;
     while (legs++ < 8) {
       const cur = f.state.body;
-      if (!inStableOrbit(f) && cur.kind !== 'star') {
+      // A loop through a moon's path isn't a safe place to wait (or to stop).
+      if ((!inStableOrbit(f) || crossesMoon(cur, f.elements(), target)) && cur.kind !== 'star') {
         // Arrived somewhere on a fast pass (or still on the ground)? Settle into orbit first.
         if (!f.state.landed) {
           const el = f.elements();
-          if (el.e >= 1 || el.ra > cur.soi * 0.9) yield* this.capture(cur, false);
+          if (el.e >= 1 || el.ra > cur.soi * 0.9 || crossesMoon(cur, el, target)) yield* this.capture(cur, false, target);
         }
         if (f.state.body !== cur) continue;
         if (!inStableOrbit(f)) {
@@ -542,6 +571,17 @@ export class Autopilot {
       const hop = nextHop(cur, target);
       if (hop.kind === 'down' && f.elements().dir !== Math.sign(hop.body.angularSpeed)) {
         yield* this.flipOrbit(hop.body);
+        continue;
+      }
+      // A coached player lets go a moment late: plan from the orbit we really end up in.
+      for (let i = 0; i < 60 && f.throttle > 0; i++) {
+        this.setThrottle(0);
+        yield;
+      }
+      if (f.state.body !== cur) continue;
+      if (!inStableOrbit(f)) {
+        // Already on the way out? That's where an "up" hop goes anyway.
+        if (hop.kind === 'up' && f.elements().e >= 1) yield* this.coastTo(hop.body);
         continue;
       }
       const plan = yield* this.planLeg(hop);
@@ -613,9 +653,12 @@ export class Autopilot {
     // Signed: negative means brake (drop inward) instead of speeding up.
     if (Math.abs(dvGuess) < 1) dvGuess = dvGuess < 0 ? -1 : 1;
 
-    // Only try burns that are still in the future.
+    // Only try burns that are still in the future, and before our orbit bumps into a moon
+    // (after an "up" hop we're often still sharing the moon's path).
     const tStart = Math.max(now + lead, window0 - span / 2);
+    const safeUntil = strayTime(f.state, dest, Math.max(tStart + span, now + lead + Math.max(span, T) * 1.5) + T * 0.1) - 10;
     const evalCandidate = (tb, dv) => {
+      if (tb + Math.abs(dv) / f.stats.accel > safeUntil) return Infinity;
       const s = propagate(cur.mu, f.state.x, f.state.y, f.state.vx, f.state.vy, tb - now);
       const v = Math.hypot(s.vx, s.vy);
       const st = { body: cur, x: s.x, y: s.y, vx: s.vx * (1 + dv / v), vy: s.vy * (1 + dv / v), t: tb };
@@ -729,6 +772,7 @@ export class Autopilot {
     let corrections = 0;
     let lastCheck = -Infinity;
     let frames = 0;
+    let engineOff = 0;
     let pred = null;
     let lastBody = f.state.body;
     while (f.state.body !== dest) {
@@ -738,14 +782,22 @@ export class Autopilot {
         lastBody = s.body;
         lastCheck = -Infinity;
       }
-      if (++frames - lastCheck > 24) {
+      // Only judge the path once the engine has been off for a moment (a coached player
+      // lets go a little late, and flickers GO while turning).
+      engineOff = f.throttle === 0 ? engineOff + 1 : 0;
+      if (++frames - lastCheck > 24 && engineOff > 20) {
         lastCheck = frames;
         pred = predict(s, { target: dest, maxSegments: 3, maxTime: 40000 });
         const score = arrivalScore(pred, dest, s.t);
-        const leftHome = !pred.segments[0].closed || s.body.parent === dest || dest.parent === s.body;
-        if (score > 0.8 && corrections < 6 && leftHome) {
+        const first = pred.segments[0];
+        const stray = first.end === 'impact' || (first.end === 'encounter' && first.next !== dest);
+        const leftHome = !first.closed || stray || s.body.parent === dest || dest.parent === s.body;
+        // Still going round and round at home? The push fell a little short: top it up if
+        // that's a small push, otherwise plan the whole thing again.
+        if (score > 0.8 && corrections < 6 && (leftHome || score >= 1000)) {
           corrections++;
           const fix = yield* this.planCorrection(dest, score);
+          if (!leftHome && !(fix && fix.dv < f.stats.accel && fix.score < 1000)) return false;
           if (fix) yield* this.burnVector(fix);
           this.status = `Flying to ${dest.name}`;
           lastCheck = -Infinity;
@@ -786,7 +838,7 @@ export class Autopilot {
         yield;
       }
     }
-    return best.dv > 0 ? { angle: best.dir, dv: best.dv } : null;
+    return best.dv > 0 ? { angle: best.dir, dv: best.dv, score: best.score } : null;
   }
 
   *burnVector({ angle, dv }) {
@@ -815,7 +867,7 @@ export class Autopilot {
     this.coach = wasCoach;
   }
 
-  *capture(body, announce = true) {
+  *capture(body, announce = true, target = null) {
     const f = this.flight;
     this.status = `Arriving at ${body.name}`;
     if (announce) this.say(`We're at ${body.name}!`, { visiting: body });
@@ -856,9 +908,22 @@ export class Autopilot {
 
     // Wait for the lowest point, then brake.
     this.status = 'Waiting to slow down';
-    while (f.state.body === body) {
+    let fixes = 0;
+    for (let frames = 1; f.state.body === body; frames++) {
       el = f.elements();
       if (el.timeToPe === null) break;
+      // A moon drifting into our way before the low point? Steer round it while there's time.
+      if (frames % 30 === 0 && fixes < 3) {
+        const seg = predict(f.state, { maxSegments: 1, maxTime: 40000 }).segments[0];
+        if (seg.end === 'encounter' && seg.t1 < f.state.t + el.timeToPe + 20) {
+          fixes++;
+          const score = arrivalScore(predict(f.state, { maxSegments: 2, maxTime: 40000 }), body, f.state.t);
+          const fix = yield* this.planCorrection(body, score);
+          if (fix) yield* this.burnVector(fix);
+          this.status = 'Waiting to slow down';
+          continue;
+        }
+      }
       const vPe = Math.abs(el.h) / el.rp;
       const burnT = Math.max(0, vPe - Math.sqrt(body.mu / el.rp)) / f.stats.accel;
       const wait = el.timeToPe - burnT / 2;
@@ -871,39 +936,73 @@ export class Autopilot {
       yield;
     }
     this.status = 'Slowing down';
-    this.tip('Slow down, rocket!', 'Point backwards to the arrow and hold GO to slow down, or we\'ll zoom right past!');
+    // Push against the difference between our velocity and a round orbit's right here:
+    // straight backwards at the low point, and never a dead stop if we brake anywhere else.
+    // `low` = the low point we'd like, with the high point right here (default: round).
+    const roundOff = (low = f.radius) => {
+      const s = f.state, r = f.radius, dir = f.elements().dir;
+      const v = Math.sqrt((2 * body.mu * low) / (r * (r + low)));
+      const dx = (-s.y / r) * dir * v - s.vx, dy = (s.x / r) * dir * v - s.vy;
+      return { angle: Math.atan2(dy, dx), err: Math.hypot(dx, dy) };
+    };
+    // Small hands let go late, and on a tiny moon that's enough to fall out of the sky,
+    // so Pip does the last little bit of braking (or all of it, if it's only a tap).
+    const wasCoach = this.coach;
+    const tiny = () => roundOff().err < f.stats.accel * 0.5;
+    // Right in a moon's path (just climbed out of it)? Don't go round here: drop lower straight away.
+    const inMoonPath = body.children.some((c) => !c.isAncestorOf(target ?? body) && Math.abs(f.radius - c.orbitRadius) < c.soi * 1.5);
+    if (inMoonPath) {
+      // Pip's "Moving closer" below does it all.
+    } else if (this.coach && tiny()) {
+      this.coach = false;
+      this.say('I\'ll do this tiny push for you!');
+    } else {
+      this.tip('Slow down, rocket!', 'Point backwards to the arrow and hold GO to slow down, or we\'ll zoom right past!');
+    }
     this.warp = 1;
-    let guard = 0;
-    let prevE = Infinity;
-    // Brake until the path is round (stop if it starts getting less round again).
-    while (guard++ < 60 * 60 && f.state.body === body && !f.state.landed) {
-      el = f.elements();
-      if (el.e < (this.coach ? 0.08 : 0.03) || (el.e < 0.3 && el.e > prevE + 1e-5)) break;
-      prevE = el.e;
-      const ok = this.aim(this.prograde() + Math.PI, 0.25);
-      this.setThrottle(ok ? 1 : 0);
+    for (let guard = 0; !inMoonPath && guard < 60 * 60 && f.state.body === body && !f.state.landed; guard++) {
+      const { angle, err } = roundOff();
+      if (f.elements().e < 0.03 || err < 0.1) break;
+      if (this.coach && err < f.stats.accel * 0.5) {
+        this.coach = false;
+        this.say(`Let go! We're going around ${body.name}!`);
+      }
+      const ok = this.aim(angle, 0.25);
+      this.setThrottle(ok ? clamp(err / (f.stats.accel * 0.3), 0.1, 1) : 0);
       yield;
     }
     this.setThrottle(0);
-    if (this.coach && f.state.body === body) this.say(`Let go! We're going around ${body.name}!`);
+    if (this.coach && !inMoonPath && f.state.body === body) this.say(`Let go! We're going around ${body.name}!`);
 
-    // Parked way up high? Drop down to a cosy orbit (lower the low point, then round it off).
+    // Parked way up high, at the edge of this world's pull, or across a moon's path? Drop down
+    // to a cosy orbit (lower the low point, then round it off). Pip does this bit even when
+    // coaching: there's no good cue for it.
+    this.coach = false;
     el = f.elements();
-    if (f.state.body === body && el.e < 1 && el.rp > want * 1.6) {
+    if (f.state.body === body && (inMoonPath || (el.e < 1 && (el.rp > want * 1.6 || el.ra > body.soi * 0.8 || crossesMoon(body, el, target))))) {
       this.status = 'Moving closer';
-      if (el.e > 0.1) yield* this.coastToApsis('ap');
-      while (f.state.body === body && f.elements().rp > want) {
-        this.setThrottle(this.aim(this.prograde() + Math.PI, 0.25) ? 1 : 0);
+      if (el.e > 0.1 && !inMoonPath) yield* this.coastToApsis('ap');
+      // Gently, so a tiny moon's slow orbits don't overshoot into the ground.
+      const gentle = (err) => clamp(err / (f.stats.accel * 0.3), 0.05, 1);
+      // Make this the high point of a path whose low point is where we'd like to be.
+      for (let guard = 0; guard < 60 * 60 && f.state.body === body && f.radius > want; guard++) {
+        const { angle, err } = roundOff(want);
+        if (err < 0.1) break;
+        this.setThrottle(this.aim(angle, 0.25) ? gentle(err) : 0);
         yield;
       }
       this.setThrottle(0);
       yield* this.coastToApsis('pe');
-      while (f.state.body === body && f.elements().e > 0.05) {
-        this.setThrottle(this.aim(this.prograde() + Math.PI, 0.25) ? 1 : 0);
+      for (let guard = 0; guard < 60 * 60 && f.state.body === body && f.elements().e > 0.03; guard++) {
+        const { angle, err } = roundOff();
+        if (err < 0.1) break;
+        this.setThrottle(this.aim(angle, 0.25) ? gentle(err) : 0);
         yield;
       }
       this.setThrottle(0);
     }
+    if (wasCoach) f.targetAngle = null;
+    this.coach = wasCoach;
     return true;
   }
 

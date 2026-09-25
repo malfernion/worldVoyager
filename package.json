@@ -9,7 +9,8 @@
     "preview": "vite preview --host",
     "test": "vitest run",
     "voice:lines": "node tools/voice/lines.mjs",
-    "voice:check": "node tools/voice/check.mjs"
+    "voice:check": "node tools/voice/check.mjs",
+    "stress": "node tools/stress.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

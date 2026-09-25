@@ -39,6 +39,8 @@ npm run dev          # Vite dev server (--host, so phones on the LAN can connect
 npm test             # vitest: physics, autopilot missions, coach flights, buggy, speech
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
+npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
+                     # autopilot + pretend kid; prints failure rates by kind (~1.5 min, all cores)
 ```
 
 **Pushing to `main` deploys** (`.github/workflows/deploy.yml`: test, build, GitHub Pages).
@@ -80,7 +82,8 @@ src/ui/                flightHud.js (controls, readouts, gestures), narrator.js 
 src/audio/audio.js     All sound is generated live: music sequencer, SFX, voice channel + music ducking
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
 tools/voice/           Recording pipeline for Pip's voice (see below)
-test/                  vitest suites
+test/                  vitest suites; missions.js has the shared headless flights (autopilot, pretend kid, trips, tours)
+tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
 ```
 
 ## Invariants: don't break these
@@ -111,7 +114,9 @@ test/                  vitest suites
 
 - **Physics, autopilot and coach:** headless vitest missions in `test/physics.test.js`.
   `kidFlies()` simulates a late-reacting child (binary GO, 8-frame lag) following the coach
-  cues. Any coach feature should have a test like it.
+  cues. Any coach feature should have a test like it. `test/stress.test.js` replays a few trips
+  that used to fail; after touching the planner or capture, run the full `npm run stress`
+  (add `--verbose` to list failures, `--phases 24 --tours 60` for a bigger sweep).
 - **Visual check:** run `npm run dev` and open it in a browser. `window.app` is the debug
   handle (`app.flightScene`, `app.builder`, `app.system`, `app.progress`).
   **Background tabs pause `requestAnimationFrame`**, so when driving the page from a script,
