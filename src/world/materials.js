@@ -63,7 +63,7 @@ export function outlineMaterial(thickness = 0.06, color = 0x2a1d17) {
   m.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace(
       '#include <begin_vertex>',
-      `#include <begin_vertex>\ntransformed += normalize(objectNormal) * ${thickness.toFixed(3)};`,
+      `#include <begin_vertex>\ntransformed += normalize(normal) * ${thickness.toFixed(3)};`,
     );
   };
   m.customProgramCacheKey = () => key;

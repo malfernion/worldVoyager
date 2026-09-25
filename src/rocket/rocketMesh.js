@@ -149,8 +149,9 @@ const builders = {
 function engineGroup(p, s) {
   const g = new THREE.Group();
   const h = PARTS[p.type].height;
-  const mount = mesh(lathe([[0.001, h], [1, h], [1, h - 0.15], [0.62 * s, h - 0.5]]), paintMat(p.paint));
-  const bell = mesh(lathe([[0.36 * s, h - 0.45], [0.42 * s, h - 0.62], [0.62 * s, (h - 0.5) * 0.4], [0.82 * s, 0], [0.7 * s, 0.02], [0.3 * s, h - 0.6]]), matCache.get('_metal'));
+  const mount = mesh(lathe([[0.001, h], [1, h], [1, h - 0.15], [0.62 * s, h - 0.5]]), paintMat(p.paint), false);
+  // Open shapes (bells, nozzles) get no ink outline: the hull would show through the opening.
+  const bell = mesh(lathe([[0.36 * s, h - 0.45], [0.42 * s, h - 0.62], [0.62 * s, (h - 0.5) * 0.4], [0.82 * s, 0], [0.7 * s, 0.02], [0.3 * s, h - 0.6]]), matCache.get('_metal'), false);
   g.add(mount, bell);
   const glow = new THREE.Mesh(new THREE.CircleGeometry(0.6 * s, 20), new THREE.MeshBasicMaterial({ color: 0xff9a3c }));
   glow.rotation.x = Math.PI / 2;
@@ -213,7 +214,7 @@ const radialBuilders = {
       body.position.y = h / 2 + 0.35;
       const cone = mesh(lathe([[0.45, 0], [0.3, 0.4], [0.001, 0.62]], 18), paintMat('cream'));
       cone.position.y = h + 0.35;
-      const noz = mesh(lathe([[0.2, 0.36], [0.4, 0], [0.3, 0.02], [0.15, 0.3]], 14), matCache.get('_metal'));
+      const noz = mesh(lathe([[0.2, 0.36], [0.4, 0], [0.3, 0.02], [0.15, 0.3]], 14), matCache.get('_metal'), false);
       const strut = mesh(new THREE.BoxGeometry(0.5, 0.18, 0.18), matCache.get('_metal'));
       strut.position.set(-side * 0.45, h * 0.6, 0);
       b.add(body, cone, noz, strut);

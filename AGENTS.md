@@ -179,6 +179,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - llama-server rejects `repeat_last_n: -1`; use a large number instead.
 - Vitest will pick up tests inside `.claude/` worktrees unless excluded (it is, in `vite.config.js`).
 - `MeshToonMaterial` ignores `flatShading` in this three.js version; build facets into geometry.
+- Ink outlines (`withOutline` in `src/world/materials.js`) are an inverted hull pushed out along the
+  geometry's `normal` attribute. Don't use `objectNormal` there: MeshBasicMaterial doesn't declare it,
+  and the shader silently fails (all outlines vanished until this was fixed). Don't outline **open**
+  shapes such as engine bells and nozzles; the hull shows through the opening as a black blob.
+- Check the console for `Shader Error` after visual changes. three.js logs it once and carries on.
 - Line2 / LineMaterial widths are in pixels; update `resolution` on resize (flight.js does).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).
