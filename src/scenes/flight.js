@@ -251,7 +251,12 @@ export class FlightScene {
 
   helper(mode, { coach = false } = {}) {
     if (this.crashed) return;
-    if (this.autopilot.mode === mode && this.autopilot.coachSession === coach) {
+    const ap = this.autopilot;
+    if (mode === 'goto') this.likesCoaching = coach;
+    // Land coaches you if you've been using "Show me how"; tapping it again mid-lesson
+    // means "you do it, Pip".
+    if (mode === 'land' && ap.mode !== 'land') coach = !!this.likesCoaching;
+    if (ap.mode === mode && ap.coachSession === coach) {
       this.autopilot.stop();
       return;
     }
@@ -318,6 +323,7 @@ export class FlightScene {
         const b = d.body;
         app.audio.play('land');
         this.burst(b, 'dust');
+        if (this.autopilot.coachSession) this.goLatched = true;
         if (!d.afterFlight) break;
         if (d.splash) app.progress.earn('splash');
         const id = `land-${b.id}`;
@@ -400,10 +406,12 @@ export class FlightScene {
     const manualTurn = (this.input.left ? 1 : 0) - (this.input.right ? 1 : 0);
     const manual = manualTurn !== 0 || this.input.go;
     if (manual && ap.driving && !ap.coachSession) ap.stop();
+    // After a coached touchdown, a GO still held from the last pulse mustn't hop us back up.
+    if (!this.input.go) this.goLatched = false;
     if (!ap.driving) {
       f.turn = manualTurn;
       f.targetAngle = null;
-      f.throttle = this.input.go && !this.crashed ? 1 : 0;
+      f.throttle = this.input.go && !this.goLatched && !this.crashed ? ap.goPower : 0;
       if (f.throttle > 0) this.warpIndex = 0;
     } else {
       f.turn = 0;
