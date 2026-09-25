@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights, buggy, speech
+npm test             # vitest: physics, autopilot missions, coach flights, buggy, speech, zoom
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -78,7 +78,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
 src/world/             three.js visuals: planets, ambient (plumes/dust), trees, rocks (moon boulders), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
-src/ui/                flightHud.js (controls, readouts, gestures), narrator.js (Pip's voice), speech.js (sentence splitting)
+src/ui/                flightHud.js (controls, readouts, gestures), narrator.js (Pip's voice), speech.js (sentence splitting),
+                       zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
 src/audio/audio.js     All sound is generated live: music sequencer, SFX, voice channel + music ducking
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
 tools/voice/           Recording pipeline for Pip's voice (see below)
@@ -106,6 +107,10 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   no per-frame allocation in hot paths). Trees and rocks are one InstancedMesh (+ ink) per
   shape; the buggy finds nearby ones through a grid built once per world (`ObstacleGrid`),
   never by looping over all of them each step.
+- **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
+  slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
+  multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range
+  depends only on the focused world and the screen, never on `fitMap()`'s default view.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).

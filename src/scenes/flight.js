@@ -13,6 +13,7 @@ import { rocketStats } from '../rocket/parts.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
+import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM } from '../ui/zoom.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
@@ -28,8 +29,8 @@ export class FlightScene {
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.3, 3e6);
     this.origin = { x: 0, y: 0 };
     this.mode = 'flight';
-    this.zoom = 1;
-    this.mapZoom = 1;
+    this.zoom = 1; // player's multiplier on the automatic follow distance
+    this.mapDist = 1; // map camera distance (absolute)
     this.pan = { x: 0, y: 0 };
     this.mapFocus = null;
     this.warpIndex = 0;
@@ -176,9 +177,39 @@ export class FlightScene {
     } else {
       extent = Number.isFinite(b.soi) ? Math.min(b.soi, b.radius * 12) : 38000;
     }
-    const aspect = Math.min(1, this.camera.aspect);
-    this.mapDist = extent / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) / aspect;
-    this.mapZoom = 1;
+    // A new default view, always inside the fixed limits, so re-fitting never changes what's reachable.
+    const [lo, hi] = this.mapLimits();
+    this.mapDist = clamp(fitDist(extent, this.camera.fov, this.camera.aspect), lo, hi);
+  }
+
+  mapLimits() {
+    return mapZoomLimits(this.mapFocus.radius, this.camera.fov, this.camera.aspect);
+  }
+
+  // ---- zoom in real distances (pinch, wheel and the slider all come through here) ----
+
+  zoomLimits() {
+    if (this.mode === 'map') return this.mapLimits();
+    return this.mode === 'drive' ? DRIVE_ZOOM : FLIGHT_ZOOM;
+  }
+
+  viewDist() {
+    if (this.mode === 'map') return this.mapDist;
+    if (this.mode === 'drive') return this.drive.viewDist();
+    return flightDist(flightAutoDist(this.flight.altitude), this.zoom);
+  }
+
+  setViewDist(d) {
+    if (this.mode === 'map') {
+      const [lo, hi] = this.mapLimits();
+      this.mapDist = clamp(d, lo, hi);
+      this.mapEase = false;
+    } else if (this.mode === 'drive') {
+      this.drive.setViewDist(d);
+    } else {
+      // Keep it a multiplier so the view still pulls back as we climb.
+      this.zoom = flightZoomFor(flightAutoDist(this.flight.altitude), d);
+    }
   }
 
   /** Re-centre the map on a world. With `smooth`, glide there instead of jumping. */
@@ -192,13 +223,12 @@ export class FlightScene {
     const t = this.flight.state.t;
     const oldCentre = this.mapFocus.worldPos(t, {});
     const newCentre = body.worldPos(t, {});
-    const oldDist = this.mapDist * this.mapZoom;
+    const oldDist = this.mapDist;
     this.mapFocus = body;
     this.pan = { x: oldCentre.x + this.pan.x - newCentre.x, y: oldCentre.y + this.pan.y - newCentre.y };
     this.fitMap();
     this.mapDistTarget = this.mapDist;
     this.mapDist = oldDist;
-    this.mapZoom = 1;
     this.mapEase = true;
   }
 
@@ -612,8 +642,7 @@ export class FlightScene {
         this.camUpAngle += Math.sign(diff) * Math.min(Math.abs(diff), rate * dt, Math.abs(diff) * (1 - Math.exp(-dt * 4)) + 0.001);
       }
       this.camUp.set(Math.cos(this.camUpAngle), Math.sin(this.camUpAngle), 0);
-      const auto = THREE.MathUtils.clamp(26 + alt * 0.85, 26, 6000);
-      const dist = auto * this.zoom;
+      const dist = flightDist(flightAutoDist(alt), this.zoom);
       const axis = new THREE.Vector3(Math.cos(s.angle), Math.sin(s.angle), 0);
       const centre = this.crashed ? new THREE.Vector3() : axis.multiplyScalar(this.rocket.height * 0.5);
       cam.up.copy(this.camUp);
@@ -621,7 +650,7 @@ export class FlightScene {
       cam.lookAt(centre.clone().addScaledVector(this.camUp, dist * 0.12));
       cam.near = Math.max(0.2, dist * 0.01);
     } else {
-      const dist = this.mapDist * this.mapZoom;
+      const dist = this.mapDist;
       cam.up.set(0, 1, 0);
       cam.position.set(0, 0, dist);
       cam.lookAt(0, 0, 0);

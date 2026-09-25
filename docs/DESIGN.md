@@ -109,6 +109,14 @@ Key techniques:
 9. Procedural music + SFX ✅
 10. GitHub Pages CI ✅
 
+**Camera zoom (#18).** Zoom used to be a multiplier on automatic distances, so the closest you
+could get drifted with altitude and with each map re-fit, and far out in space you couldn't
+see the rocket any more. Now every mode zooms in real distances with fixed limits: the flight
+camera still follows further back as you climb (a multiplier on the automatic distance), but
+the result is clamped to 12 m–15 km, so a child can always pinch right back to the rocket. The
+map goes from about 3× the focused world's radius out to the whole solar system; re-fitting
+picks a new default view inside that range without changing it.
+
 ## Buggies
 
 A **Garage** section holds one buggy. You choose its type and colour in the workshop:

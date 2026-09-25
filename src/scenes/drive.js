@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Buggy, ObstacleGrid, vec } from '../physics/buggy.js';
 import { BUGGIES, DEFAULT_BUGGY, garageOf } from '../rocket/parts.js';
 import { buildBuggy } from '../rocket/buggyMesh.js';
+import { clamp, DRIVE_ZOOM } from '../ui/zoom.js';
 
 const LEAVES = [0x5d8c3a, 0x7aa84a, 0x3f6b2e, 0xd08a3a];
 
@@ -343,6 +344,19 @@ export class DriveMode {
     });
   }
 
+  /** Chase distance: the player's multiplier on this buggy's usual distance, clamped absolutely. */
+  viewDist() {
+    return clamp(this.baseDist() * this.zoom, DRIVE_ZOOM[0], DRIVE_ZOOM[1]);
+  }
+
+  setViewDist(d) {
+    this.zoom = clamp(d, DRIVE_ZOOM[0], DRIVE_ZOOM[1]) / this.baseDist();
+  }
+
+  baseDist() {
+    return this.kind?.wheel > 0.8 ? 15 : 12;
+  }
+
   updateCamera(dt, camera) {
     const b = this.buggy;
     const k = (r) => 1 - Math.exp(-dt * r);
@@ -351,7 +365,7 @@ export class DriveMode {
     const f = this.camF.clone().sub(this.camUp.clone().multiplyScalar(this.camF.dot(this.camUp))).normalize();
     // Pull back while orbiting so Nibble curves away underneath.
     this.wide += ((b.orbiting ? 1.8 : 1) - this.wide) * k(0.8);
-    const dist = (this.kind.wheel > 0.8 ? 15 : 12) * this.zoom * this.wide;
+    const dist = this.viewDist() * this.wide;
     const buggyPos = this.mesh ? this.mesh.group.position.clone() : new THREE.Vector3();
     const target = buggyPos.clone().addScaledVector(this.camUp, 1.2);
     const offset = f.clone().multiplyScalar(-dist).addScaledVector(this.camUp, dist * 0.42);

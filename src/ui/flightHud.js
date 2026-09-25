@@ -1,4 +1,6 @@
 // Buttons, readouts and touch gestures for flying.
+import { sliderToDist, distToSlider } from './zoom.js';
+
 const fmt = (n) => (n >= 10000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`);
 
 export class FlightHud {
@@ -49,28 +51,13 @@ export class FlightHud {
     this.bindZoomSlider();
   }
 
-  // Zoom slider: logarithmic, left = close up, right = far away. Pinching moves it too.
-  static ZOOM = { flight: [0.35, 40], map: [0.02, 20], drive: [0.4, 8] };
-
-  zoomRange() {
-    const m = this.scene.mode;
-    return FlightHud.ZOOM[m === 'map' || m === 'drive' ? m : 'flight'];
-  }
-
+  // Zoom slider: logarithmic in real camera distance, left = close up, right = far away.
+  // Pinch, wheel and the slider all go through the scene's setViewDist, so they stay in sync.
   bindZoomSlider() {
     const slider = this.el('zoom-slider');
     slider.addEventListener('input', () => {
-      const [lo, hi] = this.zoomRange();
-      const v = lo * Math.pow(hi / lo, slider.value / 1000);
       const s = this.scene;
-      if (s.mode === 'map') {
-        s.mapZoom = v;
-        s.mapEase = false;
-      } else if (s.mode === 'drive') {
-        s.drive.zoom = v;
-      } else {
-        s.zoom = v;
-      }
+      s.setViewDist(sliderToDist(+slider.value, s.zoomLimits()));
     });
     slider.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
@@ -78,10 +65,8 @@ export class FlightHud {
   syncZoomSlider() {
     const slider = this.el('zoom-slider');
     if (document.activeElement === slider) return;
-    const [lo, hi] = this.zoomRange();
-    const m = this.scene.mode;
-    const v = m === 'map' ? this.scene.mapZoom : m === 'drive' ? this.scene.drive.zoom : this.scene.zoom;
-    slider.value = String(Math.round((Math.log(v / lo) / Math.log(hi / lo)) * 1000));
+    const s = this.scene;
+    slider.value = String(Math.round(distToSlider(s.viewDist(), s.zoomLimits())));
   }
 
   get scene() {
@@ -188,9 +173,7 @@ export class FlightHud {
 
   zoomBy(k) {
     const s = this.scene;
-    if (s.mode === 'drive') s.drive.zoom = Math.min(8, Math.max(0.4, s.drive.zoom * k));
-    else if (s.mode === 'map') s.mapZoom = Math.min(20, Math.max(0.02, s.mapZoom * k));
-    else s.zoom = Math.min(40, Math.max(0.35, s.zoom * k));
+    s.setViewDist(s.viewDist() * k);
   }
 
   showTarget(body) {

@@ -12,6 +12,9 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   paint it. Drag a part off the rocket to throw it away. 🎲 builds a surprise rocket.
 - **Fly:** ⟲ ⟳ turn, hold **GO** to fire the engine. 🗺️ opens the map, ⏩ speeds up time,
   ↺ rewinds a few seconds.
+- **Zoom:** pinch, scroll, or the slider on the right. The camera follows further back as you
+  climb, but you can always zoom right up to the rocket (about 12 m) or out to see a whole
+  world; on the map, from one world up close out to the whole solar system.
 - **Go somewhere:** open the map and tap a world.
   - **🧭 Show me how:** Pip tells you when to turn and when to burn. You fly!
   - **🤖 Fly me there:** Pip flies, you watch.
