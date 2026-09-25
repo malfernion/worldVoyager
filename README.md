@@ -49,15 +49,25 @@ to Ember (and grows a tail that always points away from it), then drifts slowly 
 Ringo. It's tiny and hard to catch, so Pip waits for a good moment to set off, and when you
 get close Pip steers you in. Drive over its fizzy gas jets and they'll bounce your buggy up!
 
-Collect stickers for reaching space, orbiting, and landing on every world. Tap a world in the 📖
-sticker book to hear a real space fact.
+**Discoveries:** little secrets hide around the solar system, each one a real bit of space
+science: an old observatory on a hill near home, footprints and a flag and a shiny laser mirror
+on Pebble, a sleepy rover and swirly dust devils on Dusty, Nibble's giant crater, the gap
+between Ringo and its rings, Sizzle's biggest volcano, Frosty's glowing cracks (park by one
+at night), Ember's solar flares (fly close, not too close), Flip's dark geyser streaks and a
+little lander hiding in the shade on Ducky. While you drive, a ✨ next to the rocket compass
+points to the nearest secret still to find on that world, and grows and twinkles as you get
+close. Finding one plays a chime, pops a sticker and Pip tells you the real fact.
+
+Collect stickers for reaching space, orbiting, landing on every world and your discoveries. Tap
+a world in the 📖 sticker book to hear a real space fact. Tap a discovery to hear its fact
+again, or a ❓ one for a hint from Pip.
 
 ## Develop
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coach-mode flights
+npm test         # physics, autopilot missions, coach-mode flights, buggy, discoveries
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

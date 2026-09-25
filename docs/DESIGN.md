@@ -252,6 +252,55 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
 - **Getting home.** 🏠 drives back into the garage when close, or whisks you back with
   sparkles when far. A HUD compass always points to the rocket.
 
+## Discoveries (#15)
+
+Small secrets tucked round the solar system, in the spirit of Outer Wilds: curiosity is
+rewarded, and there's no checklist (discovery stickers are never goals). Each one is a real
+bit of space science. Finding one plays a chime and sparkles, pops a sticker (with its
+world's picture), and Pip says the fact in short sentences.
+
+| World | Discovery | Found by | Sticker |
+|---|---|---|---|
+| Homestead | an old wooden observatory on a hilltop ~130 m behind the village; once found, its telescope swings round to point at Ringo | buggy within 9 m | 🔭 Stargazer (Galileo thought Saturn's rings were ears) |
+| Pebble | a flag, a little lander base and footprints | buggy within 7 m | 👣 Footprint Finder (no wind, so footprints last millions of years) |
+| Pebble | a laser mirror that glints; once found a red laser flickers up to it | parked within 5 m | 🔦 Laser Bouncer |
+| Dusty | a sleepy old rover with dusty panels; it beeps, then a light blinks | buggy within 7 m | 🤖 Rover Buddy (Opportunity) |
+| Dusty | four dust devils wandering the plains (~1.5 m/s) | driving through one | 🌪️ Dust Devil |
+| Nibble | a giant crater nearly as big as the moon (like Stickney), paler floor, crossing the flight plane | landing or driving inside | 💫 Future Ring (Phobos may become a ring) |
+| Ringo | the gap between the clouds and the inner edge of the rings | the rocket crossing the ring plane there, still flying 4 s later | 🤿 Ring Diver (Cassini's 22 dives) |
+| Sizzle | the biggest vent's plume | buggy within 9 m | 💨 Plume Chaser |
+| Frosty | fresh cracks with a faint blue glow, only at night | parked within 6 m of a crack where Ember is below the horizon | 🐙 Ocean Spotter (Europa's ocean) |
+| Ember | a solar flare: a loop of glowing gas that rises for 50 s every 150 s of flight time | the rocket within 6 × Ember's radius while it flares | 🌞 Flare Watcher (auroras) |
+| Flip | the dark streaks the geysers' dust leaves downwind | buggy within 8 m of one | 🌬️ Streak Spotter (Voyager 2 at Triton) |
+| Ducky | Philae, tipped over in a shady hollow by a big boulder | buggy within 6 m | 📡 Lander Finder |
+
+- **Night is real.** The worlds don't spin, so which side is dark only changes as they go
+  round Ember. Frosty has four glowing cracks spread round it, so one is always on the night
+  side, and the glow only shows there (and only counts there).
+- **The ✨ compass.** While driving, a ✨ next to the rocket compass points at the nearest
+  secret still to find on this world (night-only ones only while it's night there; the dust
+  devils where they are now). It grows and glows as you get close, twinkles when you're
+  nearly there, and a ✨ floats over the spot within 60 m. The first time (until a first
+  discovery) Pip says "Psst! Follow the sparkles to find a secret!" The compass takes a list
+  of `{ id, p, icon }` targets, so other kinds of target (#16) can join it. A headless test
+  drives a pretend kid along it from four landing spots on each world and finds everything.
+- **Landing counts too.** A rocket landing by (or in) a discovery finds it; the landmarks
+  keep clear of the flight plane so they never hide the rocket, so in practice that's
+  Nibble's crater and Flip's streaks.
+- **The ring gap** is judged where the rocket crossed the ring plane (the line where it meets
+  the flight plane), interpolating the radius, not the chord, so top time warp can't cut the
+  corner. A cosy orbit round Ringo is inside the gap, so most visits find it: that's fine, it's
+  Pip's cue to tell the Cassini story.
+- **Cheap:** each world's still landmark parts are one merged vertex-coloured mesh plus its ink
+  outline (and one un-inked mesh for flat things like footprints), sharing one material. Only
+  the telescope, glints, glows, laser and flare are separate. Dust devils are clock-driven
+  billboards like the other ambient effects (one unshaded mesh, so they show at night too).
+  Trees and rocks keep clear of landmarks; the solid ones (observatory, flag, lander bases,
+  rover, Philae and its boulder) are in the buggy's `ObstacleGrid`.
+- **The sticker book** has a ✨ Discoveries section: found ones show their sticker; the rest show
+  their world's icon with a ❓. Tapping one has Pip say the fact again, or a gentle hint ("I
+  heard a strange hum on Frosty. Park by a deep crack when it is dark!").
+
 ## Ideas for later
 
 Tracked as [GitHub Issues](https://github.com/malfernion/worldVoyager/issues).

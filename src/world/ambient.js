@@ -1,5 +1,5 @@
-// Ambient life on the worlds: Sizzle's volcano plumes, Dusty's caldera puffs and drifting dust,
-// Flip's frosty geysers, Ducky's gas jets and its comet tails.
+// Ambient life on the worlds: Sizzle's volcano plumes, Dusty's caldera puffs, drifting dust and
+// dust devils, Flip's frosty geysers, Ducky's gas jets and its comet tails.
 // Every puff is a loop driven only by the clock (no spawning, no per-frame allocation), and each
 // world's puffs are one instanced billboard mesh inside the planet's group, so they move and scale
 // with the planet in flight, driving and the map.
@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { mulberry32 } from '../physics/noise.js';
 import { SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS } from '../physics/terrain.js';
 import { JETS } from '../physics/buggy.js';
+import { DUST_DEVILS, devilAt } from '../physics/discoveries.js';
 import { glowTexture, puffTexture } from './materials.js';
 
 // Tuning knobs.
@@ -15,6 +16,8 @@ const VENT_EMBERS = 3; // per Sizzle vent
 const CALDERA_PUFFS = 10; // per Dusty burst
 const CALDERA_PERIOD = 13; // seconds between Dusty bursts (some bursts are skipped)
 const DUST_PUFFS = 28; // drifting dust clouds over all of Dusty
+const DEVIL_PUFFS = 18; // per Dusty dust devil (#15)
+const DEVIL_HEIGHT = 24; // how tall a dust devil is (m)
 const GEYSER_PUFFS = 10; // per Flip geyser
 const GEYSER_GLINTS = 4; // ice sparkles per Flip geyser
 const JET_PUFFS = 7; // per Ducky gas jet
@@ -254,6 +257,21 @@ function sizzle(body, sunDir) {
   };
 }
 
+// A dust devil: puffs spiral up a funnel that widens towards the top. `devils` holds where each
+// devil is this frame (base point and its up/tangents), worked out once per frame in dusty().
+function drawDevil(p, a, time, bb, i) {
+  const d = p.devils[p.k];
+  const h = a * DEVIL_HEIGHT;
+  const w = 0.5 + a * a * 6; // a funnel, wide at the top
+  const th = p.spin + time * (3.2 - a * 1.5);
+  const c = Math.cos(th) * w, s = Math.sin(th) * w;
+  const x = d.x + d.ux * h + d.t1x * c + d.t2x * s;
+  const y = d.y + d.uy * h + d.t1y * c + d.t2y * s;
+  const z = d.z + d.uz * h + d.t1z * c + d.t2z * s;
+  const alpha = p.alpha * smooth(0, 0.15, a) * (1 - smooth(0.7, 1, a));
+  bb.set(i, x, y, z, 1.2 + a * 3.5, p.spin + time, p.c0, alpha);
+}
+
 function dusty(body, sunDir) {
   const count = CALDERA_PUFFS + DUST_PUFFS;
   const puffs = billboards(count, puffTexture(), sunDir, body.radius * 1.4);
@@ -306,7 +324,49 @@ function dusty(body, sunDir) {
       },
     });
   }
-  return { meshes: [puffs.mesh], update: (time) => all.update(time) };
+
+  // Dust devils (#15) wander the plains (devilAt in discoveries.js, which also finds them).
+  // Their own mesh, unshaded, so they still show on the night side where they're hunted too.
+  const devilBB = billboards(DUST_DEVILS.length * DEVIL_PUFFS, puffTexture(), sunDir, body.radius * 1.4, { lit: false });
+  const swirls = loops(devilBB);
+  const devils = DUST_DEVILS.map(() => ({}));
+  const dir = { x: 0, y: 0, z: 0 };
+  const swirl = new THREE.Color(0xf0cda6);
+  DUST_DEVILS.forEach((_, k) => {
+    for (let i = 0; i < DEVIL_PUFFS; i++) {
+      const life = 2.4;
+      swirls.add({
+        draw: drawDevil, devils, k, seed: 1200 + k * 50 + i, period: life, life, phase: (i / DEVIL_PUFFS) * life, c0: swirl,
+        spawn(p, rand) {
+          p.spin = rand() * Math.PI * 2;
+          p.alpha = 0.55 + rand() * 0.2;
+        },
+      });
+    }
+  });
+  const placeDevils = (time) => {
+    for (let k = 0; k < devils.length; k++) {
+      devilAt(k, time, dir);
+      const d = devils[k];
+      const r = body.radius + t.height(dir.x, dir.y, dir.z) - 0.5;
+      d.x = dir.x * r; d.y = dir.y * r; d.z = dir.z * r;
+      d.ux = dir.x; d.uy = dir.y; d.uz = dir.z;
+      // Tangents (z × up, then up × that).
+      let ax = -dir.y, ay = dir.x;
+      const l = Math.hypot(ax, ay) || 1;
+      ax /= l; ay /= l;
+      d.t1x = ax; d.t1y = ay; d.t1z = 0;
+      d.t2x = -dir.z * ay; d.t2y = dir.z * ax; d.t2z = dir.x * ay - dir.y * ax;
+    }
+  };
+  return {
+    meshes: [puffs.mesh, devilBB.mesh],
+    update(time) {
+      all.update(time);
+      placeDevils(time);
+      swirls.update(time);
+    },
+  };
 }
 
 // Triton-style geysers: a thin frosty column shoots straight up, then the wind drags its top

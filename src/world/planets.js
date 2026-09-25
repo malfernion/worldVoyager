@@ -7,7 +7,9 @@ import { toonGradient, glowTexture, woodTexture, toon, withOutline } from './mat
 import { createAmbient } from './ambient.js';
 import { createForest } from './trees.js';
 import { createRocks } from './rocks.js';
-import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS } from '../physics/terrain.js';
+import { createLandmarks } from './landmarks.js';
+import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS, OBSERVATORY } from '../physics/terrain.js';
+import { discoveriesOn } from '../physics/discoveries.js';
 import { mulberry32 } from '../physics/noise.js';
 
 const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36, flip: 32, ducky: 20 };
@@ -208,6 +210,8 @@ function trees(body, group) {
     if (zw > -5 && zw < 30) continue;
     const h = body.terrainFn.height(up.x, up.y, up.z);
     if (h < 0 || h > 16) continue;
+    // Clear of the old observatory on its hilltop (#15).
+    if (up.x * OBSERVATORY.x + up.y * OBSERVATORY.y + up.z * OBSERVATORY.z > Math.cos(0.06)) continue;
     // Sunk a little so trunks stay planted on slopes.
     spots.push({ position: up.clone().multiplyScalar(body.radius + h - 0.3), up, size: 3 + rand() * 4 });
   }
@@ -234,8 +238,8 @@ const HOT = { sizzle: SIZZLE_VENTS, dusty: [DUSTY_VOLCANO], flip: FLIP_GEYSERS, 
 function rocks(body, group) {
   const def = ROCKS[body.id];
   const rand = mulberry32(body.radius * 7 + def.count);
-  // Lava vents, geysers and Dusty's caldera stay clear.
-  const hot = HOT[body.id] ?? [];
+  // Lava vents, geysers, Dusty's caldera and the discoveries' landmarks (#15) stay clear.
+  const hot = [...(HOT[body.id] ?? []), ...discoveriesOn(body).flatMap((d) => d.spots ?? [])];
   const spots = [];
   for (let tries = 0; tries < 5000 && spots.length < def.count; tries++) {
     const z = rand() * 2 - 1;
@@ -372,6 +376,8 @@ export function createBodyVisual(body) {
     group.add(s.group);
     out.mesh = s.mesh;
     out.light = s.light;
+    out.landmarks = createLandmarks(body); // solar flares
+    group.add(out.landmarks.group);
     return out;
   }
 
@@ -401,6 +407,9 @@ export function createBodyVisual(body) {
       out.updates.push((time) => site.update(time));
     }
     if (ROCKS[body.id]) out.rocks = rocks(body, group);
+    // Discoveries (#15): the observatory, footprints, mirror, rover, lander, glowing cracks.
+    out.landmarks = createLandmarks(body);
+    if (out.landmarks) group.add(out.landmarks.group);
   }
   group.add(mesh);
   out.mesh = mesh;

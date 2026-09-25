@@ -13,6 +13,7 @@ import { rocketStats } from '../rocket/parts.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
+import { landingFinds, ringGapCrossed, flareSeen, sunDirection } from '../physics/discoveries.js';
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
@@ -71,6 +72,10 @@ export class FlightScene {
     this.ghosts = new Map();
 
     this.drive = new DriveMode(this);
+    // Discoveries (#15): what the landmarks need to know each frame, and the ring gap's watch.
+    this.landmarkCtx = { found: (id) => this.app.progress.has(id), aim: null };
+    this.lastPos = { body: null, x: 0, y: 0 };
+    this.gapAt = null;
     this.labels = document.getElementById('labels');
     this.markers = new Map();
   }
@@ -388,13 +393,14 @@ export class FlightScene {
           app.pip('Bump! Try flying higher next time!', { speak: true });
           break;
         }
-        if (app.progress.earn(id)) {
-          this.burst(b, 'confetti');
-        } else {
-          app.pip(`Touchdown on ${b.name}! ${b.icon}`, { speak: true });
-        }
+        const found = landingFinds(b, this.flight.state.landAngle, { time: this.time, toSun: sunDirection(b, this.flight.state.t), has: (x) => app.progress.has(x) });
+        const first = app.progress.earn(id);
+        if (first) this.burst(b, 'confetti');
+        else if (!found) app.pip(`Touchdown on ${b.name}! ${b.icon}`, { speak: true });
         this.warpIndex = 0;
         this.discover(b);
+        // Landed right by (or in) a discovery: straight away, or after the landing sticker.
+        if (found) setTimeout(() => this.found(found), first ? 7500 : 0);
         break;
       }
       case 'crash': {
@@ -422,11 +428,21 @@ export class FlightScene {
     }
   }
 
+  /** A discovery (#15) found from the rocket: a chime, sparkles, then the sticker and the fact. */
+  found(id) {
+    const app = this.app;
+    if (app.progress.has(id)) return;
+    app.audio.play('discover');
+    this.burst(this.flight.state.body, 'sparkle');
+    this.discover();
+    app.progress.earn(id);
+  }
+
   burst(body, kind) {
     const s = this.flight.state;
     const up = Math.atan2(s.y, s.x);
     const ux = Math.cos(up), uy = Math.sin(up);
-    const n = kind === 'confetti' ? 70 : kind === 'explosion' ? 40 : 14;
+    const n = kind === 'confetti' ? 70 : kind === 'explosion' ? 40 : kind === 'sparkle' ? 30 : 14;
     for (let i = 0; i < n; i++) {
       const a = up + (Math.random() - 0.5) * (kind === 'dust' ? 3 : 5);
       const sp = kind === 'confetti' ? 6 + Math.random() * 10 : kind === 'explosion' ? 3 + Math.random() * 9 : 2 + Math.random() * 3;
@@ -436,6 +452,8 @@ export class FlightScene {
         this.particles.spawn('confetti', body, x + ux * 4, y + uy * 4, 0, vx, vy, vz, {
           color: CONFETTI[i % CONFETTI.length], size: 0.5, grow: 0, life: 3, drag: 1.2, gravity: 3,
         });
+      } else if (kind === 'sparkle') {
+        this.particles.spawn('spark', body, x, y, 0, vx, vy, vz, { size: 1.5, grow: -0.4, life: 1.2, drag: 1.5 });
       } else if (kind === 'explosion') {
         this.particles.spawn(i % 3 ? 'puff' : 'spark', body, x, y, 0, vx, vy, vz, {
           size: i % 3 ? 3 : 2, grow: 2, life: 1.5 + Math.random(), drag: 1.5, color: i % 3 === 1 ? 0xffb070 : undefined,
@@ -567,10 +585,36 @@ export class FlightScene {
     const s = f.state;
     const p = this.app.progress;
     const home = this.system.home;
-    if (s.crashed) return;
+    if (s.crashed) {
+      this.gapAt = null;
+      return;
+    }
     if (s.body === home && !s.landed && f.altitude > home.spaceLine) p.earn('space');
     if (s.body === home && inStableOrbit(f)) p.earn('orbit');
     if (s.body.kind === 'star' && Math.hypot(s.x, s.y) < s.body.radius * 3) p.earn('sun');
+    this.checkDiscoveries();
+  }
+
+  /**
+   * Discoveries found while flying (#15): diving through the gap between Ringo and its rings
+   * (counted a few seconds later, if we didn't crash), and Ember's solar flares up close.
+   */
+  checkDiscoveries() {
+    const s = this.flight.state;
+    const p = this.app.progress;
+    const last = this.lastPos;
+    if (!p.has('find-ring-gap')) {
+      if (last.body === s.body && !s.landed && ringGapCrossed(s.body, last.x, last.y, s.x, s.y)) this.gapAt = s.t;
+      if (this.gapAt !== null && s.t < this.gapAt) this.gapAt = null; // rewound
+      if (this.gapAt !== null && s.t > this.gapAt + 4) {
+        this.gapAt = null;
+        this.found('find-ring-gap');
+      }
+    }
+    last.body = s.body;
+    last.x = s.x;
+    last.y = s.y;
+    if (!p.has('find-flare') && flareSeen(s)) this.found('find-flare');
   }
 
   updateMood() {
@@ -608,6 +652,12 @@ export class FlightScene {
         v.env.scale = v.group.scale.x;
       }
       for (const u of v.updates) u(this.time);
+      if (v.landmarks) {
+        // Ember's flares rise on the rocket's side when it's in Ember's space.
+        const s = this.flight.state;
+        this.landmarkCtx.aim = s.body === v.body ? Math.atan2(s.y, s.x) : null;
+        v.landmarks.update(this.time, t, this.landmarkCtx);
+      }
     }
   }
 
@@ -926,7 +976,7 @@ export class FlightScene {
       if (this.autopilot.marker) {
         const m = this.autopilot.marker;
         const w = m.body.worldPos(s.t, {});
-        this.placeMarker(this.marker('burn', 'event burn', '🔥'), w.x - this.origin.x + m.x, w.y - this.origin.y + m.y);
+        this.placeMarker(this.marker('burn', 'event burn', '<span>🔥</span>'), w.x - this.origin.x + m.x, w.y - this.origin.y + m.y);
       }
     }
     // Coach arrow: which way to point.
@@ -982,12 +1032,14 @@ export class FlightScene {
       const p = new THREE.Vector3(w.x + foot[0] + up[0] * (this.rocket.height + 3) - this.origin.x, w.y + foot[1] + up[1] * (this.rocket.height + 3) - this.origin.y, foot[2] + up[2] * (this.rocket.height + 3));
       const v = p.clone().project(this.camera);
       const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
-      if (onScreen) this.placeMarker(this.marker('home-pin', 'home-pin', '🚀'), p.x, p.y, p.z);
+      if (onScreen) this.placeMarker(this.marker('home-pin', 'home-pin', '<span>🚀</span>'), p.x, p.y, p.z);
       // Direction to the rocket for the HUD compass (flipped if it's behind us).
       const sx = v.z > 1 ? -v.x : v.x, sy = v.z > 1 ? -v.y : v.y;
       this.homeCompass = { angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight), visible: onScreen };
+      this.secretCompass = this.compassTo(this.drive.nearest, w);
     } else {
       this.homeCompass = null;
+      this.secretCompass = null;
     }
 
     // Rocket icon: always in the map; in flight when the rocket is too small to see.
@@ -1011,6 +1063,28 @@ export class FlightScene {
         this.markers.delete(key);
       }
     }
+  }
+
+  /**
+   * The on-planet compass (#15): which way on screen to the nearest target (a discovery now;
+   * other kinds later, #16), how near it is (0 far .. 1 here), and a sparkle over it up close.
+   * nearest: { target: { id, p, icon }, dist } in the world's frame; w: the world's position.
+   */
+  compassTo(nearest, w) {
+    if (!nearest) return null;
+    const tp = nearest.target.p;
+    const l = Math.hypot(tp[0], tp[1], tp[2]);
+    const lift = 5;
+    const p = new THREE.Vector3(w.x + tp[0] * (1 + lift / l) - this.origin.x, w.y + tp[1] * (1 + lift / l) - this.origin.y, tp[2] * (1 + lift / l));
+    const v = p.clone().project(this.camera);
+    const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
+    if (onScreen && nearest.dist < 60) this.placeMarker(this.marker('secret-pin', 'secret-pin', `<span>${nearest.target.icon}</span>`), p.x, p.y, p.z);
+    const sx = v.z > 1 ? -v.x : v.x, sy = v.z > 1 ? -v.y : v.y;
+    return {
+      angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight),
+      near: Math.max(0, Math.min(1, 1 - nearest.dist / 150)),
+      icon: nearest.target.icon,
+    };
   }
 
   clearMarkers() {

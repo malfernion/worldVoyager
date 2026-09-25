@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights, buggy, speech, zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights, buggy, discoveries, speech, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -66,16 +66,20 @@ Only push work that is tested and ready for players.
 
 ```
 src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
-src/progress.js        Goals, stickers, saved design + settings (incl. the 🧭 coach switch; localStorage)
+src/progress.js        Goals, stickers (incl. discoveries' facts and hints), saved design + settings (incl. the 🧭 coach switch; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
   bodies.js            The solar system: on-rails orbits (round, or Ducky the comet's Kepler ellipse), SOIs, per-world surfaces
-  terrain.js           Height + colour functions per world (shared by physics and meshes), gas giants' spin axes, vents, geysers and the comet's gas jets
+  terrain.js           Height + colour functions per world (shared by physics and meshes), gas giants' spin axes, vents, geysers and the comet's gas jets,
+                       and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
+  discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
+                       the ring gap, flares), and the ✨ compass's targets
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
   autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner (+ comet windows and homing)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets)
-src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/geysers/jets, comet tails), trees, rocks (moon boulders), effects, sky, materials, thumbnails
+src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), trees, rocks (moon boulders),
+                       landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
@@ -133,6 +137,15 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   propagation fails the check, that substep is integrated by hand (`leapfrog()`) so the rocket
   keeps flying; only if that fails too does it keep the last good state. It should never fire;
   if it does, fix the cause in `orbit.js`.
+- **Discoveries live in one table** (#15, `DISCOVERIES` in `src/physics/discoveries.js`), keyed
+  by the same ids as their stickers in `progress.js` (`find-…`: icon, name, `world`, the fact
+  Pip says and the sticker book's `hint`). Landmarks sit on the `terrain.js` ground and keep
+  clear of the strip in front of the flight plane (so they never hide the rocket); trees and
+  rocks keep clear of them (as of vents and geysers). Solid ones go into the buggy's
+  `ObstacleGrid`. Each world's still landmark parts are one merged vertex-coloured mesh (plus
+  ink); only moving or glowing bits are separate. The ✨ compass takes a list of
+  `{ id, p, icon }` targets (`discoveryTargets()`), so other kinds of target (#16) can join it.
+  Discovery stickers are never goals: no checklist.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).
@@ -272,5 +285,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   resuming from `visibilitychange` alone isn't enough. Decode clips with `decodeAudio()`: older
   WebKit only has the callback form of `decodeAudioData`. Headless Chromium can't check any
   of this; see "Sound on iPad / iPhone" above.
+- **Screen markers: don't animate `scale` on the marker itself.** Markers are placed with
+  `transform: translate(...)`, and CSS applies the `scale` property on top of that, so a
+  bobbing marker drifted away from its spot by up to 30% of its screen position (the 🚀 pin
+  did, #15). Wrap the content in a `<span>` and animate that.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

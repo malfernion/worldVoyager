@@ -496,6 +496,14 @@ export class AudioEngine {
         [72, 76, 79, 84, 88].forEach((m, i) => this.tone(midiHz(m), 0.5, { vol: 0.12, type: 'triangle', delay: i * 0.07 }));
         [55, 59, 62, 67].forEach((m, i) => this.pluck(m + 12, now + 0.35 + i * 0.1, 0.8, 'banjo', this.sfx));
         break;
+      case 'discover': // a twinkly rising chime for a secret found (#15)
+        [84, 88, 91, 96, 100, 103].forEach((m, i) => this.tone(midiHz(m), 0.6, { vol: 0.08, type: 'sine', delay: i * 0.06 }));
+        this.noiseBurst(0.6, 7000, { vol: 0.05, q: 0.8 });
+        break;
+      case 'beep': // the old rover's sleepy beep-boop
+        this.tone(988, 0.16, { vol: 0.12, type: 'square', delay: 0.5 });
+        this.tone(659, 0.3, { vol: 0.12, type: 'square', slide: 0.8, delay: 0.72 });
+        break;
       case 'crash':
         this.noiseBurst(1.2, 400, { vol: 0.9, type: 'lowpass' });
         this.noiseBurst(0.5, 1800, { vol: 0.3 });

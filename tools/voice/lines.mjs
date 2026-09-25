@@ -3,7 +3,7 @@
 // Messages are split into sentences exactly the way the in-game narrator does it, so
 // "We made it to Pebble! Tap the landing button to land!" becomes two reusable clips.
 // Lines are found by scanning the game source for spoken strings; `${...name}` placeholders
-// are expanded for every world, and data lines (goals, stickers, world facts) come straight
+// are expanded for every world, and data lines (goals, stickers and their hints, world facts) come straight
 // from the game's own modules.
 //
 //   node tools/voice/lines.mjs            -> writes tools/voice/lines.json
@@ -74,6 +74,7 @@ for (const g of GOALS) {
   messages.add(`Next: ${g.text}`);
 }
 for (const [id, s] of Object.entries(STICKERS)) if (!id.startsWith('land-')) messages.add(s.say || s.name);
+for (const s of Object.values(STICKERS)) if (s.hint) messages.add(s.hint); // discoveries' sticker-book hints (#15)
 for (const b of BODY_DEFS) {
   messages.add(b.blurb);
   messages.add(`You landed on ${b.name}! ${b.blurb}`);

@@ -12,8 +12,36 @@
   "text": "A garage!"
  },
  {
+  "key": "a little lander hiding in the shade",
+  "text": "A little lander, hiding in the shade!"
+ },
+ {
   "key": "a little robot called philae landed on it",
   "text": "A little robot called Philae landed on it!"
+ },
+ {
+  "key": "a long dark streak",
+  "text": "A long dark streak!"
+ },
+ {
+  "key": "a real lander called philae landed on a comet",
+  "text": "A real lander called Philae landed on a comet."
+ },
+ {
+  "key": "a real rover called opportunity explored mars",
+  "text": "A real rover called Opportunity explored Mars."
+ },
+ {
+  "key": "a shiny mirror",
+  "text": "A shiny mirror!"
+ },
+ {
+  "key": "a sleepy old rover",
+  "text": "A sleepy old rover!"
+ },
+ {
+  "key": "a spacecraft called cassini dived through the gap next to saturn twenty two times",
+  "text": "A spacecraft called Cassini dived through the gap next to Saturn twenty two times!"
  },
  {
   "key": "add a cabin or a bubble",
@@ -34,6 +62,18 @@
  {
   "key": "all the way round nibble again",
   "text": "All the way round Nibble again!"
+ },
+ {
+  "key": "and it kept going for almost fifteen years",
+  "text": "And it kept going for almost fifteen years."
+ },
+ {
+  "key": "another explorer was here before us",
+  "text": "Another explorer was here before us."
+ },
+ {
+  "key": "astronauts left mirrors like this on the moon",
+  "text": "Astronauts left mirrors like this on the Moon."
  },
  {
   "key": "astronauts walked on the real moon",
@@ -92,6 +132,10 @@
   "text": "Back up and steer around it."
  },
  {
+  "key": "beep boop",
+  "text": "Beep boop!"
+ },
+ {
   "key": "big bouncy wheels that climb anything",
   "text": "Big bouncy wheels that climb anything."
  },
@@ -116,8 +160,28 @@
   "text": "Bump!"
  },
  {
+  "key": "can you drive onto one",
+  "text": "Can you drive onto one?"
+ },
+ {
+  "key": "can you drive through one",
+  "text": "Can you drive through one?"
+ },
+ {
   "key": "can you find it",
   "text": "Can you find it?"
+ },
+ {
+  "key": "can you find it in the buggy",
+  "text": "Can you find it in the buggy?"
+ },
+ {
+  "key": "can you land in it or drive in",
+  "text": "Can you land in it, or drive in?"
+ },
+ {
+  "key": "can you wake it up",
+  "text": "Can you wake it up?"
  },
  {
   "key": "catch ducky the comet and land on it",
@@ -136,12 +200,24 @@
   "text": "Comets are tricky to catch!"
  },
  {
+  "key": "could a rocket fit between ringo and its rings",
+  "text": "Could a rocket fit between Ringo and its rings?"
+ },
+ {
+  "key": "could something live down there",
+  "text": "Could something live down there?"
+ },
+ {
   "key": "drag or tap parts to build",
   "text": "Drag or tap parts to build."
  },
  {
   "key": "drive really fast then jump and hold it",
   "text": "Drive really fast, then jump and hold it!"
+ },
+ {
+  "key": "drive right up to it",
+  "text": "Drive right up to it!"
  },
  {
   "key": "ducky",
@@ -192,6 +268,14 @@
   "text": "Ember is way too hot to land on!"
  },
  {
+  "key": "ember threw out a giant loop of glowing gas",
+  "text": "Ember threw out a giant loop of glowing gas."
+ },
+ {
+  "key": "europas hidden ocean has more water than all of earths oceans put together",
+  "text": "Europa's hidden ocean has more water than all of Earth's oceans put together."
+ },
+ {
   "key": "every great explorer crashes sometimes",
   "text": "Every great explorer crashes sometimes."
  },
@@ -206,6 +290,10 @@
  {
   "key": "first we fly up high",
   "text": "First we fly up high."
+ },
+ {
+  "key": "flares from the sun can make the lights in earths sky glow",
+  "text": "Flares from the Sun can make the lights in Earth's sky glow."
  },
  {
   "key": "flip",
@@ -228,6 +316,14 @@
   "text": "Flip goes the other way."
  },
  {
+  "key": "flips geysers leave dark marks on the ice",
+  "text": "Flip's geysers leave dark marks on the ice."
+ },
+ {
+  "key": "fly close to it but not too close",
+  "text": "Fly close to it, but not too close!"
+ },
+ {
   "key": "fly to pebble the moon",
   "text": "Fly to Pebble, the moon!"
  },
@@ -246,6 +342,14 @@
  {
   "key": "follow the arrow and hold go to make our path nice and round",
   "text": "Follow the arrow and hold GO to make our path nice and round."
+ },
+ {
+  "key": "follow the sparkles to find a secret",
+  "text": "Follow the sparkles to find a secret!"
+ },
+ {
+  "key": "footprints and a flag",
+  "text": "Footprints and a flag!"
  },
  {
   "key": "frosty",
@@ -286,6 +390,10 @@
  {
   "key": "halfway round",
   "text": "Halfway round!"
+ },
+ {
+  "key": "he saw the rings but he thought they were ears",
+  "text": "He saw the rings, but he thought they were ears!"
  },
  {
   "key": "hello dusty the red planet",
@@ -364,6 +472,14 @@
   "text": "Howdy, space explorer!"
  },
  {
+  "key": "i heard a strange hum on frosty",
+  "text": "I heard a strange hum on Frosty."
+ },
+ {
+  "key": "i spotted something wooden on a hilltop not far from home",
+  "text": "I spotted something wooden on a hilltop, not far from home."
+ },
+ {
   "key": "ill catch us this time",
   "text": "I'll catch us this time."
  },
@@ -400,8 +516,16 @@
   "text": "Io has more volcanoes than anywhere else!"
  },
  {
+  "key": "it bounced twice and stopped in a shady spot",
+  "text": "It bounced twice and stopped in a shady spot."
+ },
+ {
   "key": "it can jump",
   "text": "It can jump!"
+ },
+ {
+  "key": "it drove farther than a marathon",
+  "text": "It drove farther than a marathon!"
  },
  {
   "key": "it is a giant ball of glowing hot gas just like the sun",
@@ -410,6 +534,14 @@
  {
   "key": "it is like our earth",
   "text": "It is like our Earth."
+ },
+ {
+  "key": "it is nearly as big as nibble",
+  "text": "It is nearly as big as Nibble."
+ },
+ {
+  "key": "it is the only spacecraft that ever went there",
+  "text": "It is the only spacecraft that ever went there!"
  },
  {
   "key": "it is tiny",
@@ -478,6 +610,10 @@
  {
   "key": "lets build a rocket",
   "text": "Let's build a rocket!"
+ },
+ {
+  "key": "lets find out",
+  "text": "Let's find out!"
  },
  {
   "key": "lets find the next one",
@@ -644,6 +780,22 @@
   "text": "Lights need a tube to hold on to."
  },
  {
+  "key": "long ago galileo looked at saturn with a tiny telescope",
+  "text": "Long ago, Galileo looked at Saturn with a tiny telescope."
+ },
+ {
+  "key": "look a glow deep in the crack",
+  "text": "Look, a glow deep in the crack!"
+ },
+ {
+  "key": "look it is pointing at ringo",
+  "text": "Look, it is pointing at Ringo."
+ },
+ {
+  "key": "mars has dust devils taller than mountains",
+  "text": "Mars has dust devils taller than mountains."
+ },
+ {
   "key": "mars has the biggest volcano in the whole solar system",
   "text": "Mars has the biggest volcano in the whole solar system!"
  },
@@ -720,6 +872,10 @@
   "text": "Nibble goes the other way."
  },
  {
+  "key": "nibble has a giant hole in it",
+  "text": "Nibble has a giant hole in it."
+ },
+ {
   "key": "nibble is a tiny lumpy moon shaped like a potato just like phobos a moon of mars",
   "text": "Nibble is a tiny lumpy moon shaped like a potato, just like Phobos, a moon of Mars."
  },
@@ -752,8 +908,16 @@
   "text": "Oh!"
  },
  {
+  "key": "on io volcanoes throw plumes way up into space",
+  "text": "On Io, volcanoes throw plumes way up into space."
+ },
+ {
   "key": "once you are high up tip sideways and hold go",
   "text": "Once you are high up, tip sideways and hold GO."
+ },
+ {
+  "key": "one day it may break up and turn into a ring",
+  "text": "One day it may break up and turn into a ring!"
  },
  {
   "key": "one garage is plenty",
@@ -800,6 +964,14 @@
   "text": "Our rocket is too weak to land here."
  },
  {
+  "key": "park by a deep crack when it is dark",
+  "text": "Park by a deep crack when it is dark!"
+ },
+ {
+  "key": "park right next to it",
+  "text": "Park right next to it!"
+ },
+ {
   "key": "pebble",
   "text": "Pebble!"
  },
@@ -814,6 +986,10 @@
  {
   "key": "phew were down",
   "text": "Phew, we're down!"
+ },
+ {
+  "key": "phobos a moon of mars is slowly falling closer to mars",
+  "text": "Phobos, a moon of Mars, is slowly falling closer to Mars."
  },
  {
   "key": "pick a buggy to drive around on other worlds",
@@ -868,6 +1044,10 @@
   "text": "Saturn is so light it could float in a giant bathtub!"
  },
  {
+  "key": "scientists shine lasers at them from earth",
+  "text": "Scientists shine lasers at them from Earth."
+ },
+ {
   "key": "see the fire on the map",
   "text": "See the fire on the map?"
  },
@@ -888,12 +1068,48 @@
   "text": "Sizzle is covered in volcanoes, just like Io, a moon of Jupiter."
  },
  {
+  "key": "sizzles biggest volcano is puffing away",
+  "text": "Sizzle's biggest volcano is puffing away."
+ },
+ {
   "key": "slow down before landing",
   "text": "Slow down before landing."
  },
  {
   "key": "slow down rocket",
   "text": "Slow down, rocket!"
+ },
+ {
+  "key": "so footprints there can last for millions of years",
+  "text": "So footprints there can last for millions of years!"
+ },
+ {
+  "key": "some go four hundred kilometres high",
+  "text": "Some go four hundred kilometres high!"
+ },
+ {
+  "key": "somebody left something on pebble",
+  "text": "Somebody left something on Pebble."
+ },
+ {
+  "key": "something bounced on ducky and hid in the shade",
+  "text": "Something bounced on Ducky and hid in the shade."
+ },
+ {
+  "key": "something is sleeping in the dust on dusty",
+  "text": "Something is sleeping in the dust on Dusty."
+ },
+ {
+  "key": "something on pebble is very shiny",
+  "text": "Something on Pebble is very shiny."
+ },
+ {
+  "key": "sometimes ember flares up",
+  "text": "Sometimes Ember flares up!"
+ },
+ {
+  "key": "sometimes they blow the dust off a rovers solar panels like a giant broom",
+  "text": "Sometimes they blow the dust off a rover's solar panels, like a giant broom!"
  },
  {
   "key": "space starts way up high where the sky turns black",
@@ -914,6 +1130,10 @@
  {
   "key": "super hop",
   "text": "Super hop!"
+ },
+ {
+  "key": "swirly winds dance across dusty",
+  "text": "Swirly winds dance across Dusty."
  },
  {
   "key": "tap it to pick your buggy",
@@ -996,12 +1216,36 @@
   "text": "The Hopper!"
  },
  {
+  "key": "the light bounces back and tells them how far away the moon is",
+  "text": "The light bounces back and tells them how far away the Moon is!"
+ },
+ {
   "key": "the monster truck",
   "text": "The Monster Truck!"
  },
  {
   "key": "the rover",
   "text": "The Rover!"
+ },
+ {
+  "key": "the wind blew the geysers dust across the ice",
+  "text": "The wind blew the geyser's dust across the ice."
+ },
+ {
+  "key": "then its solar panels could not get enough sunlight",
+  "text": "Then its solar panels could not get enough sunlight."
+ },
+ {
+  "key": "there is an ocean under the ice",
+  "text": "There is an ocean under the ice."
+ },
+ {
+  "key": "there is no wind on the moon",
+  "text": "There is no wind on the Moon."
+ },
+ {
+  "key": "they are called auroras",
+  "text": "They are called auroras!"
  },
  {
   "key": "they are made of ice and rock",
@@ -1084,12 +1328,24 @@
   "text": "Visit Dusty, the red planet!"
  },
  {
+  "key": "voyager 2 saw streaks like this on triton",
+  "text": "Voyager 2 saw streaks like this on Triton."
+ },
+ {
   "key": "vroom",
   "text": "Vroom!"
  },
  {
   "key": "want me to show you how to fly",
   "text": "Want me to show you how to fly?"
+ },
+ {
+  "key": "we drove through a dust devil",
+  "text": "We drove through a dust devil!"
+ },
+ {
+  "key": "we flew through the gap between ringo and its rings",
+  "text": "We flew through the gap between Ringo and its rings!"
  },
  {
   "key": "we havent been there yet",
@@ -1392,6 +1648,10 @@
   "text": "We're on our way to Tumble!"
  },
  {
+  "key": "what a giant crater",
+  "text": "What a giant crater!"
+ },
+ {
   "key": "whee",
   "text": "Whee!"
  },
@@ -1408,6 +1668,10 @@
   "text": "When you go sideways fast enough, you keep falling around the moon and never hit the ground!"
  },
  {
+  "key": "whoa a solar flare",
+  "text": "Whoa, a solar flare!"
+ },
+ {
   "key": "whoa too fast",
   "text": "Whoa, too fast!"
  },
@@ -1422,6 +1686,10 @@
  {
   "key": "wow look at those rings",
   "text": "Wow, look at those rings!"
+ },
+ {
+  "key": "wow sizzles biggest volcano",
+  "text": "Wow, Sizzle's biggest volcano!"
  },
  {
   "key": "yikes too hot",
@@ -1482,6 +1750,10 @@
  {
   "key": "you flew to tumble all by yourself",
   "text": "You flew to Tumble all by yourself!"
+ },
+ {
+  "key": "you found an old telescope",
+  "text": "You found an old telescope!"
  },
  {
   "key": "you landed all by yourself",

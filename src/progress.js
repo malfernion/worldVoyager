@@ -43,7 +43,74 @@ export const STICKERS = {
   // A secret: super hop the Hopper all the way round Nibble (see ORBIT in physics/buggy.js).
   'orbit-nibble': { icon: '🛰️', name: 'Moon Orbiter', say: 'You orbited Nibble in your buggy! When you go sideways fast enough, you keep falling around the moon and never hit the ground!' },
   kaboom: { icon: '💥', name: 'Kaboom Club', say: 'Kaboom! Every great explorer crashes sometimes. Let\'s try again!' },
+
+  // Discoveries (#15): secrets on the worlds, each a real bit of space science (where they are
+  // and what finds them: src/physics/discoveries.js). `world` is where it hides, and `hint` is
+  // what Pip says when a locked one is tapped in the sticker book.
+  'find-observatory': {
+    icon: '🔭', name: 'Stargazer', world: 'homestead',
+    say: 'You found an old telescope! Look, it is pointing at Ringo. Long ago, Galileo looked at Saturn with a tiny telescope. He saw the rings, but he thought they were ears!',
+    hint: 'I spotted something wooden on a hilltop, not far from home.',
+  },
+  'find-footprints': {
+    icon: '👣', name: 'Footprint Finder', world: 'pebble',
+    say: 'Footprints and a flag! Another explorer was here before us. There is no wind on the Moon. So footprints there can last for millions of years!',
+    hint: 'Somebody left something on Pebble. Can you find it in the buggy?',
+  },
+  'find-mirror': {
+    icon: '🔦', name: 'Laser Bouncer', world: 'pebble',
+    say: 'A shiny mirror! Astronauts left mirrors like this on the Moon. Scientists shine lasers at them from Earth. The light bounces back and tells them how far away the Moon is!',
+    hint: 'Something on Pebble is very shiny. Park right next to it!',
+  },
+  'find-rover': {
+    icon: '🤖', name: 'Rover Buddy', world: 'dusty',
+    say: 'Beep boop! A sleepy old rover! A real rover called Opportunity explored Mars. It drove farther than a marathon! And it kept going for almost fifteen years.',
+    hint: 'Something is sleeping in the dust on Dusty. Can you wake it up?',
+  },
+  'find-dust-devil': {
+    icon: '🌪️', name: 'Dust Devil', world: 'dusty',
+    say: 'Whoosh! We drove through a dust devil! Mars has dust devils taller than mountains. Sometimes they blow the dust off a rover\'s solar panels, like a giant broom!',
+    hint: 'Swirly winds dance across Dusty. Can you drive through one?',
+  },
+  'find-crater': {
+    icon: '💫', name: 'Future Ring', world: 'nibble',
+    say: 'What a giant crater! It is nearly as big as Nibble. Phobos, a moon of Mars, is slowly falling closer to Mars. One day it may break up and turn into a ring!',
+    hint: 'Nibble has a giant hole in it. Can you land in it, or drive in?',
+  },
+  'find-ring-gap': {
+    icon: '🤿', name: 'Ring Diver', world: 'ringo',
+    say: 'Whee! We flew through the gap between Ringo and its rings! A spacecraft called Cassini dived through the gap next to Saturn twenty two times!',
+    hint: 'Could a rocket fit between Ringo and its rings? Let\'s find out!',
+  },
+  'find-plume': {
+    icon: '💨', name: 'Plume Chaser', world: 'sizzle',
+    say: 'Wow, Sizzle\'s biggest volcano! On Io, volcanoes throw plumes way up into space. Some go four hundred kilometres high!',
+    hint: 'Sizzle\'s biggest volcano is puffing away. Drive right up to it!',
+  },
+  'find-ocean': {
+    icon: '🐙', name: 'Ocean Spotter', world: 'frosty',
+    say: 'Look, a glow deep in the crack! There is an ocean under the ice. Europa\'s hidden ocean has more water than all of Earth\'s oceans put together. Could something live down there?',
+    hint: 'I heard a strange hum on Frosty. Park by a deep crack when it is dark!',
+  },
+  'find-flare': {
+    icon: '🌞', name: 'Flare Watcher', world: 'ember',
+    say: 'Whoa, a solar flare! Ember threw out a giant loop of glowing gas. Flares from the Sun can make the lights in Earth\'s sky glow. They are called auroras!',
+    hint: 'Sometimes Ember flares up! Fly close to it, but not too close!',
+  },
+  'find-streak': {
+    icon: '🌬️', name: 'Streak Spotter', world: 'flip',
+    say: 'A long dark streak! The wind blew the geyser\'s dust across the ice. Voyager 2 saw streaks like this on Triton. It is the only spacecraft that ever went there!',
+    hint: 'Flip\'s geysers leave dark marks on the ice. Can you drive onto one?',
+  },
+  'find-philae': {
+    icon: '📡', name: 'Lander Finder', world: 'ducky',
+    say: 'A little lander, hiding in the shade! A real lander called Philae landed on a comet. It bounced twice and stopped in a shady spot. Then its solar panels could not get enough sunlight.',
+    hint: 'Something bounced on Ducky and hid in the shade. Can you find it?',
+  },
 };
+
+/** Discovery stickers (#15), in sticker-book order. */
+export const DISCOVERY_IDS = Object.keys(STICKERS).filter((id) => id.startsWith('find-'));
 
 function load() {
   try {

@@ -9,7 +9,7 @@ import { BuilderScene } from './scenes/builder.js';
 import { FlightHud } from './ui/flightHud.js';
 import { Narrator } from './ui/narrator.js';
 import { AudioEngine } from './audio/audio.js';
-import { Progress, GOALS, STICKERS } from './progress.js';
+import { Progress, GOALS, STICKERS, DISCOVERY_IDS } from './progress.js';
 import { defaultDesign } from './rocket/parts.js';
 
 const $ = (id) => document.getElementById(id);
@@ -188,7 +188,8 @@ class App {
 
   onSticker(id) {
     const st = STICKERS[id];
-    const bodyId = id.startsWith('land-') || id.startsWith('visit-') ? id.split('-')[1] : null;
+    // Landing, visiting and discovery (#15) stickers show their world.
+    const bodyId = id.startsWith('land-') || id.startsWith('visit-') ? id.split('-')[1] : st.world ?? null;
     const body = bodyId ? this.system.byId[bodyId] : null;
     this.audio.play('sticker');
     const img = $('sticker-img');
@@ -204,7 +205,7 @@ class App {
     clearTimeout(this.stickerTimer);
     this.stickerTimer = setTimeout(() => pop.classList.add('hidden'), 3200);
     const line = id.startsWith('land-') ? `You landed on ${body.name}! ${body.blurb}` : st.say || st.name;
-    this.pip(line, { speak: true, duration: 7000 });
+    this.pip(line, { speak: true, duration: Math.max(7000, line.length * 70) });
     const next = this.progress.currentGoal;
     if (next && GOALS.some((g) => g.id === id)) {
       setTimeout(() => this.pip(`Next: ${next.text}`, { speak: true }), 7500);
@@ -230,10 +231,29 @@ class App {
     const stickers = $('journal-stickers');
     stickers.innerHTML = '';
     for (const [id, st] of Object.entries(STICKERS)) {
+      if (DISCOVERY_IDS.includes(id)) continue;
       const d = document.createElement('div');
       d.className = `mini-sticker${this.progress.has(id) ? '' : ' locked'}`;
       d.innerHTML = `<span>${st.icon}</span>${this.progress.has(id) ? st.name : '?'}`;
       stickers.appendChild(d);
+    }
+    // Discoveries (#15): found ones show their sticker; ones still hidden show their world and
+    // a ?. Tap either and Pip says the fact again, or gives a gentle hint.
+    const found = $('journal-discoveries');
+    found.innerHTML = '';
+    for (const id of DISCOVERY_IDS) {
+      const st = STICKERS[id];
+      const has = this.progress.has(id);
+      const world = this.system.byId[st.world];
+      const d = document.createElement('div');
+      d.className = `mini-sticker${has ? '' : ' locked'}`;
+      d.innerHTML = `<span>${has ? st.icon : world.icon}</span>${has ? st.name : world.name}`;
+      d.addEventListener('click', () => {
+        this.audio.play('tap');
+        const line = has ? st.say : st.hint;
+        this.pip(line, { speak: true, duration: Math.max(6000, line.length * 70) });
+      });
+      found.appendChild(d);
     }
     $('journal-screen').classList.remove('hidden');
   }

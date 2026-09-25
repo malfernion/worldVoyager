@@ -5,6 +5,8 @@ import { Buggy, ObstacleGrid, vec } from '../physics/buggy.js';
 import { BUGGIES, DEFAULT_BUGGY, garageOf } from '../rocket/parts.js';
 import { buildBuggy } from '../rocket/buggyMesh.js';
 import { clamp, DRIVE_ZOOM } from '../ui/zoom.js';
+import { buggyFinds, discoveryTargets, nearestTarget, sunDirection } from '../physics/discoveries.js';
+import { DISCOVERY_IDS } from '../progress.js';
 
 const LEAVES = [0x5d8c3a, 0x7aa84a, 0x3f6b2e, 0xd08a3a];
 
@@ -24,6 +26,11 @@ export class DriveMode {
     this.shake = 0; // camera wobble after a bump
     this.bonkWait = 0;
     this.shakeOffset = new THREE.Vector3();
+    // The on-planet compass (#15): targets still to find on this world, and the nearest one.
+    this.targets = [];
+    this.nearest = null;
+    this.seekWait = 0;
+    this.toSun = { x: 1, y: 0, z: 0 };
   }
 
   canDeploy() {
@@ -87,6 +94,9 @@ export class DriveMode {
     this.buggy.spawn(vec.add(foot, [0, 0, 6]), [0, 0, 1]);
     this.buggy.obstacles = [{ p: foot, r: 1.5, top: fs.rocket.height + 0.5 }];
     this.buggy.grid = this.obstacleGrid(body);
+    this.nearest = null;
+    this.targets.length = 0;
+    this.seekWait = 0;
     this.mesh = buildBuggy(choice.kind, choice.paint);
     fs.scene.add(this.mesh.group);
     this.active = true;
@@ -110,7 +120,8 @@ export class DriveMode {
     if (!v) return null;
     if (!v.obstacleGrid) {
       const plain = (list, tree) => list.map((o) => ({ p: [o.position.x, o.position.y, o.position.z], up: [o.up.x, o.up.y, o.up.z], r: o.radius, h: o.height, tree }));
-      v.obstacleGrid = new ObstacleGrid([...plain(v.trees || [], true), ...plain(v.rocks || [], false)]);
+      const landmarks = v.landmarks?.obstacles || [];
+      v.obstacleGrid = new ObstacleGrid([...plain(v.trees || [], true), ...plain(v.rocks || [], false), ...plain(landmarks, false)]);
     }
     return v.obstacleGrid;
   }
@@ -256,6 +267,7 @@ export class DriveMode {
     this.bumpEffects(dt);
     this.orbitEffects(dt);
     this.jetEffects(dt);
+    this.seek(dt);
     fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : b.braking || b.jets ? 0.2 : 0.06);
   }
 
@@ -364,6 +376,44 @@ export class DriveMode {
     } else if (b.grounded) {
       this.fizzing = false;
     }
+  }
+
+  /**
+   * Discoveries (#15): a few times a second, is the buggy finding one? And where are the
+   * secrets still to find (for the ✨ compass)? Other kinds of target (#16) can join the list.
+   */
+  seek(dt) {
+    this.seekWait -= dt;
+    if (this.seekWait > 0) return;
+    this.seekWait = 0.1;
+    const fs = this.fs;
+    const app = fs.app;
+    const b = this.buggy;
+    const ctx = this.seekCtx ??= { time: 0, toSun: this.toSun, has: (id) => app.progress.has(id) };
+    ctx.time = fs.time;
+    sunDirection(b.body, fs.flight.state.t, this.toSun);
+    const id = buggyFinds(b.body, b, ctx);
+    if (id) this.discovered(id);
+    discoveryTargets(b.body, ctx, this.targets);
+    this.nearest = nearestTarget(this.targets, b.p);
+    // Until the first discovery, Pip points out the sparkly compass (once a session).
+    if (this.nearest && !this.compassHinted && !DISCOVERY_IDS.some((d) => app.progress.has(d))) {
+      this.sought = (this.sought || 0) + 0.1;
+      if (this.sought > 3) {
+        this.compassHinted = true;
+        app.pip('Psst! Follow the sparkles to find a secret!', { speak: true });
+      }
+    }
+  }
+
+  /** Found one! A chime and sparkles, then the sticker pops and Pip tells the real fact. */
+  discovered(id) {
+    const app = this.fs.app;
+    app.audio.play('discover');
+    if (id === 'find-rover') app.audio.play('beep');
+    this.sparkle();
+    this.fs.discover();
+    app.progress.earn(id);
   }
 
   /** A puff of flame from the Hopper's jets, blowing backwards (dir -1) or forwards (+1). */

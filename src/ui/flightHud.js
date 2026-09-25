@@ -288,6 +288,16 @@ export class FlightHud {
       ring.classList.toggle('hidden', !bg?.orbiting);
       if (bg?.orbiting) ring.style.setProperty('--lap', Math.min(1, bg.lap / (2 * Math.PI)).toFixed(3));
     }
+    // The ✨ compass (#15): points at the nearest secret on this world, glowing brighter up close.
+    const secret = this.el('secret-compass');
+    const sc = driving ? s.secretCompass : null;
+    secret.classList.toggle('hidden', !sc);
+    if (sc) {
+      secret.firstChild.style.transform = `rotate(${sc.angle}rad)`;
+      secret.lastChild.textContent = sc.icon;
+      secret.style.setProperty('--near', sc.near.toFixed(2));
+      secret.classList.toggle('close', sc.near > 0.75);
+    }
     if (driving) {
       this.el('where').textContent = `${b.icon} ${b.name}`;
       this.el('alt').textContent = `🚙 ${s.drive.kind?.name ?? ''}`;

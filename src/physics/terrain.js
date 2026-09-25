@@ -46,6 +46,17 @@ function craters(list, dx, dy, dz, scale) {
 // Keep a flat, grassy pad around the launch site (straight "up" on Homestead).
 const LAUNCH_DIR = { x: 0, y: 1, z: 0 };
 
+/** A unit direction `a` round the flight plane and `z` towards the camera. */
+export function dirOf(a, z) {
+  const s = Math.sqrt(1 - z * z);
+  return { x: s * Math.cos(a), y: s * Math.sin(a), z };
+}
+
+// Discoveries (#15) that shape the ground are placed here; the rest are in discoveries.js.
+// The old observatory stands on a rocky hilltop behind the village (about 130 m from the pad),
+// on a little flat top so it stands level.
+export const OBSERVATORY = dirOf(1.13, -0.095);
+
 function makeHome() {
   const { fbm, noise } = makeNoise(11);
   const sea = -1.5;
@@ -54,12 +65,17 @@ function makeHome() {
     const m = Math.max(0, fbm(x * 1.1 + 7, y * 1.1, z * 1.1, 3) - 0.1) * 70;
     return n * 20 + m + 3;
   };
+  const obs = OBSERVATORY;
+  const hill = raw(obs.x, obs.y, obs.z);
+  const OBS_COS = Math.cos(0.035);
   return {
     sea,
     height(x, y, z) {
       let h = raw(x, y, z);
       const d = Math.acos(Math.min(1, x * LAUNCH_DIR.x + y * LAUNCH_DIR.y + z * LAUNCH_DIR.z));
       h = h + (2.5 - h) * (1 - smooth(0.035, 0.12, d));
+      const o = x * obs.x + y * obs.y + z * obs.z;
+      if (o > OBS_COS) h = h + (hill - h) * (1 - smooth(0.015, 0.035, Math.acos(Math.min(1, o))));
       return Math.max(h, sea);
     },
     color(x, y, z, h) {
@@ -129,9 +145,15 @@ function makeDusty() {
   };
 }
 
+// Nibble's giant crater, like Stickney on Phobos: nearly as big as the moon itself. It crosses
+// the flight plane so a rocket can land in it (a discovery, #15).
+export const NIBBLE_CRATER = { ...dirOf(Math.PI, 0.12), radius: 0.62, deep: 5 };
+
 function makeNibble() {
   const { fbm } = makeNoise(41);
   const list = randomDirs(17, 10).map((c) => ({ ...c, radius: 0.2 + c.size * 0.35, deep: 1.5 + c.depth * 2 }));
+  list.push(NIBBLE_CRATER);
+  const big = NIBBLE_CRATER;
   return {
     height(x, y, z) {
       // A lumpy potato, stretched along one axis.
@@ -140,7 +162,10 @@ function makeNibble() {
     },
     color(x, y, z, h) {
       const n = fbm(x * 5, y * 5, z * 5, 3);
-      return mix(mix(rgb(0x8f7c68), rgb(0x6f5f50), n + 0.5), rgb(0xb5a28a), smooth(6, 12, h));
+      const c = mix(mix(rgb(0x8f7c68), rgb(0x6f5f50), n + 0.5), rgb(0xb5a28a), smooth(6, 12, h));
+      // The big crater's floor is paler, so it shows from orbit.
+      const d = Math.acos(Math.min(1, x * big.x + y * big.y + z * big.z));
+      return mix(c, rgb(0xb9a78f), (1 - smooth(big.radius * 0.6, big.radius, d)) * 0.7);
     },
   };
 }
@@ -174,6 +199,17 @@ function makeSizzle() {
   };
 }
 
+// Frosty's deep cracks (#15): where the ocean under the ice glows faintly at night. Several,
+// spread round the moon, so one is always on the night side. `t` is the way each crack runs.
+export const FROSTY_GLOWS = [[0.5, 0.32, 0.4], [2.1, -0.3, 1.2], [3.7, 0.3, 2.2], [5.2, -0.34, 0.9]].map(([a, z, turn]) => {
+  const up = dirOf(a, z);
+  // A tangent: east-ish turned by `turn` towards north.
+  const e = { x: -Math.sin(a), y: Math.cos(a), z: 0 };
+  const n = { x: up.y * e.z - up.z * e.y, y: up.z * e.x - up.x * e.z, z: up.x * e.y - up.y * e.x };
+  const c = Math.cos(turn), s = Math.sin(turn);
+  return { ...up, t: { x: e.x * c + n.x * s, y: e.y * c + n.y * s, z: e.z * c + n.z * s } };
+});
+
 function makeFrosty() {
   const { fbm, noise } = makeNoise(67);
   const crack = (x, y, z) => {
@@ -181,14 +217,27 @@ function makeFrosty() {
     const b = 1 - Math.abs(noise(x * 5.3 + 11, y * 5.3, z * 5.3));
     return Math.max(smooth(0.93, 0.99, a), smooth(0.95, 0.995, b) * 0.8);
   };
+  // The glowing cracks: a straight groove through each spot, fading out at the ends.
+  const deep = (x, y, z) => {
+    let k = 0;
+    for (const g of FROSTY_GLOWS) {
+      const rx = x - g.x, ry = y - g.y, rz = z - g.z;
+      if (rx * rx + ry * ry + rz * rz > 0.04) continue;
+      const along = rx * g.t.x + ry * g.t.y + rz * g.t.z;
+      const side = Math.hypot(rx - along * g.t.x, ry - along * g.t.y, rz - along * g.t.z);
+      k = Math.max(k, (1 - smooth(0.1, 0.18, Math.abs(along))) * (1 - smooth(0.008, 0.03, side)));
+    }
+    return k;
+  };
   return {
     height(x, y, z) {
-      return fbm(x * 2, y * 2, z * 2, 4) * 3 + crack(x, y, z) * 1.5;
+      return fbm(x * 2, y * 2, z * 2, 4) * 3 + crack(x, y, z) * 1.5 - deep(x, y, z) * 1.5;
     },
     color(x, y, z, h) {
       let c = mix(rgb(0xeef4f7), rgb(0xc7dcea), smooth(-0.2, 0.3, fbm(x * 4, y * 4, z * 4, 3)));
       c = mix(c, rgb(0xd8b08c), smooth(0.2, 0.45, noise(x * 2 + 3, y * 2, z * 2)) * 0.6);
       c = mix(c, rgb(0xa9553a), crack(x, y, z));
+      c = mix(c, rgb(0x2f5f86), deep(x, y, z));
       return c;
     },
   };
