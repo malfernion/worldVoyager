@@ -152,6 +152,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - Sentences come from scanning the source for spoken strings plus goals, stickers and world
   facts (`tools/voice/lines.mjs`); world names in templates are expanded. Keep spoken text
   in plain string literals so the scanner finds it.
+- `tools/voice/lines.json` is generated (by `voice:check` / `voice:lines`) and **committed**:
+  commit it whenever it changes, even if you can't record the new lines yourself. List the new
+  sentences in your hand-off so whoever has the voice setup can record them.
 - **Re-recording a bad take:** the seeds are fixed, so pick a new take:
   `record.py --voice jess --only "^Exact sentence start" --redo --take 1` (then 2, 3…).
   After a full run, very short or long takes are worth a listen: exclamations and lines with a

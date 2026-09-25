@@ -24,6 +24,10 @@
   "text": "Add more engines or boosters."
  },
  {
+  "key": "all the way round nibble again",
+  "text": "All the way round Nibble again!"
+ },
+ {
   "key": "astronauts walked on the real moon",
   "text": "Astronauts walked on the real Moon!"
  },
@@ -136,6 +140,10 @@
   "text": "Fins need a tube to hold on to."
  },
  {
+  "key": "first point along the arrow and hold go to stop going sideways",
+  "text": "First, point along the arrow and hold GO to stop going sideways."
+ },
+ {
   "key": "first we fly up high",
   "text": "First we fly up high."
  },
@@ -178,6 +186,14 @@
  {
   "key": "go all the way around homestead",
   "text": "Go all the way around Homestead!"
+ },
+ {
+  "key": "great flying",
+  "text": "Great flying!"
+ },
+ {
+  "key": "halfway round",
+  "text": "Halfway round!"
  },
  {
   "key": "hello dusty the red planet",
@@ -244,12 +260,20 @@
   "text": "Howdy, space explorer!"
  },
  {
+  "key": "ill catch us this time",
+  "text": "I'll catch us this time."
+ },
+ {
   "key": "ill do this tiny push for you",
   "text": "I'll do this tiny push for you!"
  },
  {
   "key": "ill steer us away from the ground",
   "text": "I'll steer us away from the ground!"
+ },
+ {
+  "key": "ill tell you when to hold go",
+  "text": "I'll tell you when to hold GO!"
  },
  {
   "key": "ill turn us around",
@@ -282,6 +306,10 @@
  {
   "key": "kaboom",
   "text": "Kaboom!"
+ },
+ {
+  "key": "keep going",
+  "text": "Keep going!"
  },
  {
   "key": "keep holding go",
@@ -396,24 +424,48 @@
   "text": "Let's land on Dusty."
  },
  {
+  "key": "lets land on dusty together",
+  "text": "Let's land on Dusty together!"
+ },
+ {
   "key": "lets land on frosty",
   "text": "Let's land on Frosty."
+ },
+ {
+  "key": "lets land on frosty together",
+  "text": "Let's land on Frosty together!"
  },
  {
   "key": "lets land on homestead",
   "text": "Let's land on Homestead."
  },
  {
+  "key": "lets land on homestead together",
+  "text": "Let's land on Homestead together!"
+ },
+ {
   "key": "lets land on nibble",
   "text": "Let's land on Nibble."
+ },
+ {
+  "key": "lets land on nibble together",
+  "text": "Let's land on Nibble together!"
  },
  {
   "key": "lets land on pebble",
   "text": "Let's land on Pebble."
  },
  {
+  "key": "lets land on pebble together",
+  "text": "Let's land on Pebble together!"
+ },
+ {
   "key": "lets land on sizzle",
   "text": "Let's land on Sizzle."
+ },
+ {
+  "key": "lets land on sizzle together",
+  "text": "Let's land on Sizzle together!"
  },
  {
   "key": "lets try again",
@@ -476,6 +528,10 @@
   "text": "Next: Land on Sizzle, the volcano moon!"
  },
  {
+  "key": "next time hold go a little sooner",
+  "text": "Next time, hold GO a little sooner."
+ },
+ {
   "key": "next visit dusty the red planet",
   "text": "Next: Visit Dusty, the red planet!"
  },
@@ -506,6 +562,14 @@
  {
   "key": "now",
   "text": "Now!"
+ },
+ {
+  "key": "now lets land together",
+  "text": "Now let's land together."
+ },
+ {
+  "key": "now point up at the arrow",
+  "text": "Now point up at the arrow."
  },
  {
   "key": "now we glide up to the top",
@@ -566,6 +630,10 @@
  {
   "key": "pebble is homesteads moon covered in craters just like our moon",
   "text": "Pebble is Homestead's moon, covered in craters, just like our Moon."
+ },
+ {
+  "key": "phew were down",
+  "text": "Phew, we're down!"
  },
  {
   "key": "pick a buggy to drive around on other worlds",
@@ -664,8 +732,16 @@
   "text": "Steer with the arrows and hold GO to drive."
  },
  {
+  "key": "super hop",
+  "text": "Super hop!"
+ },
+ {
   "key": "tap it to pick your buggy",
   "text": "Tap it to pick your buggy."
+ },
+ {
+  "key": "tap jump again to fire the jets",
+  "text": "Tap jump again to fire the jets!"
  },
  {
   "key": "tap or drag parts then press fly",
@@ -1008,6 +1084,14 @@
   "text": "When we get there, point along the arrow and hold GO!"
  },
  {
+  "key": "when you go sideways fast enough you keep falling around the moon and never hit the ground",
+  "text": "When you go sideways fast enough, you keep falling around the moon and never hit the ground!"
+ },
+ {
+  "key": "whoa too fast",
+  "text": "Whoa, too fast!"
+ },
+ {
   "key": "whoa too low",
   "text": "Whoa, too low!"
  },
@@ -1060,6 +1144,10 @@
   "text": "You flew to Sizzle all by yourself!"
  },
  {
+  "key": "you landed all by yourself",
+  "text": "You landed all by yourself!"
+ },
+ {
   "key": "you landed in the ocean",
   "text": "You landed in the ocean!"
  },
@@ -1090,6 +1178,10 @@
  {
   "key": "you made it to space",
   "text": "You made it to space!"
+ },
+ {
+  "key": "you orbited nibble in your buggy",
+  "text": "You orbited Nibble in your buggy!"
  },
  {
   "key": "your first drive in the buggy",
