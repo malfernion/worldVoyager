@@ -14,6 +14,23 @@ the [README](README.md) (how to play).
 2. Take the **first unchecked item**; read it with `gh issue view <n>`.
 3. Unscheduled issues are only picked up when the owner asks.
 
+## Keep the docs current
+
+These docs are how the next person or agent picks up the work, so **update them in the same
+commit as the change they describe**:
+
+| If you change… | Update |
+|---|---|
+| Files, modules, or what lives where | Code map in `AGENTS.md` |
+| A rule the code relies on (physics plane, speed caps, surfaces, performance budget…) | Invariants in `AGENTS.md`, and the reasoning in `docs/DESIGN.md` |
+| Commands, scripts, CI, deploy | Commands in `AGENTS.md` and the `README.md` Develop section |
+| Controls, features, anything a player notices | `README.md` How to play; `docs/DESIGN.md` for bigger features |
+| The voice pipeline or its settings | Pip's voice section in `AGENTS.md` |
+| You hit a surprising problem | Add it to Gotchas in `AGENTS.md` |
+| Finish, add, reorder or drop backlog work | The Roadmap issue (#17): tick, add or reorder items |
+
+When reviewing an agent's work before merging, check that the docs moved with the code.
+
 ## Commands
 
 ```bash
@@ -37,8 +54,9 @@ Only push work that is tested and ready for players.
 - **Commit messages:** a summary line, a short body, then a blank line, `Closes #<n>`, then
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. The deploy then closes the issue.
   Tick the item in the roadmap issue.
-- **Before pushing:** `npm test` green, `npm run build` succeeds, and a visual check in a
-  browser (see below). Report anything you couldn't verify.
+- **Before pushing:** `npm test` green, `npm run build` succeeds, a visual check in a
+  browser (see below), and the docs updated (see "Keep the docs current"). Report anything you
+  couldn't verify.
 - Match the code style: plain ES modules, 2-space indent, single quotes, short comments that
   say *why*, no framework, no over-engineering.
 
