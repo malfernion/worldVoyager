@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createSystem } from '../src/physics/bodies.js';
-import { Buggy, vec } from '../src/physics/buggy.js';
+import { Buggy, vec, ORBIT } from '../src/physics/buggy.js';
 import { BUGGIES } from '../src/rocket/parts.js';
 
 function drive(bodyId, kind, seconds, input, setup) {
@@ -89,5 +89,89 @@ describe('buggy', () => {
     for (let i = 0; i < 120; i++) b.step(1 / 60, { throttle: 1, steer: 0 });
     expect(b.inWater).toBe(true);
     expect(b.speed).toBeLessThan(b.topSpeed * 0.5);
+  });
+
+  describe('the Nibble orbit secret', () => {
+    // A kid: drive flat out, tap jump (a super hop), then keep tapping jump to fire the jets.
+    // Taps are 3 frames long, every half second; `brakeAfter` holds reverse once that far round.
+    function superHop(bodyId, { taps = 20, brakeAfter = Infinity, dir = [0, 1, 0], fwd = [1, 0, 0], seconds = 240 } = {}) {
+      const sys = createSystem();
+      const body = sys.byId[bodyId];
+      const b = new Buggy(body, BUGGIES.hopper);
+      b.spawn(dir, fwd);
+      let hopAt = -1, orbitedAt = -1, landedAt = -1, maxR = 0, maxSpeed = 0, i = 0;
+      for (; i < seconds * 60 && landedAt < 0; i++) {
+        const k = hopAt < 0 ? i - 90 : i - hopAt - 60;
+        const tap = k >= 0 && k % 30 < 3 && (hopAt < 0 || k / 30 < taps);
+        const braking = b.lap > brakeAfter;
+        b.step(1 / 60, { throttle: braking ? -1 : 1, steer: 0, jump: tap && !braking });
+        if (b.superHop) {
+          b.superHop = false;
+          if (hopAt < 0) hopAt = i;
+        }
+        if (b.orbited) {
+          b.orbited = false;
+          orbitedAt = i;
+        }
+        maxR = Math.max(maxR, vec.len(b.p));
+        if (b.orbiting) maxSpeed = Math.max(maxSpeed, b.speed);
+        if (hopAt >= 0 && i > hopAt + 60 && b.grounded) landedAt = i;
+      }
+      return { b, body, hopAt, orbitedAt, landedAt, maxR, maxSpeed };
+    }
+
+    it('the Hopper can super hop all the way round Nibble without leaving it', () => {
+      const { body, hopAt, orbitedAt, landedAt, maxR, maxSpeed } = superHop('nibble');
+      expect(hopAt).toBeGreaterThan(0);
+      expect(orbitedAt).toBeGreaterThan(hopAt); // a full lap without touching the ground
+      expect(maxR).toBeLessThan(2 * ORBIT.maxA);
+      expect(maxR).toBeLessThan(body.soi * 0.7);
+      expect(maxSpeed).toBeLessThan(Math.sqrt((2 * body.mu) / body.radius) * 0.9); // well below escape
+      // Stop tapping and the orbit sags back down on its own.
+      expect(landedAt).toBeGreaterThan(orbitedAt);
+      expect((landedAt - orbitedAt) / 60).toBeLessThan(90);
+    });
+
+    it('stays inside Nibble\'s sphere of influence however hard you tap', () => {
+      for (let n = 0; n < 8; n++) {
+        const a = n * 0.8, z = Math.cos(n * 1.7) * 0.6;
+        const dir = [Math.cos(a) * Math.sqrt(1 - z * z), Math.sin(a) * Math.sqrt(1 - z * z), z];
+        const fwd = vec.cross(dir, [0.3, 0.5, 1]);
+        const { body, maxR } = superHop('nibble', { taps: 400, dir, fwd, seconds: 200 });
+        expect(maxR).toBeLessThan(2 * ORBIT.maxA);
+        expect(maxR).toBeLessThan(body.soi * 0.7);
+      }
+    });
+
+    it('holding reverse in the air brings the Hopper back down', () => {
+      const { hopAt, orbitedAt, landedAt } = superHop('nibble', { brakeAfter: 1 });
+      expect(hopAt).toBeGreaterThan(0);
+      expect(orbitedAt).toBe(-1);
+      expect(landedAt).toBeGreaterThan(0);
+    });
+
+    it('a super hop without jets comes back down', () => {
+      const { hopAt, orbitedAt, landedAt } = superHop('nibble', { taps: 0 });
+      expect(hopAt).toBeGreaterThan(0);
+      expect(orbitedAt).toBe(-1);
+      expect((landedAt - hopAt) / 60).toBeLessThan(60);
+    });
+
+    for (const world of ['pebble', 'frosty', 'homestead', 'dusty']) {
+      it(`is only on Nibble: no super hop on ${world}`, () => {
+        const { b, body, hopAt, maxR } = superHop(world, { seconds: 60 });
+        expect(hopAt).toBe(-1);
+        expect(b.orbiting).toBe(false);
+        expect(maxR).toBeLessThan(body.maxSurface + body.radius * 1.5);
+      });
+    }
+
+    it('only the Hopper knows the secret', () => {
+      const sys = createSystem();
+      expect(new Buggy(sys.byId.nibble, BUGGIES.hopper).canOrbit).toBe(true);
+      expect(new Buggy(sys.byId.nibble, BUGGIES.rover).canOrbit).toBe(false);
+      expect(new Buggy(sys.byId.nibble, BUGGIES.truck).canOrbit).toBe(false);
+      expect(new Buggy(sys.byId.pebble, BUGGIES.hopper).canOrbit).toBe(false);
+    });
   });
 });

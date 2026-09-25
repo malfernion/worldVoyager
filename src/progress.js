@@ -32,6 +32,8 @@ export const STICKERS = {
   dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Ringo is all clouds, there is no ground to land on!' },
   sun: { icon: '☀️', name: 'Sunburnt', say: 'That is close enough to Ember! Stars are super hot.' },
   drive: { icon: '🚙', name: 'Off-Roader', say: 'Vroom! Your first drive in the buggy! Steer with the arrows and hold GO to drive.' },
+  // A secret: super hop the Hopper all the way round Nibble (see ORBIT in physics/buggy.js).
+  'orbit-nibble': { icon: '🛰️', name: 'Moon Orbiter', say: 'You orbited Nibble in your buggy! When you go sideways fast enough, you keep falling around the moon and never hit the ground!' },
   kaboom: { icon: '💥', name: 'Kaboom Club', say: 'Kaboom! Every great explorer crashes sometimes. Let\'s try again!' },
 };
 

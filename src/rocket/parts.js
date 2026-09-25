@@ -29,12 +29,13 @@ export const PARTS = {
 
 /**
  * The buggies that can live in a garage. Speeds are in m/s; each world also caps the
- * top speed below orbit speed, so jumps always come back down.
+ * top speed below orbit speed, so jumps always come back down (except the Hopper's secret
+ * super hop on Nibble, see ORBIT in physics/buggy.js).
  */
 export const BUGGIES = {
   rover: { name: 'Rover', maxSpeed: 11, accel: 6, grip: 7, turn: 1.7, bounce: 0.15, ride: 0.75, jump: 0, wheel: 0.55 },
   truck: { name: 'Monster Truck', maxSpeed: 8, accel: 5, grip: 9, turn: 1.3, bounce: 0.45, ride: 1.25, jump: 0, wheel: 0.95, climb: 0.5 },
-  hopper: { name: 'Hopper', maxSpeed: 13, accel: 7, grip: 4.5, turn: 2, bounce: 0.25, ride: 0.6, jump: 6, wheel: 0.42 },
+  hopper: { name: 'Hopper', maxSpeed: 13, accel: 7, grip: 4.5, turn: 2, bounce: 0.25, ride: 0.6, jump: 6, wheel: 0.42, superHop: true },
 };
 
 export const DEFAULT_BUGGY = { kind: 'rover', paint: 'orange' };

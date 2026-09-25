@@ -110,6 +110,29 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
 - **Never orbit.** Top speed is capped at 70% of the world's orbit speed, and airborne
   speed at 75% of local circular speed, so every jump comes back down. The rocket stays
   parked on its flight plane the whole time, so driving never disturbs the flight model.
+- **The one secret exception: orbiting Nibble in the Hopper** (#5, `ORBIT` in `buggy.js`).
+  Nibble is so tiny (radius 30, gravity 0.9) that circular speed is only about 5 m/s. On
+  Nibble, a fresh jump press while the Hopper is flat out is a *super hop*: it leaps forward
+  at 75% of local circular speed, level with the horizon, plus 1.5 m/s off the ground (on its
+  own that's a big 15-30 s hop that comes back down). Each further jump press in the air
+  puffs the jets forward 0.5 m/s; about 8-12 taps give a full lap. Holding reverse in the air
+  fires the jets backwards (2.5 m/s²) to come down. Pip hints "tap jump again" after the
+  first super hop and cheers at halfway; a full lap without touching the ground earns the
+  🛰️ Moon Orbiter sticker, with Pip explaining that going sideways fast enough means you
+  keep falling around the moon.
+  - **Always bound.** While super hopping, speed is capped by energy rather than a fixed
+    fraction: the orbit's semi-major axis can never exceed `maxA` = 50, so the highest point
+    is at most 2 × 50 = 100, far inside Nibble's SOI (170); escape would need infinite `a`.
+    That caps speed at 6.2 m/s at the surface (escape is 7.3). Tapping at the cap also
+    rounds the orbit off (the cap rescales the whole velocity), so eager tapping ends in a
+    near-circular orbit at about r = 50, just above Nibble's highest lumps (about 44).
+  - **Always comes back.** After one full lap the orbit slowly sags (1%/s), so it lands
+    about half a minute later unless the kid keeps tapping. 🏠 works from orbit too.
+  - A lap takes about 70-80 s: that's real physics for such a weak pull, and a slow view of
+    the potato turning below. The chase camera pulls back while orbiting and keeps "up"
+    pointing away from Nibble's centre.
+  - Only a fresh press counts (holding jump just bounces as normal), and only the Hopper
+    (`superHop` in `BUGGIES`) on Nibble can do it; every other buggy and world keeps the caps.
 - **Getting home.** 🏠 drives back into the garage when close, or whisks you back with
   sparkles when far. A HUD compass always points to the rocket.
 

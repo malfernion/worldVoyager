@@ -89,7 +89,10 @@ test/                  vitest suites
   conics); the 3D is visual. Only the buggy uses full 3D, on the surface of one world, while the
   rocket stays parked on the plane.
 - **Buggies can never reach orbit.** Speeds are capped below orbital speed so every jump
-  comes back down (the Nibble orbit secret, #5, is the one deliberate exception).
+  comes back down. The one deliberate exception is the Nibble orbit secret (#5, `ORBIT` in
+  `buggy.js`): only the Hopper on Nibble can super hop into orbit, and there speed is capped
+  by energy so the orbit stays bound (highest point ≤ 2 × `ORBIT.maxA` = 100, SOI 170) and
+  sags back down after a lap. Keep both caps if you touch buggy speeds.
 - **The physics ground is the visible mesh.** Planet meshes come from `terrain.js`, then the
   physics surface is rebuilt from the mesh's z = 0 slice (`surfaceFromMesh`).
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map

@@ -2,6 +2,7 @@
 // Positions are in the world's own frame (the same frame the rocket uses, but with z).
 // Gravity is real (pulls toward the centre, so hills and jumps behave), and top speed is
 // kept below orbit speed so every jump comes back down.
+// The one secret exception: a super hop lets the Hopper orbit tiny Nibble (see ORBIT).
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -23,6 +24,22 @@ export const vec = { add, sub, mul, dot, cross, len, norm, rotate };
 
 const STEP = 1 / 120;
 
+// The Nibble orbit secret: at top speed, a jump press on Nibble is a super hop that leaps
+// forward at nearly orbit speed; more jump presses in the air puff the jets forward until
+// we're falling all the way round. Speeds in m/s, accelerations in m/s².
+export const ORBIT = {
+  world: 'nibble',
+  hopAhead: 0.75, // super hop: this many times the local circular speed, level with the horizon...
+  hopUp: 1.5, // ...plus this much off the ground (a big hop on its own, not quite an orbit)
+  puff: 0.5, // each jump press in the air fires the jets forward this much
+  brake: 2.5, // holding reverse in the air fires them backwards to come down
+  // Energy cap: the orbit's semi-major axis never passes maxA, so the highest point (at most
+  // 2 × maxA = 100) stays far inside Nibble's sphere of influence (170). Nibble's lumps reach
+  // about 44 from the middle, so there's room for a low orbit above them.
+  maxA: 50,
+  sag: 0.01, // after a full lap the orbit slowly sags, so it always comes back down
+};
+
 export class Buggy {
   constructor(body, kind) {
     this.body = body;
@@ -36,6 +53,9 @@ export class Buggy {
     this.distance = 0; // for spinning the wheels
     this.speed = 0;
     this.jumpCooldown = 0;
+    this.jumpWasDown = false;
+    this.orbiting = false; // in a super hop (the Nibble secret)
+    this.lap = 0; // how far round the world we've flown since the super hop (radians)
     this.obstacles = []; // [{ p: [x,y,z], r }] e.g. the parked rocket
   }
 
@@ -43,6 +63,11 @@ export class Buggy {
   get topSpeed() {
     const orbit = Math.sqrt(this.body.mu / this.body.radius);
     return Math.min(this.kind.maxSpeed, orbit * 0.7);
+  }
+
+  /** Only the Hopper on Nibble knows the secret. */
+  get canOrbit() {
+    return !!this.kind.superHop && this.body.id === ORBIT.world;
   }
 
   groundRadius(dir) {
@@ -91,16 +116,21 @@ export class Buggy {
 
   /** input: { throttle: -1..1, steer: -1..1 (positive = left), jump: bool } */
   step(dt, input) {
+    // A fresh press (not holding) is what does the super hop and the jet puffs.
+    const press = !!input.jump && !this.jumpWasDown;
+    this.jumpWasDown = !!input.jump;
     let left = Math.min(dt, 0.1);
+    let first = true;
     while (left > 1e-6) {
       const h = Math.min(STEP, left);
-      this.substep(h, input);
+      this.substep(h, input, first && press);
+      first = false;
       left -= h;
     }
     this.speed = len(this.v);
   }
 
-  substep(h, input) {
+  substep(h, input, press) {
     const k = this.kind;
     const body = this.body;
     let r = len(this.p);
@@ -113,8 +143,12 @@ export class Buggy {
     this.v = add(this.v, mul(u, -g * h));
 
     const ground = this.groundRadius(u) + k.ride;
-    this.grounded = r <= ground + 0.08;
-    if (this.grounded) this.flying = false;
+    // Just after a super hop we're still touching the ground; don't let the tyres grab us back.
+    this.grounded = r <= ground + 0.08 && !(this.orbiting && this.jumpCooldown > 0.4);
+    if (this.grounded) {
+      this.flying = false;
+      this.orbiting = false;
+    }
     // Sticky tyres: on low-gravity moons, don't float off every little bump (real jumps still fly).
     if (!this.grounded && !this.flying && r - ground < 2.5) this.v = add(this.v, mul(u, -Math.max(0, 5 - g) * h));
     this.inWater = this.grounded && this.isWater(u);
@@ -154,7 +188,21 @@ export class Buggy {
       const roll = Math.min(1, Math.abs(vf) / 2) * Math.sign(vf || 1);
       if (input.steer) this.f = rotate(this.f, n, input.steer * k.turn * h * roll);
 
-      if (input.jump && k.jump && this.jumpCooldown === 0 && !this.inWater) {
+      if (press && this.canOrbit && vf > this.topSpeed * 0.9 && !this.inWater) {
+        // Super hop: already flat out, so leap sideways fast enough to fall around Nibble.
+        // Level with the horizon (not the slope, so hills don't fling us sky-high), but
+        // always leaving the ground (so an uphill doesn't catch us straight away).
+        const ahead = Math.sqrt(body.mu / r) * ORBIT.hopAhead;
+        this.v = add(mul(this.f, ahead), mul(u, ORBIT.hopUp));
+        const off = dot(this.v, n);
+        if (off < ORBIT.hopUp) this.v = add(this.v, mul(n, ORBIT.hopUp - off));
+        this.jumpCooldown = 0.6;
+        this.flying = true;
+        this.orbiting = true;
+        this.lap = 0;
+        this.jumped = true;
+        this.superHop = true;
+      } else if (input.jump && k.jump && this.jumpCooldown === 0 && !this.inWater) {
         this.v = add(this.v, mul(n, k.jump));
         this.jumpCooldown = 0.6;
         this.flying = true;
@@ -163,12 +211,37 @@ export class Buggy {
       this.distance += vf * h;
     }
 
-    // Never fast enough to go into orbit: every leap comes back down.
-    const airCap = Math.sqrt(body.mu / r) * 0.75;
-    const sp = len(this.v);
-    if (sp > airCap) this.v = mul(this.v, airCap / sp);
+    this.braking = false;
+    if (this.orbiting) {
+      // Jets: a puff forward for each jump press, or hold reverse to slow down and land.
+      if (press && !this.grounded) {
+        this.v = add(this.v, mul(this.f, ORBIT.puff));
+        this.puffed = true;
+      }
+      if (input.throttle < 0) {
+        const vf = dot(this.v, this.f);
+        if (vf > 0) this.v = sub(this.v, mul(this.f, Math.min(vf, ORBIT.brake * h)));
+        this.braking = true;
+      }
+      if (this.lap > 2 * Math.PI) this.v = mul(this.v, Math.exp(-ORBIT.sag * h));
+      // Never enough energy to fly off: the highest point stays below 2 × maxA.
+      const most = Math.sqrt(body.mu * (2 / r - 1 / ORBIT.maxA));
+      const sp = len(this.v);
+      if (sp > most) this.v = mul(this.v, most / sp);
+    } else {
+      // Never fast enough to go into orbit: every leap comes back down.
+      const airCap = Math.sqrt(body.mu / r) * 0.75;
+      const sp = len(this.v);
+      if (sp > airCap) this.v = mul(this.v, airCap / sp);
+    }
 
+    const before = u;
     this.p = add(this.p, mul(this.v, h));
+    if (this.orbiting) {
+      const lapBefore = this.lap;
+      this.lap += Math.acos(Math.min(1, dot(before, norm(this.p))));
+      if (lapBefore < 2 * Math.PI && this.lap >= 2 * Math.PI) this.orbited = true;
+    }
 
     // Don't sink into the ground.
     r = len(this.p);
@@ -183,6 +256,7 @@ export class Buggy {
     // Bump around obstacles (the parked rocket).
     for (const o of this.obstacles) {
       let d = sub(this.p, o.p);
+      if (this.orbiting && dot(d, u) > 12) continue; // flying high over it
       d = sub(d, mul(u, dot(d, u)));
       const dist = len(d);
       if (dist < o.r && dist > 1e-6) {

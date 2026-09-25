@@ -16,6 +16,7 @@ export class DriveMode {
     this.camUp = new THREE.Vector3(0, 1, 0);
     this.visUp = new THREE.Vector3(0, 1, 0);
     this.steerVis = 0;
+    this.wide = 1; // camera pull-back while orbiting Nibble
     this.world = { x: 0, y: 0 };
   }
 
@@ -234,7 +235,52 @@ export class DriveMode {
         fs.particles.spawn(i % 2 ? 'spark' : 'puff', body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], { size: 0.9, grow: 1.2, life: 0.8, drag: 2.5 });
       }
     }
-    fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : 0.06);
+    this.orbitEffects(dt);
+    fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : b.braking ? 0.2 : 0.06);
+  }
+
+  /** The Nibble orbit secret: jets, Pip's hints and the sticker. */
+  orbitEffects(dt) {
+    const b = this.buggy;
+    const fs = this.fs;
+    const app = fs.app;
+    if (b.superHop) {
+      b.superHop = false;
+      this.halfway = false;
+      app.audio.play('whoosh');
+      if (!this.hinted) {
+        this.hinted = true;
+        app.pip('Super hop! Tap jump again to fire the jets!', { speak: true });
+      }
+    }
+    if (b.puffed) {
+      b.puffed = false;
+      app.audio.play('whoosh');
+      for (let i = 0; i < 10; i++) this.jetPuff(-1, 3 + Math.random() * 3);
+    }
+    if (b.braking && Math.random() < dt * 25) this.jetPuff(1, 3);
+    if (b.orbiting && !this.halfway && b.lap > Math.PI && !app.progress.has('orbit-nibble')) {
+      this.halfway = true;
+      app.pip('Halfway round! Keep going!', { speak: true });
+    }
+    if (b.orbited) {
+      b.orbited = false;
+      if (!app.progress.earn('orbit-nibble')) app.pip('All the way round Nibble again!', { speak: true });
+    }
+  }
+
+  /** A puff of flame from the Hopper's jets, blowing backwards (dir -1) or forwards (+1). */
+  jetPuff(dir, speed) {
+    const b = this.buggy;
+    const up = b.up;
+    const side = vec.cross(up, b.f);
+    const x = Math.random() < 0.5 ? -0.55 : 0.55;
+    const pos = vec.add(vec.add(b.p, vec.mul(side, x)), vec.add(vec.mul(up, -0.3), vec.mul(b.f, dir > 0 ? 1.2 : -1.2)));
+    const jitter = [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5];
+    const vel = vec.add(vec.add(b.v, vec.mul(b.f, dir * speed)), jitter);
+    this.fs.particles.spawn('puff', b.body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], {
+      size: 0.5, grow: 1.4, life: 0.6, drag: 1.5, color: Math.random() < 0.5 ? 0xffb347 : 0xffe08a,
+    });
   }
 
   updateCamera(dt, camera) {
@@ -243,7 +289,9 @@ export class DriveMode {
     this.camF.lerp(V(b.f), k(2.5)).normalize();
     this.camUp.lerp(V(b.up), k(3)).normalize();
     const f = this.camF.clone().sub(this.camUp.clone().multiplyScalar(this.camF.dot(this.camUp))).normalize();
-    const dist = (this.kind.wheel > 0.8 ? 15 : 12) * this.zoom;
+    // Pull back while orbiting so Nibble curves away underneath.
+    this.wide += ((b.orbiting ? 1.8 : 1) - this.wide) * k(0.8);
+    const dist = (this.kind.wheel > 0.8 ? 15 : 12) * this.zoom * this.wide;
     const buggyPos = this.mesh ? this.mesh.group.position.clone() : new THREE.Vector3();
     const target = buggyPos.clone().addScaledVector(this.camUp, 1.2);
     const offset = f.clone().multiplyScalar(-dist).addScaledVector(this.camUp, dist * 0.42);
