@@ -281,6 +281,37 @@ describe('coach mode', () => {
     expect(flight.state.landed).toBe(true);
   }, 60000);
 
+  // The 🌀 Orbit helper with the coach switched on: launch to orbit, flown by the kid.
+  const orbitCases = [
+    ['homestead', stats, {}],
+    ['homestead', stats, { lag: 20 }],
+    ['homestead', noLegs, { lag: 15 }],
+    ['pebble', stats, {}],
+    ['pebble', stats, { lag: 20 }],
+  ];
+  for (const [world, st, opts] of orbitCases) {
+    it(`coaches a launch from ${world} into orbit (${opts.lag ?? 8}-frame lag)`, () => {
+      const m = mission(st);
+      if (world !== 'homestead') {
+        m.run('goto', world, 60 * 60 * 30);
+        expect(m.run('land')).toBe(true);
+        expect(m.flight.state.landed).toBe(true);
+      }
+      const { flight, done, said, presses } = kidFlies(m, 'orbit', null, opts);
+      expect(flight.state.crashed).toBe(false);
+      expect(done).toBe(true);
+      expect(flight.state.body.id).toBe(world);
+      expect(inStableOrbit(flight)).toBe(true);
+      expect(said).toContain('First we fly up high. Point up and hold GO!');
+      expect(said.some((t) => t.startsWith('Let go! We\'re going around'))).toBe(true);
+      expect(presses).toBeGreaterThan(0);
+      // Still going round a while later: the late LET GO didn't leave us on a bad path.
+      for (let i = 0; i < 60 * 60; i++) flight.step(1 / 60, 10);
+      expect(flight.state.crashed).toBe(false);
+      expect(inStableOrbit(flight)).toBe(true);
+    }, 60000);
+  }
+
   // Coached landings from orbit, flown only from the arrow and the HOLD / LET GO cues.
   const fromOrbit = (st, world) => {
     const m = mission(st);

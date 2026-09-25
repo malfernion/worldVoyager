@@ -43,7 +43,16 @@ borrow the vibe, not the content: all names, worlds and music are original.
    the waits.
 2. **You fly it; Pip helps as much as you want.** There are three levels of help:
    - *Manual:* ⟲ ⟳ to aim, hold **GO** to burn, map, time warp, rewind.
-   - *Coach* ("🧭 Show me how"): Pip plans the transfer, then the landing, and tells you what to do. An arrow shows
+   Coach or autopilot is one remembered choice, the 🧭 switch on the flight HUD
+   (`settings.coach`), and it applies to every helper: 🌀 Orbit, 🛬 Land and the target card's
+   single trip button ("🧭 Let's go!" / "🤖 Take me there!"). One switch instead of a second
+   button on every helper keeps the choice in one place a 5-year-old can see (bright with a
+   green light = Pip coaches, dim = Pip flies), and helpers behave the same way every time.
+   Flipping it mid-helper restarts that helper in the other mode (they're closed-loop, so they
+   carry on from wherever the rocket is). ⏫ Faster / ⏬ Slower are hold-to-burn and always
+   fly for you. Pip offers the coach once, on the very first launch, with the switch glowing;
+   saying yes starts a coached launch to orbit.
+   - *Coach*: Pip plans the climb, the transfer, then the landing, and tells you what to do. An arrow shows
      where to point, the right turn button glows, and GO says **HOLD!** / **LET GO!**. You do the
      launch, gravity turn, transfer burn, capture brake and landing. The coached landing is: point
      up at the arrow, then HOLD / LET GO to keep the descent gentle (with hysteresis so cues don't
@@ -51,7 +60,7 @@ borrow the vibe, not the content: all names, worlds and music are original.
      the last little bit of going round and of a capture brake (a late LET GO on a tiny moon is
      enough to fall out of orbit or fly off), dropping from a high or moon-crossing orbit to a cosy one, emergency
      ground-avoidance, and takes over a landing that would be too fast.
-   - *Autopilot* ("🤖 Fly me there", Orbit, Land): watch and learn.
+   - *Autopilot* (coach off): Pip flies Orbit, Land and trips; watch and learn.
    Helpers run closed-loop on the real state, so imperfect flying still works out.
 3. **Failure is funny and cheap.** Crashes are cartoon explosions with bouncing parts. **↺ Rewind**
    goes back 5 seconds, or you can go back to the pad or the workshop.

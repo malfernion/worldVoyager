@@ -66,7 +66,7 @@ Only push work that is tested and ready for players.
 
 ```
 src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
-src/progress.js        Goals, stickers, saved design + settings (localStorage)
+src/progress.js        Goals, stickers, saved design + settings (incl. the 🧭 coach switch; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
   bodies.js            The solar system: circular on-rails orbits, SOIs, per-world surfaces
@@ -132,7 +132,7 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   app.flightScene.helper('orbit'); step(60 * 15);
   ```
   Useful: `app.flightScene.toggleMap()`, `.focusMapOn(app.system.byId.sizzle)`,
-  `.setTarget(body)`, `.helper('goto', { coach: true })`, `.drive.deploy()`,
+  `.setTarget(body)`, `.setCoaching(true)` (the 🧭 switch), `.helper('goto', { coach: true })`, `.drive.deploy()`,
   `app.newAdventure()`. Watch the console for shader errors.
 - After deploying, GitHub Pages can serve the old version for a few minutes; hard-refresh
   (or add `?v=2`).

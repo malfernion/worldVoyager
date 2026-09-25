@@ -15,13 +15,18 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
 - **Zoom:** pinch, scroll, or the slider on the right. The camera follows further back as you
   climb, but you can always zoom right up to the rocket (about 12 m) or out to see a whole
   world; on the map, from one world up close out to the whole solar system.
-- **Go somewhere:** open the map and tap a world.
-  - **🧭 Show me how:** Pip tells you when to turn and when to burn. You fly!
-  - **🤖 Fly me there:** Pip flies, you watch.
-- **Helpers:** 🌀 Orbit, ⏫ Faster / ⏬ Slower (hold), 🛬 Land. After a "Show me how" trip, Pip
-  carries straight on and coaches the landing too: point up at the arrow, then HOLD / LET GO to
-  keep the descent gentle (Pip steps in if it gets too fast). Land coaches you if you've been
-  using "Show me how"; tap it again to let Pip land for you.
+- **🧭 Coach switch** (top of the helper buttons): choose how the helpers help. It's remembered.
+  - **On** (bright, green light): "I'll tell you when to hold GO!" You fly: an arrow shows
+    where to point, the right turn button glows, and GO says HOLD! / LET GO!.
+  - **Off** (dim): "I'll fly, you watch!" The helpers fly the rocket for you.
+  On your very first launch Pip offers it ("Tap the compass!"); tapping it then starts a
+  coached launch into orbit. Flipping it while a helper is running switches that helper over.
+- **Helpers:** 🌀 Orbit, 🛬 Land (tap again to stop), ⏫ Faster / ⏬ Slower (hold; always flown
+  for you). With the coach on, Orbit teaches the launch and Land teaches the landing: point up
+  at the arrow, then HOLD / LET GO to keep the descent gentle (Pip steps in if it gets too fast).
+- **Go somewhere:** open the map, tap a world, then the trip button: **🧭 Let's go!** with the
+  coach on (you fly there and land, Pip tells you how) or **🤖 Take me there!** with it off
+  (Pip flies, you watch). Tap it again (✋ Stop) to stop.
 - **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
   its colour). After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
   compass points back to your rocket, and 🏠 takes you home. Bonk! Trees and moon rocks are

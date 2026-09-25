@@ -153,7 +153,18 @@ class App {
     this.flightScene.setTarget(null);
     this.show('flight');
     const g = this.progress.currentGoal;
-    if (g) this.pip(`${g.text} ${g.hint}`, { speak: true });
+    // The very first launch: Pip offers coaching once (the 🧭 switch glows). Never again after.
+    const st = this.progress.settings;
+    const first = !Object.keys(this.progress.done).length && !st.coachOffered && !st.coach;
+    this.flightScene.coachNudge = first;
+    if (first) {
+      st.coachOffered = true;
+      this.progress.save();
+      const offer = 'Want me to show you how to fly? Tap the compass!';
+      this.pip(`${g.text} ${g.hint} ${offer}`, { speak: true });
+    } else if (g) {
+      this.pip(`${g.text} ${g.hint}`, { speak: true });
+    }
   }
 
   updateGoalChip() {

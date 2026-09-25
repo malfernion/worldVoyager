@@ -276,6 +276,10 @@
   "text": "I'll do this tiny push for you!"
  },
  {
+  "key": "ill fly you watch",
+  "text": "I'll fly, you watch!"
+ },
+ {
   "key": "ill steer us away from the ground",
   "text": "I'll steer us away from the ground!"
  },
@@ -756,8 +760,12 @@
   "text": "Tap or drag parts, then press Fly!"
  },
  {
-  "key": "tap show me how and ill help you fly there",
-  "text": "Tap \"Show me how\" and I'll help you fly there."
+  "key": "tap the button to fly there",
+  "text": "Tap the button to fly there!"
+ },
+ {
+  "key": "tap the compass",
+  "text": "Tap the compass!"
  },
  {
   "key": "tap the landing button to land",
@@ -820,10 +828,6 @@
   "text": "The Rover!"
  },
  {
-  "key": "then tap show me how",
-  "text": "Then tap Show me how!"
- },
- {
   "key": "they are made of ice and rock",
   "text": "They are made of ice and rock."
  },
@@ -852,6 +856,10 @@
   "text": "Try flying higher next time!"
  },
  {
+  "key": "turn on the compass and ill show you how",
+  "text": "Turn on the compass and I'll show you how!"
+ },
+ {
   "key": "turn sideways to the arrow and hold go so we go around",
   "text": "Turn sideways to the arrow and hold GO, so we go around!"
  },
@@ -870,6 +878,10 @@
  {
   "key": "vroom",
   "text": "Vroom!"
+ },
+ {
+  "key": "want me to show you how to fly",
+  "text": "Want me to show you how to fly?"
  },
  {
   "key": "we havent been there yet",

@@ -37,7 +37,7 @@ export class FlightHud {
     click('rewind-btn', () => this.scene.rewind());
     click('build-btn', () => this.app.toBuilder());
     click('goto-btn', () => this.scene.helper('goto'));
-    click('coach-btn', () => this.scene.helper('goto', { coach: true }));
+    click('coach-toggle', () => this.scene.setCoaching(!this.scene.coaching));
     click('target-close', () => this.scene.setTarget(null));
     click('center-btn', () => this.scene.focusMapOn(this.scene.flight.state.body, true));
     click('crash-rewind', () => this.scene.rewind());
@@ -270,10 +270,14 @@ export class FlightHud {
     this.el('map-btn').textContent = s.mode === 'map' ? '🚀' : '🗺️';
     this.el('map-tools').classList.toggle('hidden', s.mode !== 'map');
     for (const btn of document.querySelectorAll('.helper')) btn.classList.toggle('active', s.autopilot.mode === btn.dataset.helper);
-    const going = s.autopilot.mode === 'goto';
-    const coaching = s.autopilot.coachSession && (going || s.autopilot.mode === 'land');
-    this.el('goto-btn').textContent = going && !coaching ? '✋ Stop' : '🤖 Fly me there';
-    this.el('coach-btn').textContent = coaching ? '✋ Stop' : '🧭 Show me how';
+    // One trip button; what it does follows the coach switch.
+    const coach = s.coaching;
+    const toggle = this.el('coach-toggle');
+    toggle.classList.toggle('on', coach);
+    toggle.classList.toggle('coach-glow', !!s.coachNudge && !coach && !this.app.progress.has('space'));
+    toggle.setAttribute('aria-pressed', String(coach));
+    toggle.lastChild.textContent = coach ? 'Coach on' : 'Coach off';
+    this.el('goto-btn').textContent = s.tripRunning ? '✋ Stop' : coach ? '🧭 Let\'s go!' : '🤖 Take me there!';
     const status = this.el('status-line');
     status.classList.toggle('hidden', !s.autopilot.status);
     status.textContent = s.autopilot.status ? `🤖 ${s.autopilot.status}` : '';

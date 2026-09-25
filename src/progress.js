@@ -4,9 +4,9 @@ const KEY = 'worldVoyager.v1';
 
 export const GOALS = [
   { id: 'space', icon: '🚀', text: 'Fly up into space!', hint: 'Hold the big GO button to blast off!' },
-  { id: 'orbit', icon: '🌀', text: 'Go all the way around Homestead!', hint: 'Once you are high up, tip sideways and hold GO. Or tap the swirly orbit helper!' },
+  { id: 'orbit', icon: '🌀', text: 'Go all the way around Homestead!', hint: 'Once you are high up, tip sideways and hold GO. Or tap the swirly orbit helper! Turn on the compass and I\'ll show you how!' },
   { id: 'land-homestead', icon: '🏡', text: 'Come home and land softly!', hint: 'Tap the landing helper, or slow down gently before you touch the ground.' },
-  { id: 'visit-pebble', icon: '🌕', text: 'Fly to Pebble, the moon!', hint: 'Open the map and tap Pebble. Then tap Show me how!' },
+  { id: 'visit-pebble', icon: '🌕', text: 'Fly to Pebble, the moon!', hint: 'Open the map and tap Pebble. Tap the button to fly there!' },
   { id: 'land-pebble', icon: '🌕', text: 'Land on Pebble!', hint: 'Tap the landing helper when you are going around Pebble.' },
   { id: 'visit-dusty', icon: '🔴', text: 'Visit Dusty, the red planet!', hint: 'Open the map and tap Dusty.' },
   { id: 'land-dusty', icon: '🔴', text: 'Land on Dusty!', hint: 'Dusty has a giant volcano. Can you find it?' },

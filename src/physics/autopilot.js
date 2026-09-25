@@ -230,9 +230,10 @@ export class Autopilot {
     const targetR = parkingRadius(body);
     let dir = -1;
     if (!f.state.landed && f.speed > 5) dir = f.elements().dir;
-    if (!quiet) this.say('Up, up and away! Let\'s go around!');
     const fromGround = f.state.landed;
+    // One line at a time: a new line cuts the last one off.
     if (this.coach && fromGround) this.say('First we fly up high. Point up and hold GO!');
+    else if (!quiet) this.say('Up, up and away! Let\'s go around!');
     this.status = 'Flying up';
 
     // 1. Climb and tip over until the high point of our path is in space.
@@ -294,17 +295,18 @@ export class Autopilot {
       // A late LET GO on a small moon flings us right out of orbit, so Pip does the last bit.
       if (this.coach && need < f.stats.accel * 0.5) {
         this.coach = false;
-        if (quiet) this.say(`Let go! We're going around ${body.name}!`);
+        this.say(`Let go! We're going around ${body.name}!`);
       }
       this.setThrottle(ok ? clamp(need / (f.stats.accel * 0.5), 0.05, 1) : 0);
       yield;
     }
     this.setThrottle(0);
     // The player finished it themselves (Pip didn't take the last bit)?
-    if (this.coach && quiet) this.say(`Let go! We're going around ${body.name}!`);
+    if (this.coach) this.say(`Let go! We're going around ${body.name}!`);
     if (wasCoach && !this.coach) f.targetAngle = null;
     this.coach = wasCoach;
-    if (!quiet) this.say(`Hooray! We're in orbit around ${body.name}! Round and round we go!`);
+    // A coached player just heard "Let go! We're going around…", which says it already.
+    if (!quiet && !wasCoach) this.say(`Hooray! We're in orbit around ${body.name}! Round and round we go!`);
     return true;
   }
 

@@ -1036,8 +1036,16 @@ h1 {
 @media (max-height: 500px) {
   #helpers {
     flex-direction: row;
+    gap: 8px;
     right: calc(140px + var(--safe-right));
     bottom: calc(18px + var(--safe-bottom));
+  }
+
+  /* A row of five (six with the buggy) has to fit between the steering and GO buttons. */
+  .btn.helper {
+    width: 58px;
+    height: 58px;
+    font-size: 24px;
   }
 
   #goal-banner {
@@ -1108,8 +1116,38 @@ h1 {
   font-size: 16px;
 }
 
-#helpers.coaching {
-  display: none;
+/* The 🧭 coach switch: dim when Pip flies for you, bright with a green light when Pip coaches. */
+#coach-toggle {
+  position: relative;
+  background: #b9c6d6;
+}
+
+#coach-toggle:not(.on) {
+  filter: saturate(0.35);
+}
+
+#coach-toggle.on {
+  background: var(--glow);
+}
+
+#coach-toggle::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: #8a8f9c;
+}
+
+#coach-toggle.on::after {
+  background: #5fe07a;
+}
+
+#coach-toggle.coach-glow {
+  filter: none;
 }
 
 .guide-arrow {

@@ -279,26 +279,50 @@ export class FlightScene {
     this.app.audio.play('rewind');
   }
 
-  helper(mode, { coach = false } = {}) {
-    if (this.crashed) return;
+  /** The 🧭 switch: while it's on, every helper teaches you instead of flying for you. */
+  get coaching() {
+    return !!this.app.progress.settings.coach;
+  }
+
+  setCoaching(on) {
+    const progress = this.app.progress;
+    progress.settings.coach = on;
+    progress.save();
     const ap = this.autopilot;
-    // "Show me how" doubles as Stop during the coached landing it leads into.
-    if (mode === 'goto' && coach && ap.coachSession && ap.mode === 'land') {
-      ap.stop();
+    const nudged = this.coachNudge;
+    this.coachNudge = false;
+    if (ap.active && ap.mode !== 'faster' && ap.mode !== 'slower' && ap.coachSession !== on) {
+      // A running helper switches over and carries on from here (helpers are closed-loop).
+      // Its own first line says what to do next, so Pip doesn't talk over it.
+      ap.start(ap.mode, ap.target, { coach: on });
       return;
     }
-    if (mode === 'goto') this.likesCoaching = coach;
-    // Land coaches you if you've been using "Show me how"; tapping it again mid-lesson
-    // means "you do it, Pip".
-    if (mode === 'land' && ap.mode !== 'land') coach = !!this.likesCoaching;
-    if (ap.mode === mode && ap.coachSession === coach) {
-      this.autopilot.stop();
+    // Said yes to "Want me to show you how to fly?" on the pad: start the lesson right away.
+    if (on && nudged && this.flight.state.landed && !ap.active) {
+      this.helper('orbit');
+      return;
+    }
+    this.app.pip(on ? 'I\'ll tell you when to hold GO!' : 'I\'ll fly, you watch!', { speak: true });
+  }
+
+  /** A trip from the target card is running (including the landing a coached trip ends with). */
+  get tripRunning() {
+    const ap = this.autopilot;
+    return ap.mode === 'goto' || (ap.mode === 'land' && !!ap.target);
+  }
+
+  helper(mode, { coach = this.coaching } = {}) {
+    if (this.crashed) return;
+    const ap = this.autopilot;
+    // Tapping a running helper again stops it.
+    if (ap.mode === mode || (mode === 'goto' && this.tripRunning)) {
+      ap.stop();
       return;
     }
     if (mode === 'goto' && !this.target) return;
     this.warpIndex = 0;
     this.manualWarp = false;
-    this.autopilot.start(mode, mode === 'goto' ? this.target : null, { coach });
+    ap.start(mode, mode === 'goto' ? this.target : null, { coach });
   }
 
   holdHelper(mode, on) {
@@ -317,13 +341,15 @@ export class FlightScene {
     this.target = body;
     this.prediction = null;
     this.app.hud.showTarget(body);
-    if (body) this.app.pip(`That's ${body.name}! Tap "Show me how" and I'll help you fly there.`, { speak: true });
+    if (body) this.app.pip(`That's ${body.name}! Tap the button to fly there!`, { speak: true });
   }
 
   // ---- events --------------------------------------------------------------
 
   onPilotMessage(m) {
     if (m.text) this.app.pip(m.text, { speak: true });
+    // A helper just finished: a GO still held from its last cue mustn't burn on by itself.
+    if (m.done) this.goLatched = true;
     if (m.visiting) this.discover(m.visiting);
   }
 
