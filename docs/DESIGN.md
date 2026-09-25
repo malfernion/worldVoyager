@@ -34,12 +34,14 @@ borrow the vibe, not the content: all names, worlds and music are original.
 | Ringo | Saturn | rings of ice; light enough to float |
 | Sizzle | Io | the most volcanic place in the solar system |
 | Frosty | Europa | a hidden ocean under the ice |
+| Tumble | Uranus (and Neptune) | an ice giant tipped on its side, rolling round the Sun |
+| Flip | Triton | a moon that goes round backwards; icy geysers |
 
 ## Design pillars
 
 1. **Real physics, kid-sized.** Orbits are computed exactly: Kepler motion via universal
    variables, with SOI hand-offs. Distances are compressed (Homestead has a 300 m radius, low
-   orbit takes about 45 s, a trip to Ringo about 20 minutes of game time) and time warp covers
+   orbit takes about 45 s, a trip to Ringo about 20 minutes of game time, to Tumble about half an hour) and time warp covers
    the waits. The Kepler solver keeps its root bracketed so it can't run away, and each flight
    substep is checked (finite, energy kept while coasting) before it is committed; a bad one
    is redone with a small hand integrator, or else falls back to the last good state, rather
@@ -89,7 +91,7 @@ src/audio/     procedural campfire music + sound effects (WebAudio, no asset fil
 
 Key techniques:
 - **Floating origin.** Every frame the world is drawn relative to the rocket (or the map focus),
-  so float32 precision holds from 1 m to 40 km.
+  so float32 precision holds from 1 m to the ~65 km out to Tumble.
 - **Physics surface = visible mesh.** After meshing a planet we slice the mesh at z = 0 and use
   that exact outline as the ground, so legs touch what you see.
 - **Transfer planner.** For each leg (up to a parent, across to a sibling, or down to a moon) it
@@ -107,6 +109,25 @@ Key techniques:
   we've just climbed out of that moon). Planning waits for a coached player's late LET GO.
   `npm run stress` flies every pair of worlds at several start times, plus long tours from the
   pad, with the autopilot and the pretend kid, and counts each kind of failure.
+- **Leaving a big world.** The first guess for a trip's burn aims for the speed we'll have at the
+  *edge* of the world's SOI (patched conics keep that speed), not the speed "infinitely far
+  away", with at least a brisk exit (`escapeBurn()`). Aiming for the far-away speed was fine for
+  small worlds but flung us out of big Tumble backwards round Ember, to meet Dusty head-on at
+  150 m/s (#11). (Also counting the slow climb out to the edge in the Hohmann window looked
+  right but made the search miss good paths from Homestead, so it isn't.) With Flip, the
+  longest route is up, across and down, so a trip gets 12 tries at a leg instead of 8.
+  Turning an orbit round (`flipOrbit`) leans up against gravity, since halfway through we're
+  hardly going round at all.
+- **Tumble and Flip (#11): the backwards moon.** Every body has an orbit direction
+  (`Body.orbitDir`: -1 clockwise, +1 for Flip, like Triton). `angularSpeed` carries the sign,
+  so positions, velocities, SOI hand-offs, prediction and the Hohmann phase maths all follow.
+  The planner prefers arriving at a world going the way its moons go, so trips to Tumble end
+  up going round it backwards; if we're going the wrong way before dropping to a moon, Pip
+  turns the orbit round (`flipOrbit`). Tumble is tipped on its side like Uranus only in the
+  visuals (its stripes, faint rings and spin share a sideways axis, `TUMBLE_AXIS`); the flight
+  stays in the plane. Flip's frosty geysers use the same clock-driven instanced billboards as
+  Sizzle's plumes (`src/world/ambient.js`), blowing downwind over dark streaks painted on the
+  ice (`FLIP_GEYSERS` in `terrain.js`).
 - **Music.** Karplus–Strong banjo and guitar, a reedy harmonica, saw-pad strings and a triangle
   bass, played by a generative sequencer with a lazy swing. Three moods (campfire, space,
   discovery) crossfade at bar lines.
@@ -129,7 +150,8 @@ could get drifted with altitude and with each map re-fit, and far out in space y
 see the rocket any more. Now every mode zooms in real distances with fixed limits: the flight
 camera still follows further back as you climb (a multiplier on the automatic distance), but
 the result is clamped to 12 m–15 km, so a child can always pinch right back to the rocket. The
-map goes from about 3× the focused world's radius out to the whole solar system; re-fitting
+map goes from about 3× the focused world's radius out to the whole solar system (out past
+Tumble, `SYSTEM_EXTENT`; Ember's default view shows every planet's orbit); re-fitting
 picks a new default view inside that range without changing it.
 
 ## Buggies
@@ -143,11 +165,11 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   mesh, tyre grip (less on icy Frosty), slower in Homestead's water, and bumping around the
   parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
 - **Trees and rocks are things to bump into** (#6). Homestead's ~900 trees and the moons'
-  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, one
+  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Flip 60, one
   InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours) are
   circle colliders: trunk (or most of a bush's / rock's width) plus the buggy's `reach` from
   `BUGGIES`. Rocks keep a narrower strip in front of the flight plane clear than trees do
-  (z from -4 to 16 m, as they're low), and stay off Sizzle's vents and Dusty's caldera.
+  (z from -4 to 16 m, as they're low), and stay off Sizzle's vents, Flip's geysers and Dusty's caldera.
   - The drive scene turns the visuals' lists into plain `{ p, up, r, h }` data and builds an
     `ObstacleGrid` once per world: a coarse 3D grid (cells as big as the tallest reach), so
     each physics substep looks at the 27 cells around the buggy, typically a handful.

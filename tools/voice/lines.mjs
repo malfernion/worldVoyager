@@ -80,11 +80,12 @@ for (const b of BODY_DEFS) {
 }
 
 // World-name expansion makes some impossible lines; drop them.
-const MOONS = 'Pebble|Nibble|Sizzle|Frosty';
+const MOONS = 'Pebble|Nibble|Sizzle|Frosty|Flip';
+const GAS = 'Ringo|Tumble';
 const DROP = [
-  /^(?!Ringo)\w+ is made of clouds/, // only Ringo is a gas giant
+  new RegExp(`^(?!${GAS})\\w+ is made of clouds`), // only the gas giants
   /(drive on|land on|landed on|Welcome to|made it to|flew to|fly to|way to|path to|going around|orbit around|We're at|That's) Ember/,
-  /(drive on|land on|landed on) Ringo/,
+  new RegExp(`(drive on|land on|landed on) (${GAS})`),
   new RegExp(`^(?!${MOONS})\\w+ goes the other way`), // only moons can be the "other way"
   new RegExp(`^(${MOONS}|Ember) is behind us`), // only planets are left behind
   /^Start a brand new adventure|^Your rocket, stickers and progress/, // confirm dialog, not spoken

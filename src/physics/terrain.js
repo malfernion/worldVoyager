@@ -194,29 +194,102 @@ function makeFrosty() {
   };
 }
 
-// Ringo's clouds are banded around a tilted spin axis so both map and flight views show stripes.
+// Gas giants' clouds are banded around a tilted spin axis so both map and flight views show stripes.
 export const RINGO_AXIS = (() => {
   const t = 0.6;
   return { x: 0.25, y: Math.sin(t), z: Math.cos(t) };
 })();
 
-function makeRingo() {
-  const { fbm } = makeNoise(79);
-  const ax = RINGO_AXIS;
-  const al = Math.hypot(ax.x, ax.y, ax.z);
-  const bands = [0xf1e3c2, 0xd9b77e, 0xe9d2a2, 0xc28d5a, 0xf3e7cb, 0xb87a4e, 0xe4c58f];
+// Tumble is tipped on its side like Uranus: its axis lies almost in the flight plane, so its
+// stripes and rings stand upright (tipped a little towards the camera so the rings still show).
+export const TUMBLE_AXIS = (() => {
+  const v = { x: 0.88, y: 0.15, z: 0.48 };
+  const l = Math.hypot(v.x, v.y, v.z);
+  return { x: v.x / l, y: v.y / l, z: v.z / l };
+})();
+
+/** Spin axis of each gas giant (bands, rings and the slow spin of the mesh). */
+export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS };
+
+function makeBanded(axis, bands, seed, { warp = 0.25, stripes = 1.6 } = {}) {
+  const { fbm } = makeNoise(seed);
+  const al = Math.hypot(axis.x, axis.y, axis.z);
   return {
     height() {
       return 0;
     },
     color(x, y, z) {
-      const lat = (x * ax.x + y * ax.y + z * ax.z) / al;
-      const warp = fbm(x * 3, y * 3, z * 3, 4) * 0.25;
-      const f = (lat + warp + 1) * 0.5 * (bands.length - 1) * 1.6;
+      const lat = (x * axis.x + y * axis.y + z * axis.z) / al;
+      const f = (lat + fbm(x * 3, y * 3, z * 3, 4) * warp + 1) * 0.5 * (bands.length - 1) * stripes;
       const i = Math.floor(f);
       const a = rgb(bands[((i % bands.length) + bands.length) % bands.length]);
       const b = rgb(bands[(((i + 1) % bands.length) + bands.length) % bands.length]);
       return mix(a, b, smooth(0.35, 0.65, f - i));
+    },
+  };
+}
+
+const makeRingo = () => makeBanded(RINGO_AXIS, [0xf1e3c2, 0xd9b77e, 0xe9d2a2, 0xc28d5a, 0xf3e7cb, 0xb87a4e, 0xe4c58f], 79);
+
+// Ice giants are nearly plain, so only faint pale stripes.
+const makeTumble = () => makeBanded(TUMBLE_AXIS, [0x8fd8d2, 0x7fcfcb, 0x9fe0da, 0x76c6c4, 0x8ad4d0, 0xa9e6e0], 83, { warp: 0.15, stripes: 1.2 });
+
+// Flip's frosty geysers, like Triton's: placed by hand near the flight plane (z = 0, a little
+// towards the camera) so they show while flying. `lean` is the way the wind blows each plume,
+// and the dark streak it leaves on the ice points the same way. Exported for the plumes.
+export const FLIP_GEYSERS = [
+  [0.5, 0.08, 0.7], [1.75, 0.16, 0.4], [2.9, 0.05, 1.0], [4.1, 0.2, 0.55], [5.3, 0.1, 0.8], [2.3, 0.72, 0.6],
+].map(([a, z, size], i) => {
+  const s = Math.sqrt(1 - z * z);
+  const up = { x: s * Math.cos(a), y: s * Math.sin(a), z };
+  // Same tangent frame as the plumes use (src/world/ambient.js basis()).
+  let t1 = { x: -up.y, y: up.x, z: 0 };
+  const l1 = Math.hypot(t1.x, t1.y);
+  t1 = { x: t1.x / l1, y: t1.y / l1, z: 0 };
+  const t2 = { x: up.y * t1.z - up.z * t1.y, y: up.z * t1.x - up.x * t1.z, z: up.x * t1.y - up.y * t1.x };
+  const lean = 2.2 + i * 0.15; // a steady wind: every plume blows roughly the same way
+  const wind = { x: t1.x * Math.cos(lean) + t2.x * Math.sin(lean), y: t1.y * Math.cos(lean) + t2.y * Math.sin(lean), z: t1.z * Math.cos(lean) + t2.z * Math.sin(lean) };
+  return { ...up, size, depth: lean / (Math.PI * 2), lean, wind };
+});
+
+function makeFlip() {
+  const { fbm, noise } = makeNoise(97);
+  const vents = FLIP_GEYSERS;
+  // Triton's "cantaloupe" ground: lots of little dimples with ridges between them.
+  const melon = (x, y, z) => 1 - Math.abs(noise(x * 6, y * 6, z * 6));
+  const streak = (x, y, z) => {
+    let k = 0;
+    for (const v of vents) {
+      const rx = x - v.x, ry = y - v.y, rz = z - v.z;
+      const along = rx * v.wind.x + ry * v.wind.y + rz * v.wind.z;
+      if (along < 0 || along > 0.45) continue;
+      const px = rx - along * v.wind.x, py = ry - along * v.wind.y, pz = rz - along * v.wind.z;
+      const side = Math.hypot(px, py, pz);
+      k = Math.max(k, (1 - smooth(0.1, 0.45, along)) * (1 - smooth(0.02, 0.05 + along * 0.2, side)));
+    }
+    return k;
+  };
+  return {
+    height(x, y, z) {
+      let h = fbm(x * 2.2, y * 2.2, z * 2.2, 4) * 3 + melon(x, y, z) * 1.6;
+      for (const v of vents) {
+        const d = Math.acos(Math.min(1, x * v.x + y * v.y + z * v.z));
+        if (d < 0.14) h += (1 - smooth(0, 0.14, d)) * 2.5 - (1 - smooth(0.01, 0.04, d)) * 2;
+      }
+      return h;
+    },
+    color(x, y, z, h) {
+      const n = fbm(x * 4, y * 4, z * 4, 3);
+      let c = mix(rgb(0xeee0da), rgb(0xc5d2dc), smooth(-0.2, 0.3, n));
+      // A pink frosty cap, and pink patches drifting down towards the middle.
+      c = mix(c, rgb(0xf2c4b8), Math.max(smooth(0.4, 0.6, z), smooth(0.25, 0.45, noise(x * 2 + 5, y * 2, z * 2)) * 0.7));
+      c = mix(c, rgb(0xb7c1cc), smooth(0.9, 0.99, melon(x, y, z)) * 0.5);
+      c = mix(c, rgb(0x6d6672), streak(x, y, z) * 0.8);
+      for (const v of vents) {
+        const d = Math.acos(Math.min(1, x * v.x + y * v.y + z * v.z));
+        c = mix(c, rgb(0x514b58), 1 - smooth(0.015, 0.05, d));
+      }
+      return c;
     },
   };
 }
@@ -234,6 +307,8 @@ export function makeTerrain(kind) {
     case 'sizzle': return makeSizzle();
     case 'frosty': return makeFrosty();
     case 'ringo': return makeRingo();
+    case 'tumble': return makeTumble();
+    case 'flip': return makeFlip();
     default: return makeFlat(0xffd27a);
   }
 }

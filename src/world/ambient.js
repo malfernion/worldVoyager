@@ -1,10 +1,11 @@
-// Ambient life on the worlds: Sizzle's volcano plumes, Dusty's caldera puffs and drifting dust.
+// Ambient life on the worlds: Sizzle's volcano plumes, Dusty's caldera puffs and drifting dust,
+// Flip's frosty geysers.
 // Every puff is a loop driven only by the clock (no spawning, no per-frame allocation), and each
 // world's puffs are one instanced billboard mesh inside the planet's group, so they move and scale
 // with the planet in flight, driving and the map.
 import * as THREE from 'three';
 import { mulberry32 } from '../physics/noise.js';
-import { SIZZLE_VENTS, DUSTY_VOLCANO } from '../physics/terrain.js';
+import { SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS } from '../physics/terrain.js';
 import { glowTexture, puffTexture } from './materials.js';
 
 // Tuning knobs.
@@ -13,6 +14,8 @@ const VENT_EMBERS = 3; // per Sizzle vent
 const CALDERA_PUFFS = 10; // per Dusty burst
 const CALDERA_PERIOD = 13; // seconds between Dusty bursts (some bursts are skipped)
 const DUST_PUFFS = 28; // drifting dust clouds over all of Dusty
+const GEYSER_PUFFS = 10; // per Flip geyser
+const GEYSER_GLINTS = 4; // ice sparkles per Flip geyser
 
 const VERT = /* glsl */ `
   #include <common>
@@ -297,9 +300,66 @@ function dusty(body, sunDir) {
   return { meshes: [puffs.mesh], update: (time) => all.update(time) };
 }
 
+// Triton-style geysers: a thin frosty column shoots straight up, then the wind drags its top
+// sideways (the same way as the dark streak it leaves on the ground, see FLIP_GEYSERS).
+function flip(body, sunDir) {
+  const n = FLIP_GEYSERS.length;
+  const radius = body.radius * 1.8;
+  const puffs = billboards(n * GEYSER_PUFFS, puffTexture(), sunDir, radius);
+  const glints = billboards(n * GEYSER_GLINTS, glowTexture('rgba(235,250,255,1)', 'rgba(150,210,255,0)'), sunDir, radius, { additive: true, lit: false });
+  const frost = loops(puffs);
+  const ice = loops(glints);
+  const white = new THREE.Color(0xf4fbff);
+  const blue = new THREE.Color(0xc4dcec);
+  const grey = new THREE.Color(0x9d98a6);
+  const sparkle = new THREE.Color(0xd8f0ff);
+  FLIP_GEYSERS.forEach((v, k) => {
+    const b = basis(v);
+    const r = body.radius + body.terrainFn.height(b.up.x, b.up.y, b.up.z);
+    const height = 22 + v.size * 24;
+    const life = 5 + v.size * 2;
+    for (let i = 0; i < GEYSER_PUFFS; i++) {
+      frost.add(place({
+        draw: drawPuff, seed: 2000 + k * 100 + i, period: life, life, phase: (i / GEYSER_PUFFS) * life + k * 1.3,
+        s0: 1.4, c0: white, c1: blue.clone(),
+        spawn(p, rand) {
+          p.rise = height * (0.85 + rand() * 0.3);
+          p.s1 = (4 + rand() * 3) * (0.7 + v.size * 0.5);
+          p.alpha = 0.75 + rand() * 0.2;
+          p.spin = rand() * 6;
+          p.spinRate = (rand() - 0.5) * 1.2;
+          // Some puffs carry dark dust, like Triton's plumes.
+          p.c1.copy(blue).lerp(grey, rand() ** 3 * 0.7);
+          // Blown downwind, with a little spread.
+          const a = v.lean + (rand() - 0.5) * 0.6;
+          tangent(p, b, a, height * (0.5 + rand() * 0.4));
+        },
+      }, b, r - 0.5));
+    }
+    for (let i = 0; i < GEYSER_GLINTS; i++) {
+      ice.add(place({
+        draw: drawEmber, seed: 3000 + k * 10 + i, period: 1.8 + ((k + i) % 3) * 0.5, life: 1.3, phase: i * 0.7 + k, c0: sparkle,
+        spawn(p, rand) {
+          p.rise = 5 + v.size * 6 + rand() * 4;
+          p.s0 = 0.9 + rand() * 0.7;
+          tangent(p, b, rand() * Math.PI * 2, 1 + rand() * 2.5);
+        },
+      }, b, r));
+    }
+  });
+  return {
+    meshes: [puffs.mesh, glints.mesh],
+    update(time) {
+      frost.update(time);
+      ice.update(time);
+    },
+  };
+}
+
 /** Ambient effects for a world, or null. `sunDir` is a shared view-space vector the scene keeps fresh. */
 export function createAmbient(body, sunDir) {
   if (body.id === 'sizzle') return sizzle(body, sunDir);
   if (body.id === 'dusty') return dusty(body, sunDir);
+  if (body.id === 'flip') return flip(body, sunDir);
   return null;
 }

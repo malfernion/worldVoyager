@@ -13,7 +13,7 @@ import { rocketStats } from '../rocket/parts.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
-import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM } from '../ui/zoom.js';
+import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
@@ -173,9 +173,9 @@ export class FlightScene {
       extent = Math.max(b.radius * 3, r * 1.3);
       if (!s.landed && el.e < 1 && el.ra < b.soi) extent = Math.max(extent, el.ra * 1.25);
       if (Number.isFinite(b.soi)) extent = Math.min(extent, b.soi * 1.1);
-      if (b.kind === 'star') extent = Math.max(extent, 38000);
+      if (b.kind === 'star') extent = Math.max(extent, SYSTEM_VIEW);
     } else {
-      extent = Number.isFinite(b.soi) ? Math.min(b.soi, b.radius * 12) : 38000;
+      extent = Number.isFinite(b.soi) ? Math.min(b.soi, b.radius * 12) : SYSTEM_VIEW;
     }
     // A new default view, always inside the fixed limits, so re-fitting never changes what's reachable.
     const [lo, hi] = this.mapLimits();

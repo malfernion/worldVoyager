@@ -7,10 +7,10 @@ import { toonGradient, glowTexture, woodTexture, toon, withOutline } from './mat
 import { createAmbient } from './ambient.js';
 import { createForest } from './trees.js';
 import { createRocks } from './rocks.js';
-import { RINGO_AXIS, SIZZLE_VENTS, DUSTY_VOLCANO } from '../physics/terrain.js';
+import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS } from '../physics/terrain.js';
 import { mulberry32 } from '../physics/noise.js';
 
-const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36 };
+const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36, flip: 32 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
@@ -120,14 +120,26 @@ function atmosphere(radius, color, strength = 1.2) {
   return m;
 }
 
-function ringTexture() {
+// Ringo's rings are wide, bright ice. Faint rings (Tumble, like Uranus's) are a few thin grey-blue bands.
+function ringTexture(faint) {
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 4;
   const g = c.getContext('2d');
-  const rand = mulberry32(99);
+  const rand = mulberry32(faint ? 131 : 99);
   for (let x = 0; x < 512; x++) {
     const t = x / 511;
+    if (faint) {
+      // Narrow ringlets with a brighter one on the outside, and a haze of dust between them.
+      let a = 0.18;
+      for (const [at, w, k] of [[0.08, 0.025, 0.7], [0.3, 0.02, 0.65], [0.45, 0.025, 0.7], [0.62, 0.03, 0.75], [0.9, 0.06, 0.95]]) {
+        a = Math.max(a, k * Math.max(0, 1 - Math.abs(t - at) / w));
+      }
+      const v = 190 + Math.floor(rand() * 20);
+      g.fillStyle = `rgba(${v - 20}, ${v + 10}, ${v + 30}, ${a})`;
+      g.fillRect(x, 0, 1, 4);
+      continue;
+    }
     let a = 0.55 + 0.35 * Math.sin(t * 40 + rand() * 0.6) * Math.sin(t * 7);
     if (t > 0.58 && t < 0.63) a *= 0.12; // a Cassini-style gap
     if (t < 0.04 || t > 0.97) a *= 0.3;
@@ -143,6 +155,7 @@ function ringTexture() {
 function rings(body) {
   const inner = body.radius * body.rings.inner;
   const outer = body.radius * body.rings.outer;
+  const faint = !!body.rings.faint;
   const geo = new THREE.RingGeometry(inner, outer, 160, 3);
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
@@ -151,11 +164,12 @@ function rings(body) {
     uv.setXY(i, (r - inner) / (outer - inner), 0.5);
   }
   const mat = new THREE.MeshLambertMaterial({
-    map: ringTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false, emissive: 0x3a2c1c,
+    map: ringTexture(faint), transparent: true, side: THREE.DoubleSide, depthWrite: false, emissive: faint ? 0x3a4a55 : 0x3a2c1c,
   });
   const m = new THREE.Mesh(geo, mat);
-  const axis = new THREE.Vector3(RINGO_AXIS.x, RINGO_AXIS.y, RINGO_AXIS.z).normalize();
-  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
+  // The rings lie around the planet's equator, square to its spin axis (standing up for Tumble).
+  const a = SPIN_AXES[body.id];
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(a.x, a.y, a.z).normalize());
   return m;
 }
 
@@ -209,14 +223,18 @@ const ROCKS = {
   dusty: { count: 110, size: [1.2, 3], palette: [0xa9502e, 0x8a3f25, 0xc4693c] },
   sizzle: { count: 70, size: [1, 2.4], palette: [0x5a4030, 0x3d2a1f, 0x8a6a3a] },
   frosty: { count: 80, size: [1, 2.6], palette: [0xcfe3ef, 0xa9c6d8, 0xe8f1f6, 0xb98a6c] },
+  flip: { count: 60, size: [1, 2.4], palette: [0xe9dcd6, 0xc5d0da, 0xf0c9bf, 0x8e8793] },
 };
+
+// Spots where rocks stay clear, because plumes and puffs rise there.
+const HOT = { sizzle: SIZZLE_VENTS, dusty: [DUSTY_VOLCANO], flip: FLIP_GEYSERS };
 
 /** Scatter boulders over a moon; returns the rock list (for collisions). */
 function rocks(body, group) {
   const def = ROCKS[body.id];
   const rand = mulberry32(body.radius * 7 + def.count);
-  // Lava vents and Dusty's caldera stay clear (the plumes and puffs rise there).
-  const hot = body.id === 'sizzle' ? SIZZLE_VENTS : body.id === 'dusty' ? [DUSTY_VOLCANO] : [];
+  // Lava vents, geysers and Dusty's caldera stay clear.
+  const hot = HOT[body.id] ?? [];
   const spots = [];
   for (let tries = 0; tries < 5000 && spots.length < def.count; tries++) {
     const z = rand() * 2 - 1;
@@ -368,7 +386,8 @@ export function createBodyVisual(body) {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() }));
-    const axis = new THREE.Vector3(RINGO_AXIS.x, RINGO_AXIS.y, RINGO_AXIS.z).normalize();
+    const a = SPIN_AXES[body.id];
+    const axis = new THREE.Vector3(a.x, a.y, a.z).normalize();
     out.updates.push((time) => mesh.quaternion.setFromAxisAngle(axis, time * 0.01));
     if (body.rings) group.add(rings(body));
   } else {

@@ -40,6 +40,10 @@
   "text": "Back in Ember's space."
  },
  {
+  "key": "back in flips space",
+  "text": "Back in Flip's space."
+ },
+ {
   "key": "back in frostys space",
   "text": "Back in Frosty's space."
  },
@@ -62,6 +66,10 @@
  {
   "key": "back in sizzles space",
   "text": "Back in Sizzle's space."
+ },
+ {
+  "key": "back in tumbles space",
+  "text": "Back in Tumble's space."
  },
  {
   "key": "back to the rocket",
@@ -160,12 +168,36 @@
   "text": "First we fly up high."
  },
  {
+  "key": "flip",
+  "text": "Flip!"
+ },
+ {
+  "key": "flip goes around tumble backwards so we did too",
+  "text": "Flip goes around Tumble backwards, so we did too!"
+ },
+ {
+  "key": "flip goes around tumble the wrong way just like triton a moon of neptune",
+  "text": "Flip goes around Tumble the wrong way, just like Triton, a moon of Neptune."
+ },
+ {
+  "key": "flip goes around tumble the wrong way so we have to go around the other way too",
+  "text": "Flip goes around Tumble the wrong way, so we have to go around the other way too."
+ },
+ {
+  "key": "flip goes the other way",
+  "text": "Flip goes the other way."
+ },
+ {
   "key": "fly to pebble the moon",
   "text": "Fly to Pebble, the moon!"
  },
  {
   "key": "fly to ringo the ringed giant",
   "text": "Fly to Ringo, the ringed giant!"
+ },
+ {
+  "key": "fly to tumble the tipped over giant",
+  "text": "Fly to Tumble, the tipped-over giant!"
  },
  {
   "key": "fly up into space",
@@ -196,6 +228,10 @@
   "text": "Full power!"
  },
  {
+  "key": "giant planets are all clouds there is no ground to land on",
+  "text": "Giant planets are all clouds, there is no ground to land on!"
+ },
+ {
   "key": "go all the way around homestead",
   "text": "Go all the way around Homestead!"
  },
@@ -220,6 +256,10 @@
   "text": "Hmm, I can't find a path to Dusty right now."
  },
  {
+  "key": "hmm i cant find a path to flip right now",
+  "text": "Hmm, I can't find a path to Flip right now."
+ },
+ {
   "key": "hmm i cant find a path to frosty right now",
   "text": "Hmm, I can't find a path to Frosty right now."
  },
@@ -242,6 +282,10 @@
  {
   "key": "hmm i cant find a path to sizzle right now",
   "text": "Hmm, I can't find a path to Sizzle right now."
+ },
+ {
+  "key": "hmm i cant find a path to tumble right now",
+  "text": "Hmm, I can't find a path to Tumble right now."
  },
  {
   "key": "hold go",
@@ -320,6 +364,10 @@
   "text": "It is tiny!"
  },
  {
+  "key": "it is tipped over on its side",
+  "text": "It is tipped over on its side."
+ },
+ {
   "key": "kaboom",
   "text": "Kaboom!"
  },
@@ -338,6 +386,10 @@
  {
   "key": "land on dusty",
   "text": "Land on Dusty!"
+ },
+ {
+  "key": "land on flip the backwards moon",
+  "text": "Land on Flip, the backwards moon!"
  },
  {
   "key": "land on frosty the icy moon",
@@ -384,6 +436,10 @@
   "text": "Let's fly to Dusty!"
  },
  {
+  "key": "lets fly to flip",
+  "text": "Let's fly to Flip!"
+ },
+ {
   "key": "lets fly to frosty",
   "text": "Let's fly to Frosty!"
  },
@@ -408,6 +464,10 @@
   "text": "Let's fly to Sizzle!"
  },
  {
+  "key": "lets fly to tumble",
+  "text": "Let's fly to Tumble!"
+ },
+ {
   "key": "lets go around",
   "text": "Let's go around!"
  },
@@ -418,6 +478,10 @@
  {
   "key": "lets go for a drive on dusty",
   "text": "Let's go for a drive on Dusty!"
+ },
+ {
+  "key": "lets go for a drive on flip",
+  "text": "Let's go for a drive on Flip!"
  },
  {
   "key": "lets go for a drive on frosty",
@@ -446,6 +510,14 @@
  {
   "key": "lets land on dusty together",
   "text": "Let's land on Dusty together!"
+ },
+ {
+  "key": "lets land on flip",
+  "text": "Let's land on Flip."
+ },
+ {
+  "key": "lets land on flip together",
+  "text": "Let's land on Flip together!"
  },
  {
   "key": "lets land on frosty",
@@ -520,6 +592,10 @@
   "text": "Next: Fly to Ringo, the ringed giant!"
  },
  {
+  "key": "next fly to tumble the tipped over giant",
+  "text": "Next: Fly to Tumble, the tipped-over giant!"
+ },
+ {
   "key": "next fly up into space",
   "text": "Next: Fly up into space!"
  },
@@ -530,6 +606,10 @@
  {
   "key": "next land on dusty",
   "text": "Next: Land on Dusty!"
+ },
+ {
+  "key": "next land on flip the backwards moon",
+  "text": "Next: Land on Flip, the backwards moon!"
  },
  {
   "key": "next land on frosty the icy moon",
@@ -628,6 +708,10 @@
   "text": "Open the map and tap Ringo."
  },
  {
+  "key": "open the map and tap tumble",
+  "text": "Open the map and tap Tumble."
+ },
+ {
   "key": "or tap the landing button",
   "text": "Or tap the landing button."
  },
@@ -682,10 +766,6 @@
  {
   "key": "ringo is a giant ball of gas with beautiful rings like saturn",
   "text": "Ringo is a giant ball of gas with beautiful rings, like Saturn."
- },
- {
-  "key": "ringo is all clouds there is no ground to land on",
-  "text": "Ringo is all clouds, there is no ground to land on!"
  },
  {
   "key": "ringo is behind us",
@@ -800,6 +880,10 @@
   "text": "That's Dusty!"
  },
  {
+  "key": "thats flip",
+  "text": "That's Flip!"
+ },
+ {
   "key": "thats frosty",
   "text": "That's Frosty!"
  },
@@ -822,6 +906,10 @@
  {
   "key": "thats sizzle",
   "text": "That's Sizzle!"
+ },
+ {
+  "key": "thats tumble",
+  "text": "That's Tumble!"
  },
  {
   "key": "the hopper",
@@ -860,8 +948,36 @@
   "text": "Trees, oceans and a cosy campfire."
  },
  {
+  "key": "triton has icy geysers that shoot up really high",
+  "text": "Triton has icy geysers that shoot up really high!"
+ },
+ {
   "key": "try flying higher next time",
   "text": "Try flying higher next time!"
+ },
+ {
+  "key": "tumble",
+  "text": "Tumble!"
+ },
+ {
+  "key": "tumble is an icy blue giant like uranus",
+  "text": "Tumble is an icy blue giant, like Uranus."
+ },
+ {
+  "key": "tumble is behind us",
+  "text": "Tumble is behind us."
+ },
+ {
+  "key": "tumble is made of clouds theres no ground",
+  "text": "Tumble is made of clouds, there's no ground!"
+ },
+ {
+  "key": "tumble is made of clouds theres no ground to land on",
+  "text": "Tumble is made of clouds, there's no ground to land on!"
+ },
+ {
+  "key": "tumble is the farthest world of all",
+  "text": "Tumble is the farthest world of all."
  },
  {
   "key": "turn on the compass and ill show you how",
@@ -878,6 +994,10 @@
  {
   "key": "up up and away",
   "text": "Up, up and away!"
+ },
+ {
+  "key": "uranus is tipped over on its side so it rolls around the sun like a ball",
+  "text": "Uranus is tipped over on its side, so it rolls around the Sun like a ball!"
  },
  {
   "key": "visit dusty the red planet",
@@ -898,6 +1018,10 @@
  {
   "key": "we made it to dusty",
   "text": "We made it to Dusty!"
+ },
+ {
+  "key": "we made it to flip",
+  "text": "We made it to Flip!"
  },
  {
   "key": "we made it to frosty",
@@ -924,6 +1048,10 @@
   "text": "We made it to Sizzle!"
  },
  {
+  "key": "we made it to tumble",
+  "text": "We made it to Tumble!"
+ },
+ {
   "key": "we missed the moment",
   "text": "We missed the moment."
  },
@@ -934,6 +1062,10 @@
  {
   "key": "welcome to dusty",
   "text": "Welcome to Dusty!"
+ },
+ {
+  "key": "welcome to flip",
+  "text": "Welcome to Flip!"
  },
  {
   "key": "welcome to frosty",
@@ -960,8 +1092,16 @@
   "text": "Welcome to Sizzle!"
  },
  {
+  "key": "welcome to tumble",
+  "text": "Welcome to Tumble!"
+ },
+ {
   "key": "were already going around dusty",
   "text": "We're already going around Dusty!"
+ },
+ {
+  "key": "were already going around flip",
+  "text": "We're already going around Flip!"
  },
  {
   "key": "were already going around frosty",
@@ -988,8 +1128,16 @@
   "text": "We're already going around Sizzle!"
  },
  {
+  "key": "were already going around tumble",
+  "text": "We're already going around Tumble!"
+ },
+ {
   "key": "were at dusty",
   "text": "We're at Dusty!"
+ },
+ {
+  "key": "were at flip",
+  "text": "We're at Flip!"
  },
  {
   "key": "were at frosty",
@@ -1016,12 +1164,20 @@
   "text": "We're at Sizzle!"
  },
  {
+  "key": "were at tumble",
+  "text": "We're at Tumble!"
+ },
+ {
   "key": "were flying around ember now",
   "text": "We're flying around Ember now!"
  },
  {
   "key": "were going around dusty",
   "text": "We're going around Dusty!"
+ },
+ {
+  "key": "were going around flip",
+  "text": "We're going around Flip!"
  },
  {
   "key": "were going around frosty",
@@ -1052,8 +1208,16 @@
   "text": "We're going around the wrong way!"
  },
  {
+  "key": "were going around tumble",
+  "text": "We're going around Tumble!"
+ },
+ {
   "key": "were in orbit around dusty",
   "text": "We're in orbit around Dusty!"
+ },
+ {
+  "key": "were in orbit around flip",
+  "text": "We're in orbit around Flip!"
  },
  {
   "key": "were in orbit around frosty",
@@ -1080,8 +1244,16 @@
   "text": "We're in orbit around Sizzle!"
  },
  {
+  "key": "were in orbit around tumble",
+  "text": "We're in orbit around Tumble!"
+ },
+ {
   "key": "were on our way to dusty",
   "text": "We're on our way to Dusty!"
+ },
+ {
+  "key": "were on our way to flip",
+  "text": "We're on our way to Flip!"
  },
  {
   "key": "were on our way to frosty",
@@ -1106,6 +1278,10 @@
  {
   "key": "were on our way to sizzle",
   "text": "We're on our way to Sizzle!"
+ },
+ {
+  "key": "were on our way to tumble",
+  "text": "We're on our way to Tumble!"
  },
  {
   "key": "when we get there point along the arrow and hold go",
@@ -1144,8 +1320,16 @@
   "text": "You explored everything!"
  },
  {
+  "key": "you flew all the way to tumble",
+  "text": "You flew all the way to Tumble!"
+ },
+ {
   "key": "you flew to dusty all by yourself",
   "text": "You flew to Dusty all by yourself!"
+ },
+ {
+  "key": "you flew to flip all by yourself",
+  "text": "You flew to Flip all by yourself!"
  },
  {
   "key": "you flew to frosty all by yourself",
@@ -1172,6 +1356,10 @@
   "text": "You flew to Sizzle all by yourself!"
  },
  {
+  "key": "you flew to tumble all by yourself",
+  "text": "You flew to Tumble all by yourself!"
+ },
+ {
   "key": "you landed all by yourself",
   "text": "You landed all by yourself!"
  },
@@ -1182,6 +1370,10 @@
  {
   "key": "you landed on dusty",
   "text": "You landed on Dusty!"
+ },
+ {
+  "key": "you landed on flip",
+  "text": "You landed on Flip!"
  },
  {
   "key": "you landed on frosty",

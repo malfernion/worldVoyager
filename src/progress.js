@@ -14,6 +14,8 @@ export const GOALS = [
   { id: 'visit-ringo', icon: '🪐', text: 'Fly to Ringo, the ringed giant!', hint: 'Ringo is far, far away. Open the map and tap Ringo.' },
   { id: 'land-sizzle', icon: '🌋', text: 'Land on Sizzle, the volcano moon!', hint: 'Sizzle goes around Ringo.' },
   { id: 'land-frosty', icon: '❄️', text: 'Land on Frosty, the icy moon!', hint: 'Frosty goes around Ringo too.' },
+  { id: 'visit-tumble', icon: '🔵', text: 'Fly to Tumble, the tipped-over giant!', hint: 'Tumble is the farthest world of all. Open the map and tap Tumble.' },
+  { id: 'land-flip', icon: '🔄', text: 'Land on Flip, the backwards moon!', hint: 'Flip goes around Tumble the wrong way, so we have to go around the other way too.' },
 ];
 
 export const STICKERS = {
@@ -28,8 +30,11 @@ export const STICKERS = {
   'visit-ringo': { icon: '🪐', name: 'Ring Ranger', say: 'Wow, look at those rings! They are made of ice and rock.' },
   'land-sizzle': { icon: '🌋', name: 'Hot Feet' },
   'land-frosty': { icon: '❄️', name: 'Ice Skater' },
+  'visit-tumble': { icon: '🔵', name: 'Far Flyer', say: 'You flew all the way to Tumble! It is tipped over on its side.' },
+  'visit-flip': { icon: '🔄', name: 'Wrong Way Round', say: 'Flip goes around Tumble backwards, so we did too!' },
+  'land-flip': { icon: '⛲', name: 'Geyser Jumper' },
   splash: { icon: '🌊', name: 'Splashdown!', say: 'Splash! You landed in the ocean!' },
-  dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Ringo is all clouds, there is no ground to land on!' },
+  dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Giant planets are all clouds, there is no ground to land on!' },
   sun: { icon: '☀️', name: 'Sunburnt', say: 'That is close enough to Ember! Stars are super hot.' },
   drive: { icon: '🚙', name: 'Off-Roader', say: 'Vroom! Your first drive in the buggy! Steer with the arrows and hold GO to drive.' },
   // A secret: super hop the Hopper all the way round Nibble (see ORBIT in physics/buggy.js).

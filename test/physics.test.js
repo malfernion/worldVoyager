@@ -4,7 +4,7 @@ import { createSystem } from '../src/physics/bodies.js';
 import { Flight, leapfrog } from '../src/physics/sim.js';
 import { predict, segmentPoints, nearRadial, radialApex } from '../src/physics/predict.js';
 import { inStableOrbit, nextHop } from '../src/physics/autopilot.js';
-import { mission, kidFlies } from './missions.js';
+import { mission, kidFlies, parkAt } from './missions.js';
 
 // Brute-force reference integrator (RK4, tiny steps).
 function rk4(mu, s, dt, steps) {
@@ -276,6 +276,71 @@ describe('drawing the predicted path (#19)', () => {
   });
 });
 
+describe('Flip, the backwards moon (#11)', () => {
+  const sys = createSystem();
+  const { flip, tumble, frosty } = sys.byId;
+
+  it('goes around Tumble the other way from everything else', () => {
+    expect(flip.orbitDir).toBe(1);
+    expect(flip.angularSpeed).toBeGreaterThan(0);
+    for (const b of sys.bodies) if (b.parent && b !== flip) expect(b.angularSpeed).toBeLessThan(0);
+    // Same speed a normal moon would have there, just the other way.
+    expect(flip.angularSpeed).toBeCloseTo(Math.sqrt(tumble.mu / flip.orbitRadius ** 3), 12);
+  });
+
+  it('its velocity matches how its position changes', () => {
+    for (const b of [flip, frosty]) {
+      for (const t of [0, 123.4, 5000]) {
+        const a = b.relPos(t - 0.01), c = b.relPos(t + 0.01), v = b.relVel(t);
+        expect((c.x - a.x) / 0.02).toBeCloseTo(v.x, 3);
+        expect((c.y - a.y) / 0.02).toBeCloseTo(v.y, 3);
+        // Counter-clockwise has positive angular momentum.
+        const p = b.relPos(t);
+        expect(Math.sign(p.x * v.y - p.y * v.x)).toBe(b.orbitDir);
+      }
+    }
+  });
+
+  it('keeps the rocket\'s real velocity across the hand-off into its SOI', () => {
+    const f = new Flight(sys, { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 });
+    const t = 777;
+    const p = flip.relPos(t), v = flip.relVel(t);
+    const d = flip.soi + 0.5;
+    // Just outside Flip's SOI, keeping up with it and drifting in.
+    f.state = { body: tumble, x: p.x + d, y: p.y, vx: v.x - 3, vy: v.y, angle: 0, t, landed: false, landAngle: 0, crashed: false, flightTime: 0 };
+    const vBefore = { x: f.state.vx + tumble.worldVel(t).x, y: f.state.vy + tumble.worldVel(t).y };
+    while (f.state.body === tumble && f.state.t < t + 5) f.step(1 / 60, 1);
+    expect(f.state.body).toBe(flip);
+    const w = flip.worldVel(f.state.t);
+    // Gravity only nudges it a little in that moment; a wrong-way hand-off would be ~80 m/s off.
+    expect(Math.hypot(f.state.vx + w.x - vBefore.x, f.state.vy + w.y - vBefore.y)).toBeLessThan(1);
+    // And it's handed over right at the edge of Flip's SOI.
+    expect(Math.hypot(f.state.x, f.state.y)).toBeCloseTo(flip.soi, -1);
+  });
+
+  it('the predictor meets it where it really is', () => {
+    const s = { body: tumble, t: 50 };
+    // Drop from a round orbit just outside Flip's path, going Flip's way.
+    const r = flip.orbitRadius + flip.soi * 3;
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+      const v = Math.sqrt(tumble.mu / r) * 0.93;
+      Object.assign(s, { x: r * Math.cos(a), y: r * Math.sin(a), vx: -v * Math.sin(a), vy: v * Math.cos(a) });
+      const seg = predict(s, { maxSegments: 2 }).segments.find((g) => g.body === flip);
+      if (!seg) continue;
+      // The hand-off point is on the edge of Flip's SOI.
+      expect(Math.hypot(seg.start.x, seg.start.y)).toBeCloseTo(flip.soi, -1);
+      return;
+    }
+    throw new Error('never met Flip');
+  });
+
+  it('routes to it through Tumble', () => {
+    expect(nextHop(sys.byId.homestead, flip)).toMatchObject({ body: tumble, kind: 'sibling' });
+    expect(nextHop(tumble, flip)).toMatchObject({ body: flip, kind: 'down' });
+    expect(nextHop(flip, sys.byId.sizzle)).toMatchObject({ body: tumble, kind: 'up' });
+  });
+});
+
 describe('helpers', () => {
   const stats = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
 
@@ -298,7 +363,7 @@ describe('helpers', () => {
     expect(m.log).toContain('landed:homestead');
   });
 
-  for (const target of ['pebble', 'dusty', 'frosty', 'nibble']) {
+  for (const target of ['pebble', 'dusty', 'frosty', 'nibble', 'flip']) {
     it(`takes the rocket from the pad to ${target} and lands`, () => {
       const m = mission(stats);
       expect(m.run('goto', target, 60 * 60 * 30)).toBe(true);
@@ -308,6 +373,31 @@ describe('helpers', () => {
       expect(m.log).toContain(`landed:${target}`);
     }, 60000);
   }
+
+  it('flies to Tumble, the farthest world, and goes round it Flip\'s way', () => {
+    const m = mission(stats);
+    expect(m.run('goto', 'tumble', 60 * 60 * 30)).toBe(true);
+    expect(m.flight.state.body.id).toBe('tumble');
+    expect(inStableOrbit(m.flight)).toBe(true);
+    // Arriving the backwards way round makes the hop down to Flip easy.
+    expect(m.flight.elements().dir).toBe(m.sys.byId.flip.orbitDir);
+  }, 60000);
+
+  it('turns round before dropping down to Flip if we\'re going the wrong way', () => {
+    const m = parkAt(mission(stats), 'tumble', 3000);
+    const s = m.flight.state;
+    // Mirror the parking orbit so we go clockwise, like every other moon.
+    s.vx = -s.vx; s.vy = -s.vy; s.angle += Math.PI;
+    expect(m.flight.elements().dir).toBe(-1);
+    const said = [];
+    m.ap.on((e) => e.text && said.push(e.text));
+    expect(m.run('goto', 'flip', 60 * 60 * 30)).toBe(true);
+    expect(said).toContain('We\'re going around the wrong way! Flip goes the other way. I\'ll turn us around.');
+    expect(m.flight.state.body.id).toBe('flip');
+    expect(inStableOrbit(m.flight)).toBe(true);
+    expect(m.run('land')).toBe(true);
+    expect(m.log).toContain('landed:flip');
+  }, 60000);
 
   it('comes home from Pebble', () => {
     const m = mission(stats);
@@ -331,6 +421,24 @@ describe('coach mode', () => {
     expect(flight.state.body.id).toBe('pebble');
     expect(flight.state.landed).toBe(true);
     expect(said.some((t) => t.includes('Now let\'s land together.'))).toBe(true);
+  }, 60000);
+
+  it('talks a player all the way to Flip, the backwards moon, and down onto it', () => {
+    const { flight, done, said } = kidFlies(mission(stats), 'goto', 'flip');
+    expect(flight.state.crashed).toBe(false);
+    expect(done).toBe(true);
+    expect(flight.state.body.id).toBe('flip');
+    expect(flight.state.landed).toBe(true);
+    expect(said).toContain('Let go! We\'re on our way to Tumble!');
+    expect(said).toContain('You landed all by yourself! Great flying!');
+  }, 60000);
+
+  it('talks a player to Tumble, the farthest world', () => {
+    const { flight, done } = kidFlies(mission(stats), 'goto', 'tumble');
+    expect(flight.state.crashed).toBe(false);
+    expect(done).toBe(true);
+    expect(flight.state.body.id).toBe('tumble');
+    expect(inStableOrbit(flight)).toBe(true);
   }, 60000);
 
   it('talks a player to Dusty and lands', () => {

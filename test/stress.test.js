@@ -13,6 +13,13 @@ const trips = [
   ['coach', 'nibble', 'pebble', 9133],
   ['coach', 'sizzle', 'dusty', 17266],
   ['coach', 'frosty', 'sizzle', 6422],
+  // Leaving big Tumble too fast went backwards round Ember and met Dusty head-on (#11).
+  ['coach', 'tumble', 'dusty', 11844],
+  // Arriving at Ringo the wrong way round, low: turning round used to drop us into the clouds.
+  ['coach', 'tumble', 'sizzle', 19977],
+  // The longest route (up, across, down) ran out of tries just as it reached Nibble.
+  ['autopilot', 'flip', 'nibble', 19977],
+  ['coach', 'flip', 'nibble', 3711],
 ];
 
 describe('take me there, stress subset', () => {
@@ -25,6 +32,17 @@ describe('take me there, stress subset', () => {
 
   it('autopilot tour from the pad: Dusty, Sizzle, Nibble, Ringo', () => {
     const r = tour(['dusty', 'sizzle', 'nibble', 'ringo'], 2233, false);
+    expect(r.kind, `${r.to}: ${r.detail}`).toBe('ok');
+  }, 60000);
+
+  // The longest trips, and the backwards moon (#11).
+  it('autopilot tour from the pad: Tumble, Flip, Frosty, then home', () => {
+    const r = tour(['tumble', 'flip', 'frosty', 'homestead'], 3100, false);
+    expect(r.kind, `${r.to}: ${r.detail}`).toBe('ok');
+  }, 60000);
+
+  it('coach tour from the pad: Flip, Ringo, Tumble, Dusty', () => {
+    const r = tour(['flip', 'ringo', 'tumble', 'dusty'], 8200, true);
     expect(r.kind, `${r.to}: ${r.detail}`).toBe('ok');
   }, 60000);
 

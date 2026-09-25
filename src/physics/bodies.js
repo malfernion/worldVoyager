@@ -51,6 +51,22 @@ export const BODY_DEFS = [
     color: 0xdbe9f2, icon: '❄️',
     blurb: 'Frosty is an icy moon like Europa, a moon of Jupiter. Under Europa\'s ice there is a huge hidden ocean!',
   },
+  {
+    // The longest trip. Tipped on its side like Uranus: only the look (mesh, bands, rings);
+    // the flight stays in the z = 0 plane.
+    id: 'tumble', name: 'Tumble', parent: 'ember', orbitRadius: 56000, phase: 2.9,
+    radius: 900, gravity: 7, soi: 7000, spaceLine: 180, terrain: 'tumble', gas: true, atmosphere: 0xb8f4ee,
+    rings: { inner: 1.5, outer: 1.95, faint: true },
+    color: 0x9fdcd6, icon: '🔵',
+    blurb: 'Tumble is an icy blue giant, like Uranus. Uranus is tipped over on its side, so it rolls around the Sun like a ball!',
+  },
+  {
+    // Goes round the wrong way (counter-clockwise), like Triton around Neptune.
+    id: 'flip', name: 'Flip', parent: 'tumble', orbitRadius: 3000, phase: 2.0, retrograde: true,
+    radius: 120, gravity: 2.5, soi: 420, spaceLine: 25, terrain: 'flip',
+    color: 0xe6d3cc, icon: '🔄',
+    blurb: 'Flip goes around Tumble the wrong way, just like Triton, a moon of Neptune. Triton has icy geysers that shoot up really high!',
+  },
 ];
 
 const SURFACE_SAMPLES = 2048;
@@ -62,6 +78,9 @@ export class Body {
     this.parentId = def.parent || null;
     this.parent = null;
     this.children = [];
+    // Which way it goes around its parent on screen: -1 clockwise (almost everything),
+    // +1 counter-clockwise for a backwards moon.
+    this.orbitDir = def.retrograde ? 1 : -1;
     this.terrainFn = def.kind === 'star' ? null : makeTerrain(def.terrain);
     this.solid = !def.gas && def.kind !== 'star';
     this.surface = new Float32Array(SURFACE_SAMPLES + 1);
@@ -100,10 +119,10 @@ export class Body {
     return this.surface[i] * (1 - t) + this.surface[Math.min(i + 1, SURFACE_SAMPLES)] * t;
   }
 
-  /** Orbital angular speed around the parent (negative = clockwise on screen). */
+  /** Orbital angular speed around the parent (negative = clockwise on screen, positive = backwards). */
   get angularSpeed() {
     if (!this.parent) return 0;
-    return -Math.sqrt(this.parent.mu / this.orbitRadius ** 3);
+    return this.orbitDir * Math.sqrt(this.parent.mu / this.orbitRadius ** 3);
   }
 
   get orbitalPeriod() {

@@ -8,8 +8,10 @@ export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const FLIGHT_ZOOM = [12, 15000];
 /** Buggy chase camera. */
 export const DRIVE_ZOOM = [5, 100];
-/** Half the width of the whole solar system (Ringo's orbit plus its sphere of influence). */
-export const SYSTEM_EXTENT = 45000;
+/** Half the width of the whole solar system (Tumble's orbit plus its sphere of influence). */
+export const SYSTEM_EXTENT = 72000;
+/** The map's default view of Ember's space: every planet's orbit, out to Tumble's. */
+export const SYSTEM_VIEW = 63000;
 
 /** The automatic follow distance: further out the higher we fly. */
 export function flightAutoDist(alt) {

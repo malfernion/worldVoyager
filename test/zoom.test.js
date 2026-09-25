@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  clamp, FLIGHT_ZOOM, DRIVE_ZOOM, SYSTEM_EXTENT, flightAutoDist, flightDist, flightZoomFor,
+  clamp, FLIGHT_ZOOM, DRIVE_ZOOM, SYSTEM_EXTENT, SYSTEM_VIEW, flightAutoDist, flightDist, flightZoomFor,
   fitDist, mapZoomLimits, sliderToDist, distToSlider,
 } from '../src/ui/zoom.js';
 import { createSystem } from '../src/physics/bodies.js';
@@ -37,7 +37,7 @@ describe('zoom in real distances (#18)', () => {
         const first = mapZoomLimits(body.radius, FOV, aspect);
         // Frames the world at about 3× its radius, and the whole system at the far end.
         expect(first[0]).toBeCloseTo(fitDist(body.radius * 3, FOV, aspect));
-        expect(first[1]).toBeGreaterThan(fitDist(38000, FOV, aspect));
+        expect(first[1]).toBeGreaterThan(fitDist(SYSTEM_VIEW, FOV, aspect));
         // Re-fit to ever larger orbits (what fitMap does on each toggle): the limits stay put,
         // and every default view is inside them.
         for (let extent = body.radius * 3; extent < SYSTEM_EXTENT * 2; extent *= 1.7) {
@@ -49,6 +49,15 @@ describe('zoom in real distances (#18)', () => {
         }
       }
     }
+  });
+
+  it('the map can always see the whole solar system, out to the farthest world (#11)', () => {
+    const planets = createSystem().bodies.filter((b) => b.parent?.kind === 'star');
+    for (const b of planets) {
+      expect(SYSTEM_VIEW).toBeGreaterThan(b.orbitRadius + b.radius);
+      expect(SYSTEM_EXTENT).toBeGreaterThanOrEqual(b.orbitRadius + b.soi);
+    }
+    expect(SYSTEM_VIEW).toBeLessThan(SYSTEM_EXTENT);
   });
 
   it('the slider mapping round-trips in every mode', () => {

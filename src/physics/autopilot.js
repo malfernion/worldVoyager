@@ -44,7 +44,7 @@ function arrivalScore(pred, hop, now) {
     // Arriving already past the low point (or far too fast) makes capture hard.
     if (seg.el.timeToPe === null) score += 3;
     // Going around the same way as everything else makes later trips easy.
-    if (hop.children.length && seg.el.dir !== Math.sign(hop.children[0].angularSpeed)) score += 1;
+    if (hop.children.length && seg.el.dir !== hop.children[0].orbitDir) score += 1;
     // Park below any moons so we don't bump into them later.
     if (hop.children.some((c) => seg.el.rp > c.orbitRadius - c.soi * 1.5)) score += 2;
     // Bumping into a moon (or the ground) before we've braked at the low point spoils the arrival.
@@ -54,6 +54,18 @@ function arrivalScore(pred, hop, now) {
     return score;
   }
   return pred.closest ? 1000 + pred.closest.dist / 1000 : 2000;
+}
+
+/**
+ * Speed for a sideways burn at radius `r` so we leave `body`'s pull going about `vOut`
+ * (relative to it). With patched conics the rocket keeps the speed it has at the edge of the
+ * SOI, not the speed it would have infinitely far away; aiming for the far-away speed flung us
+ * out of big Tumble far too fast (even backwards round Ember, #11). But a crawl out to the very
+ * edge is slow and touchy, so we leave at least a bit briskly.
+ */
+function escapeBurn(body, vOut, r) {
+  const edgeEsc2 = (2 * body.mu) / body.soi; // escape speed squared at the edge of the SOI
+  return Math.sqrt(Math.max(vOut * vOut, edgeEsc2 / 4) + (2 * body.mu) / r - edgeEsc2);
 }
 
 /** Does this orbit loop through the path of one of `body`'s moons (other than the one we're heading for)? */
@@ -544,7 +556,8 @@ export class Autopilot {
     if (!target || target.kind === 'star') return false;
     this.say(`Let's fly to ${target.name}!`);
     let legs = 0;
-    while (legs++ < 8) {
+    // Enough tries for the longest route (Flip to Nibble: up, across, down) with a few retries.
+    while (legs++ < 12) {
       const cur = f.state.body;
       // A loop through a moon's path isn't a safe place to wait (or to stop).
       if ((!inStableOrbit(f) || crossesMoon(cur, f.elements(), target)) && cur.kind !== 'star') {
@@ -557,7 +570,8 @@ export class Autopilot {
         if (!inStableOrbit(f)) {
           this.status = 'Getting into orbit';
           const ok = yield* this.orbitProgram(true);
-          if (!ok || f.state.body !== cur) continue;
+          // Rounded off right at the edge of a tiny moon's pull? Go round again to move closer.
+          if (!ok || f.state.body !== cur || !inStableOrbit(f)) continue;
         }
       }
       if (cur === target) {
@@ -571,7 +585,7 @@ export class Autopilot {
         return true;
       }
       const hop = nextHop(cur, target);
-      if (hop.kind === 'down' && f.elements().dir !== Math.sign(hop.body.angularSpeed)) {
+      if (hop.kind === 'down' && f.elements().dir !== hop.body.orbitDir) {
         yield* this.flipOrbit(hop.body);
         continue;
       }
@@ -635,7 +649,7 @@ export class Autopilot {
       const r1 = cur.orbitRadius, r2 = dest.orbitRadius;
       const tH = Math.PI * Math.sqrt(((r1 + r2) / 2) ** 3 / P.mu);
       const vInf = Math.abs(Math.sqrt(P.mu / r1) * (Math.sqrt((2 * r2) / (r1 + r2)) - 1));
-      dvGuess = Math.sqrt(vInf * vInf + (2 * cur.mu) / rPark) - vPark;
+      dvGuess = escapeBurn(cur, vInf, rPark) - vPark;
       const f0 = wrapPi(cur.angleAt(now) + Math.PI - dest.angleAt(now + tH));
       const k = cur.angularSpeed - dest.angularSpeed;
       let dt = -f0 / k;
@@ -649,7 +663,7 @@ export class Autopilot {
       const rpWant = parkingRadius(P);
       const vApo = Math.sqrt((2 * P.mu * rpWant) / (rC * (rC + rpWant)));
       const vInf = Math.abs(Math.sqrt(P.mu / rC) - vApo);
-      dvGuess = Math.sqrt(vInf * vInf + (2 * cur.mu) / rPark) - vPark;
+      dvGuess = escapeBurn(cur, vInf, rPark) - vPark;
       window0 = now + lead + T / 2;
     }
     // Signed: negative means brake (drop inward) instead of speeding up.
@@ -1016,7 +1030,7 @@ export class Autopilot {
     this.coach = false;
     this.status = 'Turning around';
     this.say(`We're going around the wrong way! ${moon.name} goes the other way. I'll turn us around.`);
-    const want = Math.sign(moon.angularSpeed);
+    const want = moon.orbitDir;
     for (let guard = 0; guard < 60 * 60 && f.state.body === body; guard++) {
       const s = f.state;
       const r = f.radius;
@@ -1026,7 +1040,11 @@ export class Autopilot {
       const dx = tx * vc - s.vx, dy = ty * vc - s.vy;
       const err = Math.hypot(dx, dy);
       if (err < 1.5) break;
-      const ok = this.aim(Math.atan2(dy, dx), 0.2);
+      // Halfway through we're barely going round at all, so lean up to hold our height (a low
+      // orbit used to drop right into the ground while turning round).
+      const g = body.mu / (r * r);
+      const ax = (dx / err) * f.stats.accel + (s.x / r) * g, ay = (dy / err) * f.stats.accel + (s.y / r) * g;
+      const ok = this.aim(Math.atan2(ay, ax), 0.2);
       this.setThrottle(ok ? clamp(err / (f.stats.accel * 0.3), 0.1, 1) : 0);
       this.warp = 1;
       yield;

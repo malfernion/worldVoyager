@@ -5,7 +5,7 @@ import { Flight } from '../src/physics/sim.js';
 import { Autopilot, inStableOrbit, parkingRadius } from '../src/physics/autopilot.js';
 
 export const STATS = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
-export const WORLDS = ['homestead', 'pebble', 'dusty', 'nibble', 'ringo', 'sizzle', 'frosty'];
+export const WORLDS = ['homestead', 'pebble', 'dusty', 'nibble', 'ringo', 'sizzle', 'frosty', 'tumble', 'flip'];
 
 export function mission(stats = STATS) {
   const sys = createSystem();
@@ -30,10 +30,11 @@ export function parkAt(m, world, t, angle = 0) {
   const body = m.sys.byId[world];
   const r = parkingRadius(body);
   const v = Math.sqrt(body.mu / r);
-  // Clockwise, like every moon (angularSpeed < 0).
+  // The way its moons go (clockwise, except Tumble's backwards Flip); clockwise with no moons.
+  const dir = body.children[0]?.orbitDir ?? -1;
   m.flight.state = {
-    body, x: r * Math.cos(angle), y: r * Math.sin(angle), vx: v * Math.sin(angle), vy: -v * Math.cos(angle),
-    angle: angle - Math.PI / 2, t, landed: false, landAngle: 0, crashed: false, flightTime: 0,
+    body, x: r * Math.cos(angle), y: r * Math.sin(angle), vx: -dir * v * Math.sin(angle), vy: dir * v * Math.cos(angle),
+    angle: angle + dir * Math.PI / 2, t, landed: false, landAngle: 0, crashed: false, flightTime: 0,
   };
   return m;
 }

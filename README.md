@@ -40,6 +40,10 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   R rewind, O orbit, L land, B buggy out / home. When driving: ↑/W go, ↓/S reverse,
   Space jump (Hopper).
 
+The farthest world is **Tumble**, a sideways ice giant. Its moon **Flip** goes round the wrong
+way, so to catch it you have to go round Tumble backwards too (Pip turns you round if you
+don't).
+
 Collect stickers for reaching space, orbiting, and landing on every world. Tap a world in the 📖
 sticker book to hear a real space fact.
 

@@ -70,12 +70,12 @@ src/progress.js        Goals, stickers, saved design + settings (incl. the 🧭 
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
   bodies.js            The solar system: circular on-rails orbits, SOIs, per-world surfaces
-  terrain.js           Height + colour functions per world (shared by physics and meshes)
+  terrain.js           Height + colour functions per world (shared by physics and meshes), gas giants' spin axes, vents and geysers
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
   autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid)
-src/world/             three.js visuals: planets, ambient (plumes/dust), trees, rocks (moon boulders), effects, sky, materials, thumbnails
+src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/geysers), trees, rocks (moon boulders), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
@@ -100,7 +100,12 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
 - **The physics ground is the visible mesh.** Planet meshes come from `terrain.js`, then the
   physics surface is rebuilt from the mesh's z = 0 slice (`surfaceFromMesh`).
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map
-  focus. Never put raw world coordinates (up to ~40 km) into three.js positions.
+  focus. Never put raw world coordinates (up to ~65 km, out to Tumble) into three.js positions.
+- **Orbits can go either way.** `Body.orbitDir` is -1 (clockwise) for almost everything and +1
+  for Flip, Tumble's backwards moon (#11); `angularSpeed` carries the sign. Never assume
+  clockwise: use `orbitDir` / `angularSpeed` (the planner's arrival direction, `flipOrbit`,
+  `parkAt` in the missions all do). Moving a world further out than Tumble? Raise
+  `SYSTEM_EXTENT` / `SYSTEM_VIEW` in `zoom.js` (a test checks them).
 - **Kid-first UX.** Everything must work without reading: icons, big buttons, Pip speaks.
   Failure is funny and cheap (rewind). Spoken lines are short and cheerful.
 - **Phones first.** Watch draw calls and triangle counts (instancing, shared materials,
@@ -216,5 +221,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   `app.renderer.setAnimationLoop(null)` and step frames yourself before taking screenshots. It
   can't decode the `.m4a` clips either, so `[pip] no recording for:` warnings there are expected.
 - Line2 / LineMaterial widths are in pixels; update `resolution` on resize (flight.js does).
+- **Leaving a world's SOI, patched conics keep the speed at the SOI edge**, not the speed
+  "at infinity". Tumble is big with a small SOI, so a burn sized for the speed at infinity left
+  far too fast (backwards round Ember). `escapeBurn()` in `autopilot.js` sizes the first guess
+  for the edge (#11).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

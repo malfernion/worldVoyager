@@ -5,7 +5,7 @@ import { LAUNCH_ANGLE } from './bodies.js';
 
 const MAX_STEP_DIST = 15;
 const THRUST_STEP = 1 / 120;
-// Nothing real gets this far from the body it's orbiting (the whole system is ~40 km).
+// Nothing real gets this far from the body it's orbiting (the whole system is ~130 km across).
 const MAX_RADIUS = 1e7;
 
 /** Coasting conserves orbital energy; a propagation that doesn't is a numerical blow-up (#30). */
