@@ -20,6 +20,9 @@ const trips = [
   // The longest route (up, across, down) ran out of tries just as it reached Nibble.
   ['autopilot', 'flip', 'nibble', 19977],
   ['coach', 'flip', 'nibble', 3711],
+  // Racing after the comet close to Ember dived into the star (#13).
+  ['autopilot', 'sizzle', 'ducky', 9133],
+  ['coach', 'tumble', 'ducky', 25399],
 ];
 
 describe('take me there, stress subset', () => {
@@ -43,6 +46,13 @@ describe('take me there, stress subset', () => {
 
   it('coach tour from the pad: Flip, Ringo, Tumble, Dusty', () => {
     const r = tour(['flip', 'ringo', 'tumble', 'dusty'], 8200, true);
+    expect(r.kind, `${r.to}: ${r.detail}`).toBe('ok');
+  }, 60000);
+
+  // Catching the comet, landing on it (coach), and leaving it again (#13). A lopsided orbit
+  // round it used to dip so low over the duck's lumps that a push on the way out hit them.
+  it('coach tour from the pad: Ringo, Dusty, Ducky, Sizzle', () => {
+    const r = tour(['ringo', 'dusty', 'ducky', 'sizzle'], 10898, true);
     expect(r.kind, `${r.to}: ${r.detail}`).toBe('ok');
   }, 60000);
 

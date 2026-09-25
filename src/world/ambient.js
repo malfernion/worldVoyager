@@ -1,11 +1,12 @@
 // Ambient life on the worlds: Sizzle's volcano plumes, Dusty's caldera puffs and drifting dust,
-// Flip's frosty geysers.
+// Flip's frosty geysers, Ducky's gas jets and its comet tails.
 // Every puff is a loop driven only by the clock (no spawning, no per-frame allocation), and each
 // world's puffs are one instanced billboard mesh inside the planet's group, so they move and scale
 // with the planet in flight, driving and the map.
 import * as THREE from 'three';
 import { mulberry32 } from '../physics/noise.js';
-import { SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS } from '../physics/terrain.js';
+import { SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS } from '../physics/terrain.js';
+import { JETS } from '../physics/buggy.js';
 import { glowTexture, puffTexture } from './materials.js';
 
 // Tuning knobs.
@@ -16,6 +17,14 @@ const CALDERA_PERIOD = 13; // seconds between Dusty bursts (some bursts are skip
 const DUST_PUFFS = 28; // drifting dust clouds over all of Dusty
 const GEYSER_PUFFS = 10; // per Flip geyser
 const GEYSER_GLINTS = 4; // ice sparkles per Flip geyser
+const JET_PUFFS = 7; // per Ducky gas jet
+const JET_FIZZ = 3; // fizzy sparkles per Ducky gas jet
+const DUST_TAIL = 44; // soft puffs in the comet's curved dust tail
+const ION_TAIL = 30; // blue glows in its straight gas (ion) tail
+const TAIL_MAX = 1400; // tail length close to Ember (m); none beyond TAIL_FAR
+const TAIL_NEAR = 8000;
+const TAIL_FAR = 32000;
+const TAIL_MAP = 8; // the map may draw the tail up to this many times longer, like the worlds
 
 const VERT = /* glsl */ `
   #include <common>
@@ -356,10 +365,126 @@ function flip(body, sunDir) {
   };
 }
 
-/** Ambient effects for a world, or null. `sunDir` is a shared view-space vector the scene keeps fresh. */
-export function createAmbient(body, sunDir) {
+// Ducky, the comet (#13): gas fizzing out of little vents (they push the buggy, see JETS in
+// buggy.js), and two tails that grow as it swoops in close to Ember and always point away
+// from it: a curved, creamy dust tail lagging behind, and a straight, blue gas tail.
+// `env` is kept fresh by the flight scene: which way the sun is, how far, which way we're
+// going, and the map's scale-up of the planet.
+function ducky(body, sunDir, env) {
+  const n = DUCKY_JETS.length;
+  const radius = body.radius * 1.8;
+  const puffs = billboards(n * JET_PUFFS, puffTexture(), sunDir, radius);
+  const fizz = billboards(n * JET_FIZZ, glowTexture('rgba(240,252,255,1)', 'rgba(160,220,255,0)'), sunDir, radius, { additive: true, lit: false });
+  const gas = loops(puffs);
+  const bubbles = loops(fizz);
+  const white = new THREE.Color(0xf6fbff);
+  const pale = new THREE.Color(0xc9d8e6);
+  const spark = new THREE.Color(0xe2f6ff);
+  DUCKY_JETS.forEach((v, k) => {
+    const b = basis(v);
+    const r = body.radius + body.terrainFn.height(b.up.x, b.up.y, b.up.z);
+    // About as high as the jet pushes the buggy, and a bit more.
+    const height = JETS.height * (1.2 + v.size * 0.6);
+    const life = 2.2 + v.size;
+    for (let i = 0; i < JET_PUFFS; i++) {
+      gas.add(place({
+        draw: drawPuff, seed: 4000 + k * 100 + i, period: life, life, phase: (i / JET_PUFFS) * life + k * 0.9,
+        s0: 0.8, c0: white, c1: pale,
+        spawn(p, rand) {
+          p.rise = height * (0.8 + rand() * 0.4);
+          p.s1 = (2.5 + rand() * 2) * (0.7 + v.size * 0.5);
+          p.alpha = 0.55 + rand() * 0.25;
+          p.spin = rand() * 6;
+          p.spinRate = (rand() - 0.5) * 2;
+          tangent(p, b, rand() * Math.PI * 2, height * (0.1 + rand() * 0.25));
+        },
+      }, b, r - 0.3));
+    }
+    for (let i = 0; i < JET_FIZZ; i++) {
+      bubbles.add(place({
+        draw: drawEmber, seed: 5000 + k * 10 + i, period: 0.9 + ((k + i) % 3) * 0.3, life: 0.8, phase: i * 0.37 + k * 0.5, c0: spark,
+        spawn(p, rand) {
+          p.rise = 2 + rand() * 3;
+          p.s0 = 0.5 + rand() * 0.5;
+          tangent(p, b, rand() * Math.PI * 2, 0.5 + rand() * 2.5);
+        },
+      }, b, r));
+    }
+  });
+
+  // The tails. Each puff drifts from the nucleus out along the tail; where "along" points is
+  // read from env every frame, so the tails swing round as the comet goes round Ember.
+  const reach = TAIL_MAX * TAIL_MAP * 1.2;
+  const dustBB = billboards(DUST_TAIL, glowTexture('rgba(255,250,235,1)', 'rgba(255,240,215,0)'), sunDir, reach, { lit: false });
+  const ionBB = billboards(ION_TAIL + 1, glowTexture('rgba(190,230,255,1)', 'rgba(90,160,255,0)'), sunDir, reach, { additive: true, lit: false });
+  const dust = loops(dustBB);
+  const ion = loops(ionBB);
+  const cream = new THREE.Color(0xfff2d8);
+  const blue = new THREE.Color(0x8fd0ff);
+  const coma = new THREE.Color(0xd8f0ff);
+  const tail = { len: 0, k: 1 }; // this frame's tail length and map shrink factor
+  // Away from the sun, plus `bend` of the way we came from (the dust tail lags behind), at a.
+  const along = (p, a, bend, bb, i, size, col, alpha) => {
+    const L = tail.len * tail.k; // in the planet's (map-scaled) frame
+    const ax = -env.toSun.x, ay = -env.toSun.y;
+    const back = bend * a * a;
+    const dx = ax + env.back.x * back, dy = ay + env.back.y * back;
+    // Sideways spread (in the plane and towards the camera) grows down the tail.
+    const w = (0.04 + 0.1 * a) * L * p.spread;
+    bb.set(i, dx * a * L - ay * w * p.side, dy * a * L + ax * w * p.side, w * p.lift, size * L, p.spin, col, alpha);
+  };
+  const drawDustTail = (p, a, time, bb, i) => {
+    along(p, a, 0.35, bb, i, 0.05 + 0.18 * a, cream, p.alpha * smooth(0, 0.08, a) * (1 - smooth(0.4, 1, a)));
+  };
+  const drawIonTail = (p, a, time, bb, i) => {
+    along(p, a, 0, bb, i, 0.03 + 0.08 * a, blue, p.alpha * smooth(0, 0.05, a) * (1 - smooth(0.5, 1, a)));
+  };
+  const spawnTail = (p, rand) => {
+    p.side = rand() * 2 - 1;
+    p.lift = (rand() * 2 - 1) * 0.6;
+    p.spread = 0.5 + rand();
+    p.alpha = 0.4 + rand() * 0.25;
+    p.spin = rand() * 6;
+  };
+  for (let i = 0; i < DUST_TAIL; i++) {
+    dust.add({ draw: drawDustTail, spawn: spawnTail, seed: 6000 + i, period: 9, life: 9, phase: (i / DUST_TAIL) * 9 });
+  }
+  for (let i = 0; i < ION_TAIL; i++) {
+    ion.add({ draw: drawIonTail, spawn: spawnTail, seed: 7000 + i, period: 5, life: 5, phase: (i / ION_TAIL) * 5 });
+  }
+  // The coma: a soft glow of gas around the nucleus while it's active.
+  ion.add({
+    seed: 1, period: 1e6, life: 1e6, phase: 0,
+    draw(p, a, time, bb, i) {
+      const act = tail.len / TAIL_MAX;
+      bb.set(i, 0, 0, 0, body.radius * (3 + 5 * act) * (1 + 0.05 * Math.sin(time * 1.7)), 0, coma, 0.15 + 0.35 * act);
+    },
+  });
+  return {
+    meshes: [puffs.mesh, fizz.mesh, dustBB.mesh, ionBB.mesh],
+    update(time) {
+      gas.update(time);
+      bubbles.update(time);
+      // Grows as the comet warms up near Ember: nothing far out, longest at the closest point.
+      tail.len = TAIL_MAX * smooth(TAIL_FAR, TAIL_NEAR, env.dist) ** 1.5;
+      tail.k = Math.min(env.scale, TAIL_MAP) / env.scale;
+      const on = tail.len > 1;
+      dustBB.mesh.visible = ionBB.mesh.visible = on;
+      if (!on) return;
+      dust.update(time);
+      ion.update(time);
+    },
+  };
+}
+
+/**
+ * Ambient effects for a world, or null. `sunDir` is a shared view-space vector the scene keeps
+ * fresh; `env` (the comet's) is where the sun is in the world, and how far, for the tails.
+ */
+export function createAmbient(body, sunDir, env) {
   if (body.id === 'sizzle') return sizzle(body, sunDir);
   if (body.id === 'dusty') return dusty(body, sunDir);
   if (body.id === 'flip') return flip(body, sunDir);
+  if (body.id === 'ducky') return ducky(body, sunDir, env);
   return null;
 }

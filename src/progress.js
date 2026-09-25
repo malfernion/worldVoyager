@@ -16,6 +16,7 @@ export const GOALS = [
   { id: 'land-frosty', icon: '❄️', text: 'Land on Frosty, the icy moon!', hint: 'Frosty goes around Ringo too.' },
   { id: 'visit-tumble', icon: '🔵', text: 'Fly to Tumble, the tipped-over giant!', hint: 'Tumble is the farthest world of all. Open the map and tap Tumble.' },
   { id: 'land-flip', icon: '🔄', text: 'Land on Flip, the backwards moon!', hint: 'Flip goes around Tumble the wrong way, so we have to go around the other way too.' },
+  { id: 'land-ducky', icon: '☄️', text: 'Catch Ducky, the comet, and land on it!', hint: 'Ducky zooms close to Ember, then drifts far away. Open the map and tap Ducky.' },
 ];
 
 export const STICKERS = {
@@ -33,6 +34,8 @@ export const STICKERS = {
   'visit-tumble': { icon: '🔵', name: 'Far Flyer', say: 'You flew all the way to Tumble! It is tipped over on its side.' },
   'visit-flip': { icon: '🔄', name: 'Wrong Way Round', say: 'Flip goes around Tumble backwards, so we did too!' },
   'land-flip': { icon: '⛲', name: 'Geyser Jumper' },
+  'visit-ducky': { icon: '☄️', name: 'Comet Catcher', say: 'You caught a comet! When it zooms close to Ember it grows a tail, and the tail always points away from Ember.' },
+  'land-ducky': { icon: '🦆', name: 'Comet Lander' },
   splash: { icon: '🌊', name: 'Splashdown!', say: 'Splash! You landed in the ocean!' },
   dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Giant planets are all clouds, there is no ground to land on!' },
   sun: { icon: '☀️', name: 'Sunburnt', say: 'That is close enough to Ember! Stars are super hot.' },

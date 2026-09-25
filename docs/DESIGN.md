@@ -36,6 +36,7 @@ borrow the vibe, not the content: all names, worlds and music are original.
 | Frosty | Europa | a hidden ocean under the ice |
 | Tumble | Uranus (and Neptune) | an ice giant tipped on its side, rolling round the Sun |
 | Flip | Triton | a moon that goes round backwards; icy geysers |
+| Ducky | comet 67P (where Philae landed) | a rubber-duck comet whose tail always points away from the Sun |
 
 ## Design pillars
 
@@ -77,7 +78,7 @@ borrow the vibe, not the content: all names, worlds and music are original.
 ```
 src/physics/   pure, headless, unit-tested
   orbit.js       universal-variable propagation, elements, conic geometry
-  bodies.js      the solar system (circular on-rails orbits, SOIs, surfaces)
+  bodies.js      the solar system (on-rails orbits, round or stretched, SOIs, surfaces)
   terrain.js     terrain height + colour functions shared by physics and meshes
   sim.js         Flight: thrust, patched-conic stepping, landing/crash, rewind snapshots
   predict.js     multi-patch trajectory prediction (impact / escape / encounter)
@@ -128,6 +129,26 @@ Key techniques:
   stays in the plane. Flip's frosty geysers use the same clock-driven instanced billboards as
   Sizzle's plumes (`src/world/ambient.js`), blowing downwind over dark streaks painted on the
   ice (`FLIP_GEYSERS` in `terrain.js`).
+- **Ducky, the comet (#13).** The one world on a stretched orbit: a Kepler ellipse from 7000
+  (inside Homestead's orbit) out to 46000 (past Ringo's), round in about 45 minutes of game
+  time, so it swings close by every so often. Its position comes from a few Newton steps on
+  Kepler's equation (cached, since prediction asks for it every step), and every
+  "where is it" question goes through `relPos` / `relVel` / `distAt` / `angleAt`, so SOI
+  hand-offs and prediction just work; the map draws the ellipse. It's tiny (radius 40, SOI
+  220), and a trip across the whole system can't hit that: the Hohmann-style guess for when
+  to leave is a search (`stretchedWindow()`: try leaving at each moment, keep the ones where
+  a half ellipse meets the comet, prefer gentle departures and arrivals; it usually waits for
+  the comet to be far out and slow), the trip only has to pass within 8 km, and then Pip
+  homes in (`catchComet()`, closed-loop like docking: in towards a cosy height, never faster
+  than we could stop, then round at orbit speed, and only done once the orbit is really round:
+the duck's lumps stick up a long way, and a lopsided orbit skimmed them). Pip always flies that bit, even when
+  coaching ("Comets are tricky to catch!"); the kid still flies the big burn and the landing.
+  Leaving it works like leaving any world, with the same window search. Its look: two lobes
+  in the flight plane (so the rocket's view shows the duck), dark dusty ice with bright frost,
+  gas jets fizzing from little vents (`DUCKY_JETS`), and two tails that grow as it nears Ember
+  and always point away from it: a curved creamy dust tail lagging behind and a straight blue
+  gas tail, plus a glowing coma (`src/world/ambient.js`; up to 1.4 km long, and on the map
+  drawn at most 8× longer, like the worlds are drawn bigger).
 - **Music.** Karplus–Strong banjo and guitar, a reedy harmonica, saw-pad strings and a triangle
   bass, played by a generative sequencer with a lazy swing. Three moods (campfire, space,
   discovery) crossfade at bar lines.
@@ -166,7 +187,7 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
 - **Trees and rocks are things to bump into** (#6). Homestead's ~900 trees and the moons'
   boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Flip 60, one
-  InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours) are
+  InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours; Ducky 36) are
   circle colliders: trunk (or most of a bush's / rock's width) plus the buggy's `reach` from
   `BUGGIES`. Rocks keep a narrower strip in front of the flight plane clear than trees do
   (z from -4 to 16 m, as they're low), and stay off Sizzle's vents, Flip's geysers and Dusty's caldera.
@@ -181,7 +202,13 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
     a gentle camera wobble, and leaves fluttering down or a puff of dust, at most every half
     second; the first bump each session Pip says "Bonk! Back up and steer around it."
 - **Never orbit.** Top speed is capped at 70% of the world's orbit speed, and airborne
-  speed at 75% of local circular speed, so every jump comes back down. The rocket stays
+  speed at 75% of local circular speed, so every jump comes back down.
+- **Ducky's gas jets** (#13, `JETS` in `buggy.js`). Driving over one of the comet's vents,
+  the gas pushes the buggy up (2.6 × the local gravity, which varies a lot on the lumpy duck)
+  and outwards, fading out 6 m above the ground: a floaty 4-10 m hop lasting 10-20 s. Being
+  pushed counts as flying, so the sticky tyres let go, and the airborne cap above still holds,
+  so it always floats back down. The first time, Pip says "Whee! Gas from the comet is
+  pushing us up!" The rocket stays
   parked on its flight plane the whole time, so driving never disturbs the flight model.
 - **The one secret exception: orbiting Nibble in the Hopper** (#5, made easier in #20;
   `ORBIT` in `buggy.js`). Nibble is so tiny (radius 30, gravity 0.9) that circular speed is

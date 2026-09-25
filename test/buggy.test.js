@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createSystem } from '../src/physics/bodies.js';
-import { Buggy, ObstacleGrid, vec, ORBIT } from '../src/physics/buggy.js';
+import { Buggy, ObstacleGrid, vec, ORBIT, JETS } from '../src/physics/buggy.js';
+import { DUCKY_JETS } from '../src/physics/terrain.js';
 import { BUGGIES } from '../src/rocket/parts.js';
 
 function drive(bodyId, kind, seconds, input, setup) {
@@ -52,6 +53,48 @@ describe('buggy', () => {
       expect(vec.len(b.p)).toBeLessThan(body.maxSurface + body.radius);
     });
   }
+
+  describe('Ducky\'s gas jets (#13)', () => {
+    const sys = createSystem();
+    const ducky = sys.byId.ducky;
+
+    it('every jet pushes every buggy up, and it always floats back down', () => {
+      for (const kind of ['rover', 'truck', 'hopper']) {
+        for (const [k, v] of DUCKY_JETS.entries()) {
+          const b = new Buggy(ducky, BUGGIES[kind]);
+          b.spawn([v.x + 0.01, v.y, v.z + 0.01], [0, 0, 1]);
+          let top = 0, airborne = false, down = -1, fizzed = false;
+          for (let i = 0; i < 60 * 60 && down < 0; i++) {
+            b.step(1 / 60, { throttle: 0, steer: 0, jump: false });
+            fizzed ||= b.fizz > 0.5;
+            top = Math.max(top, b.altitude);
+            // Never faster than 75% of circular speed, so never into orbit.
+            expect(b.speed).toBeLessThanOrEqual(Math.sqrt(ducky.mu / vec.len(b.p)) * 0.75 + 1e-6);
+            if (b.altitude > 1) airborne = true;
+            if (airborne && b.grounded) down = i;
+          }
+          expect(fizzed, `${kind} on jet ${k}`).toBe(true);
+          expect(top, `${kind} on jet ${k}`).toBeGreaterThan(2);
+          expect(top).toBeLessThan(JETS.height * 4);
+          expect(down, `${kind} on jet ${k} came down`).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it('driving and jumping all over Ducky for five minutes never leaves it', () => {
+      for (const kind of ['rover', 'truck', 'hopper']) {
+        const { b, body, maxR } = drive('ducky', kind, 300, (i) => ({ throttle: 1, steer: Math.sin(i / 300) * 0.6, jump: true }));
+        expect(maxR).toBeLessThan(body.maxSurface + body.radius);
+        expect(maxR).toBeLessThan(body.soi * 0.5);
+        expect(b.orbiting).toBe(false);
+      }
+    });
+
+    it('only Ducky has them', () => {
+      expect(new Buggy(ducky, BUGGIES.rover).vents).toBe(DUCKY_JETS);
+      for (const id of ['homestead', 'nibble', 'flip', 'sizzle']) expect(new Buggy(sys.byId[id], BUGGIES.rover).vents).toBe(null);
+    });
+  });
 
   it('bumps into the parked rocket instead of driving through it', () => {
     const sys = createSystem();

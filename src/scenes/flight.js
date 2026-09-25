@@ -64,12 +64,8 @@ export class FlightScene {
     for (const v of this.visuals) {
       const b = v.body;
       if (!b.parent) continue;
-      const pts = [];
-      for (let i = 0; i <= 720; i++) {
-        const a = (i / 720) * Math.PI * 2;
-        pts.push(Math.cos(a) * b.orbitRadius, Math.sin(a) * b.orbitRadius, 0);
-      }
-      const line = this.makeLine(pts, b.color, 2, 0.45);
+      // A circle, or the comet's stretched ellipse.
+      const line = this.makeLine(b.orbitPoints(720), b.color, 2, 0.45);
       this.orbitLines.set(b, line);
     }
     this.ghosts = new Map();
@@ -602,6 +598,15 @@ export class FlightScene {
       v.body.worldPos(t, tmp);
       v.group.position.set(tmp.x - this.origin.x, tmp.y - this.origin.y, 0);
       v.group.scale.setScalar(this.mapScale(v.body));
+      if (v.env) {
+        // For the comet's tails: Ember sits at the world's middle, and which way are we going?
+        const d = Math.hypot(tmp.x, tmp.y);
+        v.env.toSun.set(-tmp.x / d, -tmp.y / d, 0);
+        v.env.dist = d;
+        v.body.relVel(t, tmp);
+        v.env.back.set(-tmp.x, -tmp.y, 0).normalize();
+        v.env.scale = v.group.scale.x;
+      }
       for (const u of v.updates) u(this.time);
     }
   }

@@ -1,11 +1,19 @@
 [
  {
+  "key": "a comets tail always points away from the sun",
+  "text": "A comet's tail always points away from the Sun."
+ },
+ {
   "key": "a fresh start",
   "text": "A fresh start!"
  },
  {
   "key": "a garage",
   "text": "A garage!"
+ },
+ {
+  "key": "a little robot called philae landed on it",
+  "text": "A little robot called Philae landed on it!"
  },
  {
   "key": "add a cabin or a bubble",
@@ -30,6 +38,10 @@
  {
   "key": "astronauts walked on the real moon",
   "text": "Astronauts walked on the real Moon!"
+ },
+ {
+  "key": "back in duckys space",
+  "text": "Back in Ducky's space."
  },
  {
   "key": "back in dustys space",
@@ -108,8 +120,20 @@
   "text": "Can you find it?"
  },
  {
+  "key": "catch ducky the comet and land on it",
+  "text": "Catch Ducky, the comet, and land on it!"
+ },
+ {
   "key": "come home and land softly",
   "text": "Come home and land softly!"
+ },
+ {
+  "key": "comets are tricky so ill steer us round",
+  "text": "Comets are tricky, so I'll steer us round."
+ },
+ {
+  "key": "comets are tricky to catch",
+  "text": "Comets are tricky to catch!"
  },
  {
   "key": "drag or tap parts to build",
@@ -118,6 +142,22 @@
  {
   "key": "drive really fast then jump and hold it",
   "text": "Drive really fast, then jump and hold it!"
+ },
+ {
+  "key": "ducky",
+  "text": "Ducky!"
+ },
+ {
+  "key": "ducky is a comet shaped like a rubber duck just like the real comet 67p",
+  "text": "Ducky is a comet shaped like a rubber duck, just like the real comet 67P."
+ },
+ {
+  "key": "ducky is behind us",
+  "text": "Ducky is behind us."
+ },
+ {
+  "key": "ducky zooms close to ember then drifts far away",
+  "text": "Ducky zooms close to Ember, then drifts far away."
  },
  {
   "key": "dusty",
@@ -228,6 +268,10 @@
   "text": "Full power!"
  },
  {
+  "key": "gas from the comet is pushing us up",
+  "text": "Gas from the comet is pushing us up!"
+ },
+ {
   "key": "giant planets are all clouds there is no ground to land on",
   "text": "Giant planets are all clouds, there is no ground to land on!"
  },
@@ -250,6 +294,10 @@
  {
   "key": "hello pebble",
   "text": "Hello Pebble!"
+ },
+ {
+  "key": "hmm i cant find a path to ducky right now",
+  "text": "Hmm, I can't find a path to Ducky right now."
  },
  {
   "key": "hmm i cant find a path to dusty right now",
@@ -330,6 +378,10 @@
  {
   "key": "ill steer us away from the ground",
   "text": "I'll steer us away from the ground!"
+ },
+ {
+  "key": "ill steer us in",
+  "text": "I'll steer us in."
  },
  {
   "key": "ill tell you when to hold go",
@@ -432,6 +484,10 @@
   "text": "Let's find the next one."
  },
  {
+  "key": "lets fly to ducky",
+  "text": "Let's fly to Ducky!"
+ },
+ {
   "key": "lets fly to dusty",
   "text": "Let's fly to Dusty!"
  },
@@ -476,6 +532,10 @@
   "text": "Let's go exploring!"
  },
  {
+  "key": "lets go for a drive on ducky",
+  "text": "Let's go for a drive on Ducky!"
+ },
+ {
   "key": "lets go for a drive on dusty",
   "text": "Let's go for a drive on Dusty!"
  },
@@ -502,6 +562,14 @@
  {
   "key": "lets go for a drive on sizzle",
   "text": "Let's go for a drive on Sizzle!"
+ },
+ {
+  "key": "lets land on ducky",
+  "text": "Let's land on Ducky."
+ },
+ {
+  "key": "lets land on ducky together",
+  "text": "Let's land on Ducky together!"
  },
  {
   "key": "lets land on dusty",
@@ -578,6 +646,10 @@
  {
   "key": "mars has the biggest volcano in the whole solar system",
   "text": "Mars has the biggest volcano in the whole solar system!"
+ },
+ {
+  "key": "next catch ducky the comet and land on it",
+  "text": "Next: Catch Ducky, the comet, and land on it!"
  },
  {
   "key": "next come home and land softly",
@@ -694,6 +766,10 @@
  {
   "key": "oops we tipped over",
   "text": "Oops, we tipped over!"
+ },
+ {
+  "key": "open the map and tap ducky",
+  "text": "Open the map and tap Ducky."
  },
  {
   "key": "open the map and tap dusty",
@@ -876,6 +952,10 @@
   "text": "That means you are falling around the planet so fast you keep missing the ground!"
  },
  {
+  "key": "thats ducky",
+  "text": "That's Ducky!"
+ },
+ {
   "key": "thats dusty",
   "text": "That's Dusty!"
  },
@@ -1016,6 +1096,10 @@
   "text": "We haven't been there yet."
  },
  {
+  "key": "we made it to ducky",
+  "text": "We made it to Ducky!"
+ },
+ {
   "key": "we made it to dusty",
   "text": "We made it to Dusty!"
  },
@@ -1060,6 +1144,10 @@
   "text": "Welcome back, explorer!"
  },
  {
+  "key": "welcome to ducky",
+  "text": "Welcome to Ducky!"
+ },
+ {
   "key": "welcome to dusty",
   "text": "Welcome to Dusty!"
  },
@@ -1096,6 +1184,10 @@
   "text": "Welcome to Tumble!"
  },
  {
+  "key": "were already going around ducky",
+  "text": "We're already going around Ducky!"
+ },
+ {
   "key": "were already going around dusty",
   "text": "We're already going around Dusty!"
  },
@@ -1130,6 +1222,10 @@
  {
   "key": "were already going around tumble",
   "text": "We're already going around Tumble!"
+ },
+ {
+  "key": "were at ducky",
+  "text": "We're at Ducky!"
  },
  {
   "key": "were at dusty",
@@ -1172,6 +1268,10 @@
   "text": "We're flying around Ember now!"
  },
  {
+  "key": "were going around ducky",
+  "text": "We're going around Ducky!"
+ },
+ {
   "key": "were going around dusty",
   "text": "We're going around Dusty!"
  },
@@ -1212,6 +1312,10 @@
   "text": "We're going around Tumble!"
  },
  {
+  "key": "were in orbit around ducky",
+  "text": "We're in orbit around Ducky!"
+ },
+ {
   "key": "were in orbit around dusty",
   "text": "We're in orbit around Dusty!"
  },
@@ -1246,6 +1350,10 @@
  {
   "key": "were in orbit around tumble",
   "text": "We're in orbit around Tumble!"
+ },
+ {
+  "key": "were on our way to ducky",
+  "text": "We're on our way to Ducky!"
  },
  {
   "key": "were on our way to dusty",
@@ -1284,6 +1392,14 @@
   "text": "We're on our way to Tumble!"
  },
  {
+  "key": "whee",
+  "text": "Whee!"
+ },
+ {
+  "key": "when it zooms close to ember it grows a tail and the tail always points away from ember",
+  "text": "When it zooms close to Ember it grows a tail, and the tail always points away from Ember."
+ },
+ {
   "key": "when we get there point along the arrow and hold go",
   "text": "When we get there, point along the arrow and hold GO!"
  },
@@ -1316,12 +1432,20 @@
   "text": "You are in orbit!"
  },
  {
+  "key": "you caught a comet",
+  "text": "You caught a comet!"
+ },
+ {
   "key": "you explored everything",
   "text": "You explored everything!"
  },
  {
   "key": "you flew all the way to tumble",
   "text": "You flew all the way to Tumble!"
+ },
+ {
+  "key": "you flew to ducky all by yourself",
+  "text": "You flew to Ducky all by yourself!"
  },
  {
   "key": "you flew to dusty all by yourself",
@@ -1366,6 +1490,10 @@
  {
   "key": "you landed in the ocean",
   "text": "You landed in the ocean!"
+ },
+ {
+  "key": "you landed on ducky",
+  "text": "You landed on Ducky!"
  },
  {
   "key": "you landed on dusty",

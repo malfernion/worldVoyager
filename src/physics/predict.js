@@ -4,6 +4,7 @@ import { propagate, elements, anomalyOf, pointAt, anomalyLimit } from './orbit.j
 
 const tmpA = {};
 const tmpB = {};
+const vB = {};
 
 function trace(cur, opts, closestRef) {
   const { body } = cur;
@@ -16,7 +17,10 @@ function trace(cur, opts, closestRef) {
   const canImpact = el.rp < body.maxSurface;
   const canExit = !closed && Number.isFinite(body.soi);
   const rMin = el.rp, rMax = closed ? el.ra : Infinity;
-  const kids = body.children.filter((c) => c.orbitRadius + c.soi > rMin && c.orbitRadius - c.soi < rMax);
+  const kids = body.children.filter((c) => c.apoapsis + c.soi > rMin && c.periapsis - c.soi < rMax);
+  // Small worlds far from the middle (the comet) could be stepped right over, so near them
+  // the steps are kept short enough not to skip their SOI.
+  const small = kids.filter((c) => c.soi < 0.05 * c.periapsis);
   const target = opts.target && opts.target.parent === body ? opts.target : null;
 
   const seg = {
@@ -54,7 +58,10 @@ function trace(cur, opts, closestRef) {
       target.relPos(cur.t + t, tmpB);
       const d = Math.hypot(p.x - tmpB.x, p.y - tmpB.y);
       if (!closestRef.value || d < closestRef.value.dist) {
-        closestRef.value = { dist: d, t: cur.t + t, body, rocket: { x: p.x, y: p.y }, target: { x: tmpB.x, y: tmpB.y } };
+        const target0 = { x: tmpB.x, y: tmpB.y };
+        target.relVel(cur.t + t, vB);
+        const vRel = Math.hypot(p.vx - vB.x, p.vy - vB.y);
+        closestRef.value = { dist: d, t: cur.t + t, body, rocket: { x: p.x, y: p.y }, target: target0, vRel };
       }
     }
     if (t > 0) {
@@ -66,6 +73,13 @@ function trace(cur, opts, closestRef) {
     const v = Math.hypot(p.vx, p.vy) || 1e-6;
     let dt = (0.018 * r) / v;
     if (r < body.maxSurface * 1.3) dt = Math.min(dt, 1.5 / v);
+    for (const c of small) {
+      c.relPos(cur.t + t, tmpB);
+      c.relVel(cur.t + t, vB);
+      const vRel = v + Math.hypot(vB.x, vB.y);
+      const gap = Math.hypot(p.x - tmpB.x, p.y - tmpB.y) - c.soi;
+      dt = Math.min(dt, Math.max(gap, c.soi * 0.3) / vRel);
+    }
     dt = Math.max(0.02, Math.min(dt, horizon / 40));
     prevT = t;
     t = Math.min(horizon, t + dt);

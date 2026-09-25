@@ -7,10 +7,10 @@ import { toonGradient, glowTexture, woodTexture, toon, withOutline } from './mat
 import { createAmbient } from './ambient.js';
 import { createForest } from './trees.js';
 import { createRocks } from './rocks.js';
-import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS } from '../physics/terrain.js';
+import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS } from '../physics/terrain.js';
 import { mulberry32 } from '../physics/noise.js';
 
-const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36, flip: 32 };
+const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36, flip: 32, ducky: 20 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
@@ -224,10 +224,11 @@ const ROCKS = {
   sizzle: { count: 70, size: [1, 2.4], palette: [0x5a4030, 0x3d2a1f, 0x8a6a3a] },
   frosty: { count: 80, size: [1, 2.6], palette: [0xcfe3ef, 0xa9c6d8, 0xe8f1f6, 0xb98a6c] },
   flip: { count: 60, size: [1, 2.4], palette: [0xe9dcd6, 0xc5d0da, 0xf0c9bf, 0x8e8793] },
+  ducky: { count: 36, size: [0.8, 2], palette: [0x4c525c, 0x5d6470, 0x3a3f48, 0xc8d4de] },
 };
 
 // Spots where rocks stay clear, because plumes and puffs rise there.
-const HOT = { sizzle: SIZZLE_VENTS, dusty: [DUSTY_VOLCANO], flip: FLIP_GEYSERS };
+const HOT = { sizzle: SIZZLE_VENTS, dusty: [DUSTY_VOLCANO], flip: FLIP_GEYSERS, ducky: DUCKY_JETS };
 
 /** Scatter boulders over a moon; returns the rock list (for collisions). */
 function rocks(body, group) {
@@ -406,7 +407,9 @@ export function createBodyVisual(body) {
 
   // Plumes, puffs and dust. The flight scene keeps out.sunDir pointing at the sun (view space).
   out.sunDir = new THREE.Vector3(1, 0, 0);
-  const ambient = createAmbient(body, out.sunDir);
+  // The comet's tails need to know where the sun is in the world (placeBodies keeps it fresh).
+  if (body.comet) out.env = { toSun: new THREE.Vector3(1, 0, 0), dist: Infinity, back: new THREE.Vector3(1, 0, 0), scale: 1 };
+  const ambient = createAmbient(body, out.sunDir, out.env);
   if (ambient) {
     group.add(...ambient.meshes);
     out.updates.push(ambient.update);

@@ -54,8 +54,9 @@ describe('zoom in real distances (#18)', () => {
   it('the map can always see the whole solar system, out to the farthest world (#11)', () => {
     const planets = createSystem().bodies.filter((b) => b.parent?.kind === 'star');
     for (const b of planets) {
-      expect(SYSTEM_VIEW).toBeGreaterThan(b.orbitRadius + b.radius);
-      expect(SYSTEM_EXTENT).toBeGreaterThanOrEqual(b.orbitRadius + b.soi);
+      // Out to the far end of a stretched orbit (the comet, #13).
+      expect(SYSTEM_VIEW).toBeGreaterThan(b.apoapsis + b.radius);
+      expect(SYSTEM_EXTENT).toBeGreaterThanOrEqual(b.apoapsis + b.soi);
     }
     expect(SYSTEM_VIEW).toBeLessThan(SYSTEM_EXTENT);
   });

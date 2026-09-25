@@ -255,6 +255,7 @@ export class DriveMode {
     }
     this.bumpEffects(dt);
     this.orbitEffects(dt);
+    this.jetEffects(dt);
     fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : b.braking || b.jets ? 0.2 : 0.06);
   }
 
@@ -336,6 +337,32 @@ export class DriveMode {
     if (b.orbited) {
       b.orbited = false;
       if (!app.progress.earn('orbit-nibble')) app.pip('All the way round Nibble again!', { speak: true });
+    }
+  }
+
+  /** Ducky's gas jets (#13): fizz under the wheels, a whoosh, and the first time Pip explains. */
+  jetEffects(dt) {
+    const b = this.buggy;
+    if (b.fizz > 0.1) {
+      if (!this.fizzing) {
+        this.fizzing = true;
+        this.fs.app.audio.play('whoosh');
+        if (!this.fizzed) {
+          this.fizzed = true;
+          this.fs.app.pip('Whee! Gas from the comet is pushing us up!', { speak: true });
+        }
+      }
+      if (Math.random() < dt * 30 * b.fizz) {
+        const up = b.up;
+        const j = () => (Math.random() - 0.5) * 1.5;
+        const pos = vec.add(b.p, vec.add(vec.mul(up, -b.kind.ride - 0.3), [j(), j(), j()]));
+        const vel = vec.add(vec.mul(up, 2 + Math.random() * 2), [j(), j(), j()]);
+        this.fs.particles.spawn('puff', b.body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], {
+          size: 0.7, grow: 1.6, life: 1.1, drag: 1.2, color: 0xeef6ff,
+        });
+      }
+    } else if (b.grounded) {
+      this.fizzing = false;
     }
   }
 

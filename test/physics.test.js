@@ -3,7 +3,8 @@ import { propagate, elements, anomalyOf, pointAt } from '../src/physics/orbit.js
 import { createSystem } from '../src/physics/bodies.js';
 import { Flight, leapfrog } from '../src/physics/sim.js';
 import { predict, segmentPoints, nearRadial, radialApex } from '../src/physics/predict.js';
-import { inStableOrbit, nextHop } from '../src/physics/autopilot.js';
+import { inStableOrbit, nextHop, stretchedWindow, CATCH_RANGE } from '../src/physics/autopilot.js';
+import { SYSTEM_EXTENT } from '../src/ui/zoom.js';
 import { mission, kidFlies, parkAt } from './missions.js';
 
 // Brute-force reference integrator (RK4, tiny steps).
@@ -339,6 +340,112 @@ describe('Flip, the backwards moon (#11)', () => {
     expect(nextHop(tumble, flip)).toMatchObject({ body: flip, kind: 'down' });
     expect(nextHop(flip, sys.byId.sizzle)).toMatchObject({ body: tumble, kind: 'up' });
   });
+});
+
+describe('Ducky, the comet on a stretched orbit (#13)', () => {
+  const sys = createSystem();
+  const { ducky, ember, homestead } = sys.byId;
+  const stats = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
+
+  it('swoops in close to Ember and out beyond Ringo, and stays inside the system', () => {
+    let lo = Infinity, hi = 0;
+    for (let t = 0; t < ducky.orbitalPeriod; t += 2) {
+      const r = ducky.distAt(t);
+      lo = Math.min(lo, r);
+      hi = Math.max(hi, r);
+    }
+    expect(lo).toBeCloseTo(ducky.periapsis, -1);
+    expect(hi).toBeCloseTo(ducky.apoapsis, -1);
+    // Well clear of Ember (and its "too close" zone), inside Homestead's orbit...
+    expect(ducky.periapsis - ducky.soi).toBeGreaterThan(ember.radius * 3);
+    expect(ducky.periapsis).toBeLessThan(homestead.orbitRadius);
+    // ...and out past Ringo, but not off the edge of the map.
+    expect(ducky.apoapsis).toBeGreaterThan(sys.byId.ringo.orbitRadius);
+    expect(ducky.apoapsis + ducky.soi).toBeLessThanOrEqual(SYSTEM_EXTENT);
+    // Comes round again within a play session (with time warp).
+    expect(ducky.orbitalPeriod / 60).toBeGreaterThan(20);
+    expect(ducky.orbitalPeriod / 60).toBeLessThan(60);
+  });
+
+  it('follows real Kepler motion (the quick solve agrees with full propagation)', () => {
+    for (const t0 of [0, 400, 1234.5, 9000]) {
+      const p = ducky.relPos(t0), v = ducky.relVel(t0);
+      for (const dt of [1, 60, 700, 2000]) {
+        const q = propagate(ember.mu, p.x, p.y, v.x, v.y, dt);
+        const k = ducky.relPos(t0 + dt), w = ducky.relVel(t0 + dt);
+        expect(Math.hypot(q.x - k.x, q.y - k.y)).toBeLessThan(0.01);
+        expect(Math.hypot(q.vx - w.x, q.vy - w.y)).toBeLessThan(1e-4);
+      }
+      // Clockwise, like the planets, and much faster close in than far out.
+      expect(Math.sign(p.x * v.y - p.y * v.x)).toBe(ducky.orbitDir);
+    }
+    const speed = (r) => Math.sqrt(ember.mu * (2 / r - 1 / ducky.orbitRadius));
+    expect(speed(ducky.periapsis) / speed(ducky.apoapsis)).toBeGreaterThan(5);
+  });
+
+  it('the predictor doesn\'t step over its tiny SOI', () => {
+    // Heading at it from 3 km away, fast, aiming 100 m to one side.
+    for (const t of [100, 900, 1700]) {
+      const p = ducky.relPos(t), v = ducky.relVel(t);
+      const s = { body: ember, t, x: p.x + 3000, y: p.y + 100, vx: v.x - 60, vy: v.y };
+      const seg = predict(s, { maxSegments: 1 }).segments[0];
+      expect(seg.end).toBe('encounter');
+      expect(seg.next).toBe(ducky);
+    }
+  });
+
+  it('finds transfer windows to and from it', () => {
+    for (const t of [0, 1500, 4000]) {
+      const to = stretchedWindow(homestead, ducky, t, 3 * ducky.orbitalPeriod);
+      const from = stretchedWindow(ducky, sys.byId.dusty, t, 3 * ducky.orbitalPeriod);
+      for (const w of [to, from]) {
+        expect(w.tb).toBeGreaterThan(t);
+        expect(w.vInf).toBeGreaterThan(0);
+        expect(w.vInf).toBeLessThan(100);
+      }
+    }
+  });
+
+  it('autopilot: takes the rocket from the pad to Ducky, lands, then flies home', () => {
+    const m = mission(stats);
+    const said = [];
+    m.ap.on((e) => e.text && said.push(e.text));
+    expect(m.run('goto', 'ducky', 60 * 60 * 30)).toBe(true);
+    expect(m.flight.state.body.id).toBe('ducky');
+    expect(inStableOrbit(m.flight)).toBe(true);
+    // The trip only has to pass near it; then Pip homes in.
+    expect(said).toContain('Comets are tricky to catch! I\'ll steer us in.');
+    expect(m.run('land')).toBe(true);
+    expect(m.log).toContain('landed:ducky');
+    expect(m.run('goto', 'homestead', 60 * 60 * 30)).toBe(true);
+    expect(m.flight.state.body.id).toBe('homestead');
+  }, 60000);
+
+  it('coach: talks a player out to Ducky from a Homestead orbit, and down onto it', () => {
+    for (const t of [2000, 5500]) {
+      const m = parkAt(mission(stats), 'homestead', t);
+      const { flight, done } = kidFlies(m, 'goto', 'ducky');
+      expect(flight.state.crashed).toBe(false);
+      expect(done).toBe(true);
+      expect(flight.state.body.id).toBe('ducky');
+      expect(flight.state.landed).toBe(true);
+    }
+  }, 60000);
+
+  it('homes in from a near miss in Ember\'s space', () => {
+    const m = mission(stats);
+    const t = 700;
+    const { ducky, ember } = m.sys.byId;
+    const p = ducky.relPos(t), v = ducky.relVel(t);
+    // Drifting past a few km away, 40 m/s off its speed.
+    m.flight.state = {
+      body: ember, x: p.x + CATCH_RANGE * 0.6, y: p.y - 2000, vx: v.x + 25, vy: v.y - 30,
+      angle: 0, t, landed: false, landAngle: 0, crashed: false, flightTime: 0,
+    };
+    expect(m.run('goto', 'ducky', 60 * 60 * 20)).toBe(true);
+    expect(m.flight.state.body.id).toBe('ducky');
+    expect(inStableOrbit(m.flight)).toBe(true);
+  }, 60000);
 });
 
 describe('helpers', () => {

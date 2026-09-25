@@ -69,13 +69,13 @@ src/main.js            App shell: renderer, screens (title / builder / flight), 
 src/progress.js        Goals, stickers, saved design + settings (incl. the 🧭 coach switch; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
-  bodies.js            The solar system: circular on-rails orbits, SOIs, per-world surfaces
-  terrain.js           Height + colour functions per world (shared by physics and meshes), gas giants' spin axes, vents and geysers
+  bodies.js            The solar system: on-rails orbits (round, or Ducky the comet's Kepler ellipse), SOIs, per-world surfaces
+  terrain.js           Height + colour functions per world (shared by physics and meshes), gas giants' spin axes, vents, geysers and the comet's gas jets
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
-  autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner
-  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid)
-src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/geysers), trees, rocks (moon boulders), effects, sky, materials, thumbnails
+  autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner (+ comet windows and homing)
+  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets)
+src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/geysers/jets, comet tails), trees, rocks (moon boulders), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
@@ -97,6 +97,9 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   `buggy.js`): only the Hopper on Nibble can super hop into orbit, and there speed is capped
   by energy so the orbit stays bound (highest point ≤ 2 × `ORBIT.maxA` = 100, SOI 170) and
   sags back down after a lap once the jets stop. Keep both caps if you touch buggy speeds.
+  Ducky's gas jets (#13, `JETS` in `buggy.js`) push buggies up, but only within a few metres
+  of the ground, and the airborne cap (75% of circular speed) still applies, so they float
+  back down.
 - **The physics ground is the visible mesh.** Planet meshes come from `terrain.js`, then the
   physics surface is rebuilt from the mesh's z = 0 slice (`surfaceFromMesh`).
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map
@@ -106,6 +109,13 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   clockwise: use `orbitDir` / `angularSpeed` (the planner's arrival direction, `flipOrbit`,
   `parkAt` in the missions all do). Moving a world further out than Tumble? Raise
   `SYSTEM_EXTENT` / `SYSTEM_VIEW` in `zoom.js` (a test checks them).
+- **Orbits aren't always round.** Ducky the comet (#13) is on a Kepler ellipse (`Body.ecc`,
+  `periArg`; `orbitRadius` is then the semi-major axis and `phase` the mean anomaly at t = 0).
+  Ask a body where it is with `relPos` / `relVel` / `distAt` / `angleAt`, and for its range
+  with `periapsis` / `apoapsis`; never use `orbitRadius` as a distance, or
+  `phase + angularSpeed * t` as an angle (for the comet `angularSpeed` is only the average).
+  The ellipse is solved with a few Newton steps on Kepler's equation, cached per time, since
+  prediction asks a lot.
 - **Kid-first UX.** Everything must work without reading: icons, big buttons, Pip speaks.
   Failure is funny and cheap (rewind). Spoken lines are short and cheerful.
 - **Phones first.** Watch draw calls and triangle counts (instancing, shared materials,
@@ -225,5 +235,14 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   "at infinity". Tumble is big with a small SOI, so a burn sized for the speed at infinity left
   far too fast (backwards round Ember). `escapeBurn()` in `autopilot.js` sizes the first guess
   for the edge (#11).
+- **Tiny SOIs far from the middle get stepped over.** Prediction steps are about 2% of the
+  distance from the body we're in, so in Ember's space a step is hundreds of metres, more than
+  the comet's whole SOI (220). `trace()` in `predict.js` shortens steps near "small" worlds
+  (SOI < 5% of their closest distance: only the comet). And aiming a whole trip at such a
+  small, fast target is hopeless (a 0.1 m/s error misses by kilometres), so the planner only
+  aims to pass within `CATCH_RANGE`, then `catchComet()` homes in closed-loop (#13).
+- The Orbit helper's "going round" burn pushes sideways against gravity; on the comet (gravity
+  under 1 m/s²) it ran away and flung the rocket out, so on a comet `catchComet()` does that
+  part too.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

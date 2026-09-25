@@ -3,6 +3,7 @@
 // Gravity is real (pulls toward the centre, so hills and jumps behave), and top speed is
 // kept below orbit speed so every jump comes back down.
 // The one secret exception: a super hop lets the Hopper orbit tiny Nibble (see ORBIT).
+import { DUCKY_JETS } from './terrain.js';
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -46,6 +47,18 @@ export const ORBIT = {
   maxA: 50,
   sag: 0.01, // after a full lap, with the jets off, the orbit slowly sags back down
 };
+
+// Ducky's gas jets (#13): driving over a vent, the fizzing gas pushes the buggy up and off to
+// the side. The push fades out `height` metres above the ground and the airborne speed cap
+// still holds (Ducky's gravity is tiny, but 75% of circular speed can never climb higher
+// than about 1.4 × the distance from the middle), so the buggy always floats back down.
+export const JETS = {
+  reach: 0.16, // how far from a vent it pushes (radians round the comet: about 7 m)
+  height: 6, // fades out this high above the ground (m)
+  push: 2.6, // upwards, right over the vent, in times the local gravity (0.35-1 m/s² on lumpy Ducky)
+  side: 0.5, // and this much of it outwards, away from the vent
+};
+const JET_COS = Math.cos(JETS.reach);
 
 // Trees and rocks: bucketed into a coarse 3D grid once per world, so each substep only looks
 // at the few cells around the buggy instead of ~900 trees.
@@ -113,6 +126,8 @@ export class Buggy {
     this.grid = null; // ObstacleGrid of the world's trees or rocks
     this.bumped = 0; // hardest bump since the scene last looked (m/s), and what we hit
     this.bumpedInto = null;
+    this.vents = body.comet ? DUCKY_JETS : null; // gas jets that push us around
+    this.fizz = 0; // how hard a jet pushed us in the last step (0..1), for the puffs
   }
 
   /** Top speed on this world: the buggy's own limit, but always well below orbit speed. */
@@ -204,6 +219,21 @@ export class Buggy {
     if (this.grounded) {
       this.flying = false;
       this.orbiting = false;
+    }
+    // Gas jets: a fizzy push up and outwards (this counts as flying, so sticky tyres let go).
+    this.fizz = 0;
+    if (this.vents) {
+      for (const v of this.vents) {
+        const c = u[0] * v.x + u[1] * v.y + u[2] * v.z;
+        if (c < JET_COS) continue;
+        const k = (1 - Math.acos(Math.min(1, c)) / JETS.reach) * (1 - Math.min(1, Math.max(0, (r - ground) / JETS.height)));
+        if (k <= 0) continue;
+        const out = [u[0] - v.x * c, u[1] - v.y * c, u[2] - v.z * c];
+        const side = len(out) > 1e-6 ? norm(out) : this.f;
+        this.v = add(this.v, mul(add(u, mul(side, JETS.side)), JETS.push * g * k * h));
+        this.fizz = Math.max(this.fizz, k);
+        if (k > 0.1) this.flying = true;
+      }
     }
     // Sticky tyres: on low-gravity moons, don't float off every little bump (real jumps still fly).
     if (!this.grounded && !this.flying && r - ground < 2.5) this.v = add(this.v, mul(u, -Math.max(0, 5 - g) * h));

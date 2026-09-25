@@ -6,6 +6,10 @@ import { predict } from './predict.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// The comet is far too small to aim a whole trip at, so a trip only has to pass this close;
+// then Pip homes in on it (catchComet).
+export const CATCH_RANGE = 8000;
+
 export function parkingRadius(body) {
   const floor = body.solid ? body.maxSurface : body.radius;
   return floor + body.spaceLine * 1.3;
@@ -46,12 +50,19 @@ function arrivalScore(pred, hop, now) {
     // Going around the same way as everything else makes later trips easy.
     if (hop.children.length && seg.el.dir !== hop.children[0].orbitDir) score += 1;
     // Park below any moons so we don't bump into them later.
-    if (hop.children.some((c) => seg.el.rp > c.orbitRadius - c.soi * 1.5)) score += 2;
+    if (hop.children.some((c) => seg.el.rp > c.periapsis - c.soi * 1.5)) score += 2;
     // Bumping into a moon (or the ground) before we've braked at the low point spoils the arrival.
     if ((seg.end === 'encounter' || seg.end === 'impact') && seg.el.timeToPe !== null && seg.t1 < seg.t0 + seg.el.timeToPe + 20) score += 5;
     if (seg.el.e > 1.5) score += (seg.el.e - 1.5) * 0.5;
     score += (seg.t0 - now) / 20000;
     return score;
+  }
+  // Passing close to the comet is good enough: from there we home in.
+  // Slowly is better (a comet racing past close to Ember is hard to catch), and never by
+  // diving close to the star.
+  if (hop.comet && pred.closest && pred.closest.dist < CATCH_RANGE) {
+    const dive = pred.segments.some((seg) => seg.body.kind === 'star' && seg.t0 < pred.closest.t && seg.el.rp < seg.body.radius * 3);
+    if (!dive) return 10 + pred.closest.dist / 1000 + pred.closest.vRel / 10 + (pred.closest.t - now) / 20000;
   }
   return pred.closest ? 1000 + pred.closest.dist / 1000 : 2000;
 }
@@ -68,9 +79,66 @@ function escapeBurn(body, vOut, r) {
   return Math.sqrt(Math.max(vOut * vOut, edgeEsc2 / 4) + (2 * body.mu) / r - edgeEsc2);
 }
 
+/**
+ * Transfer window between two worlds going round the same parent when one of them is on a
+ * stretched orbit (the comet), where the round-orbit phase maths doesn't hold. Tries leaving
+ * at each moment over the next `horizon` seconds on half an ellipse from where `cur` is then
+ * out (or in) to where `dest` will be when we get there, and keeps the moments where they
+ * meet. Of those, the best has the gentlest departure and arrival (a comet racing past close
+ * to Ember is hard to catch; far out it dawdles), with a little penalty for waiting.
+ * Returns { tb, vInf } (vInf: how fast to leave `cur`, relative to it).
+ */
+export function stretchedWindow(cur, dest, now, horizon) {
+  const mu = cur.parent.mu;
+  const dir = cur.orbitDir;
+  const steps = 600;
+  const pv = {};
+  const leg = (tb) => {
+    const r1 = cur.distAt(tb);
+    const th1 = cur.angleAt(tb);
+    // The trip time depends on how far out dest is when we arrive: settle it in a few rounds.
+    let r2 = dest.distAt(tb), tH = 0;
+    for (let i = 0; i < 4; i++) {
+      tH = Math.PI * Math.sqrt(((r1 + r2) / 2) ** 3 / mu);
+      r2 = dest.distAt(tb + tH);
+    }
+    const miss = wrapPi(th1 + Math.PI - dest.angleAt(tb + tH));
+    return { r1, r2, th1, tH, miss };
+  };
+  // Speed left over leaving `body` at time t along the ellipse (tangential, going `dir` way round).
+  const excess = (body, t, r, rOther, th) => {
+    const v = Math.sqrt(mu * (2 / r - 2 / (r + rOther)));
+    body.relVel(t, pv);
+    return Math.hypot(-Math.sin(th) * dir * v - pv.x, Math.cos(th) * dir * v - pv.y);
+  };
+  let best = null;
+  let prev = leg(now);
+  for (let i = 1; i <= steps; i++) {
+    const t = now + (horizon * i) / steps;
+    const next = leg(t);
+    // A real crossing, not the jump from +pi to -pi.
+    if (Math.sign(next.miss) !== Math.sign(prev.miss) && Math.abs(next.miss - prev.miss) < Math.PI) {
+      let lo = t - horizon / steps, hi = t;
+      const s0 = Math.sign(prev.miss);
+      for (let k = 0; k < 30; k++) {
+        const mid = (lo + hi) / 2;
+        if (Math.sign(leg(mid).miss) === s0) lo = mid; else hi = mid;
+      }
+      const tb = (lo + hi) / 2;
+      const w = leg(tb);
+      const vInf = excess(cur, tb, w.r1, w.r2, w.th1);
+      const vArr = excess(dest, tb + w.tH, w.r2, w.r1, w.th1 + Math.PI);
+      const score = vInf + vArr * 1.5 + (tb - now) * 0.01;
+      if (!best || score < best.score) best = { tb, vInf, score };
+    }
+    prev = next;
+  }
+  return best;
+}
+
 /** Does this orbit loop through the path of one of `body`'s moons (other than the one we're heading for)? */
 function crossesMoon(body, el, target = null) {
-  return body.children.some((c) => !c.isAncestorOf(target ?? body) && el.ra > c.orbitRadius - c.soi && el.rp < c.orbitRadius + c.soi);
+  return body.children.some((c) => !c.isAncestorOf(target ?? body) && el.ra > c.periapsis - c.soi && el.rp < c.apoapsis + c.soi);
 }
 
 /** When coasting from `state` first hits the ground or a moon other than `dest` (Infinity if not before `until`). */
@@ -263,6 +331,13 @@ export class Autopilot {
       yield;
     }
     this.setThrottle(0);
+    // A comet's pull is so weak that going round it is all tiny pushes, so Pip does the rest.
+    if (body.comet) {
+      if (this.coach && fromGround) this.say('Let go! Comets are tricky, so I\'ll steer us round.');
+      const ok = yield* this.catchComet(body, null);
+      if (ok && !quiet) this.say(`Hooray! We're in orbit around ${body.name}! Round and round we go!`);
+      return ok;
+    }
     if (this.coach && fromGround) this.say('Let go! Now we glide up to the top.');
 
     // 2. Coast up to the high point.
@@ -585,6 +660,10 @@ export class Autopilot {
         return true;
       }
       const hop = nextHop(cur, target);
+      if (hop.body.comet && cur === hop.body.parent && this.cometGap(hop.body) < CATCH_RANGE) {
+        yield* this.catchComet(hop.body);
+        continue;
+      }
       if (hop.kind === 'down' && f.elements().dir !== hop.body.orbitDir) {
         yield* this.flipOrbit(hop.body);
         continue;
@@ -633,7 +712,7 @@ export class Autopilot {
     const lead = Math.min(8, T * 0.1);
 
     if (hop.kind === 'down') {
-      const r1 = el0.a, r2 = dest.orbitRadius;
+      const r1 = el0.a, r2 = dest.distAt(now);
       const tH = Math.PI * Math.sqrt(((r1 + r2) / 2) ** 3 / cur.mu);
       dvGuess = Math.sqrt(cur.mu / r1) * (Math.sqrt((2 * r2) / (r1 + r2)) - 1);
       const nR = (2 * Math.PI / T) * el0.dir;
@@ -644,6 +723,16 @@ export class Autopilot {
       while (dt < lead) dt += Math.abs((2 * Math.PI) / k);
       window0 = now + dt;
       span = T * 0.35;
+    } else if (hop.kind === 'sibling' && (cur.ecc || dest.ecc)) {
+      // To or from the comet: its stretched orbit needs a window search of its own.
+      // Look ahead long enough for the two to line up again (a bit more than the synodic period).
+      const synodic = 1 / Math.abs(1 / cur.orbitalPeriod - 1 / dest.orbitalPeriod);
+      const w = stretchedWindow(cur, dest, now, Math.max(cur.orbitalPeriod, dest.orbitalPeriod, synodic * 1.2));
+      if (!w) return null;
+      dvGuess = escapeBurn(cur, w.vInf, rPark) - vPark;
+      window0 = w.tb;
+      span = T;
+      maxSegments = 3;
     } else if (hop.kind === 'sibling') {
       const P = cur.parent;
       const r1 = cur.orbitRadius, r2 = dest.orbitRadius;
@@ -794,6 +883,7 @@ export class Autopilot {
     while (f.state.body !== dest) {
       if (f.state.crashed) return false;
       const s = f.state;
+      if (dest.comet && s.body === dest.parent && this.cometGap(dest) < CATCH_RANGE) return yield* this.catchComet(dest);
       if (s.body !== lastBody) {
         lastBody = s.body;
         lastCheck = -Infinity;
@@ -810,7 +900,9 @@ export class Autopilot {
         const leftHome = !first.closed || stray || s.body.parent === dest || dest.parent === s.body;
         // Still going round and round at home? The push fell a little short: top it up if
         // that's a small push, otherwise plan the whole thing again.
-        if (score > 0.8 && corrections < 6 && (leftHome || score >= 1000)) {
+        // Heading close enough to the comet? We'll home in when we get there.
+        const good = dest.comet ? score < 1000 : score <= 0.8;
+        if (!good && corrections < 6 && (leftHome || score >= 1000)) {
           corrections++;
           const fix = yield* this.planCorrection(dest, score);
           if (!leftHome && !(fix && fix.dv < f.stats.accel && fix.score < 1000)) return false;
@@ -885,6 +977,7 @@ export class Autopilot {
 
   *capture(body, announce = true, target = null) {
     const f = this.flight;
+    if (body.comet) return yield* this.catchComet(body);
     this.status = `Arriving at ${body.name}`;
     if (announce) this.say(`We're at ${body.name}!`, { visiting: body });
     const floor = body.solid ? body.maxSurface : body.radius;
@@ -966,7 +1059,7 @@ export class Autopilot {
     const wasCoach = this.coach;
     const tiny = () => roundOff().err < f.stats.accel * 0.5;
     // Right in a moon's path (just climbed out of it)? Don't go round here: drop lower straight away.
-    const inMoonPath = body.children.some((c) => !c.isAncestorOf(target ?? body) && Math.abs(f.radius - c.orbitRadius) < c.soi * 1.5);
+    const inMoonPath = body.children.some((c) => !c.isAncestorOf(target ?? body) && f.radius > c.periapsis - c.soi * 1.5 && f.radius < c.apoapsis + c.soi * 1.5);
     if (inMoonPath) {
       // Pip's "Moving closer" below does it all.
     } else if (this.coach && tiny()) {
@@ -1020,6 +1113,77 @@ export class Autopilot {
     if (wasCoach) f.targetAngle = null;
     this.coach = wasCoach;
     return true;
+  }
+
+  /** How far we are from the comet (from its middle). */
+  cometGap(comet) {
+    const s = this.flight.state;
+    if (s.body === comet) return Math.hypot(s.x, s.y);
+    const p = comet.relPos(s.t, this.tmpP ??= {});
+    return Math.hypot(s.x - p.x, s.y - p.y);
+  }
+
+  /**
+   * Catch the comet (#13). It's tiny and, close to Ember, fast, so instead of aiming the whole
+   * trip at it, once we're near Pip flies at where it really is (like docking): in towards a
+   * cosy height around it, never faster than we could stop, then going round it at orbit
+   * speed. Closed-loop, so it works from any near miss, in Ember's space or the comet's.
+   * Pip always flies this bit: it's lots of tiny pushes.
+   */
+  *catchComet(comet, line = 'Comets are tricky to catch! I\'ll steer us in.') {
+    const f = this.flight;
+    const wasCoach = this.coach;
+    this.coach = false;
+    this.status = `Catching ${comet.name}`;
+    if (line) this.say(line);
+    const R = parkingRadius(comet);
+    const cp = {}, cv = {};
+    let ok = false;
+    for (let guard = 0; guard < 60 * 60 * 10; guard++) {
+      const s = f.state;
+      if (s.crashed || s.landed || (s.body !== comet && s.body !== comet.parent)) break;
+      // Where we are and how we're moving compared to the comet.
+      let px = s.x, py = s.y, vx = s.vx, vy = s.vy;
+      if (s.body !== comet) {
+        comet.relPos(s.t, cp);
+        comet.relVel(s.t, cv);
+        px -= cp.x; py -= cp.y; vx -= cv.x; vy -= cv.y;
+      }
+      const d = Math.hypot(px, py);
+      const ux = px / d, uy = py / d;
+      // Go round whichever way we're already going round it.
+      const dir = px * vy - py * vx >= 0 ? 1 : -1;
+      const gap = d - R;
+      // Nice and round: the duck's lumps stick up a long way.
+      if (s.body === comet && Math.abs(gap) < R * 0.15 && inStableOrbit(f) && f.elements().e < 0.05) {
+        ok = true;
+        break;
+      }
+      // In (or out) towards the cosy height, never faster than we could stop in time...
+      const brake = f.stats.accel * 0.25;
+      const vIn = Math.min(30, Math.sqrt(2 * brake * Math.abs(gap)), Math.abs(gap) / 12 + 0.2);
+      // ...and, once close, going round at orbit speed.
+      const near = clamp(1 - gap / (R * 3), 0, 1);
+      const vRound = near * Math.sqrt(comet.mu / d) * dir;
+      const ex = -ux * Math.sign(gap) * vIn - uy * vRound - vx;
+      const ey = -uy * Math.sign(gap) * vIn + ux * vRound - vy;
+      const err = Math.hypot(ex, ey);
+      if (err > (gap < R ? 0.08 : 0.25)) {
+        const aimed = this.aim(Math.atan2(ey, ex), 0.15);
+        this.setThrottle(aimed ? clamp(err / (f.stats.accel * 0.3), 0.05, 1) : 0);
+        this.warp = 1;
+      } else {
+        this.setThrottle(0);
+        this.aim(Math.atan2(-uy, -ux));
+        // Coasting in: speed through the long bit, slowing down for the end.
+        this.warp = this.safeWarp(clamp(Math.abs(gap) / (vIn * 10), 1, 30));
+      }
+      yield;
+    }
+    this.setThrottle(0);
+    f.targetAngle = null;
+    this.coach = wasCoach;
+    return ok;
   }
 
   /** Turn a backwards orbit around so we travel the same way as the moons. */

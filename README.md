@@ -44,6 +44,11 @@ The farthest world is **Tumble**, a sideways ice giant. Its moon **Flip** goes r
 way, so to catch it you have to go round Tumble backwards too (Pip turns you round if you
 don't).
 
+**Ducky** is a comet shaped like a rubber duck, on a long, stretched orbit: it zooms in close
+to Ember (and grows a tail that always points away from it), then drifts slowly out past
+Ringo. It's tiny and hard to catch, so Pip waits for a good moment to set off, and when you
+get close Pip steers you in. Drive over its fizzy gas jets and they'll bounce your buggy up!
+
 Collect stickers for reaching space, orbiting, and landing on every world. Tap a world in the 📖
 sticker book to hear a real space fact.
 

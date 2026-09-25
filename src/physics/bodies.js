@@ -67,9 +67,20 @@ export const BODY_DEFS = [
     color: 0xe6d3cc, icon: '🔄',
     blurb: 'Flip goes around Tumble the wrong way, just like Triton, a moon of Neptune. Triton has icy geysers that shoot up really high!',
   },
+  {
+    // A comet on a long, stretched orbit (#13): it swoops in past Homestead's orbit, then
+    // drifts slowly out beyond Ringo's. `orbitRadius` is the semi-major axis, `ecc` how
+    // stretched it is, `periArg` which way its closest point to Ember lies, and `phase` how far
+    // round it is at t = 0 (the mean anomaly: 0 at the closest point). Close in 7000, far out 46000.
+    id: 'ducky', name: 'Ducky', parent: 'ember', orbitRadius: 26500, ecc: 39000 / 53000, periArg: 2.2, phase: -1.2,
+    radius: 40, gravity: 0.5, soi: 220, spaceLine: 25, terrain: 'ducky', comet: true,
+    color: 0xc9d3dc, icon: '☄️',
+    blurb: 'Ducky is a comet shaped like a rubber duck, just like the real comet 67P. A little robot called Philae landed on it! A comet\'s tail always points away from the Sun.',
+  },
 ];
 
 const SURFACE_SAMPLES = 2048;
+const TWO_PI = Math.PI * 2;
 
 export class Body {
   constructor(def) {
@@ -81,6 +92,11 @@ export class Body {
     // Which way it goes around its parent on screen: -1 clockwise (almost everything),
     // +1 counter-clockwise for a backwards moon.
     this.orbitDir = def.retrograde ? 1 : -1;
+    // Stretched (Kepler) orbits: 0 for a round one.
+    this.ecc = def.ecc || 0;
+    this.periArg = def.periArg || 0;
+    this.kt = NaN; // time of the last Kepler solve, and its result (see kepler())
+    this.ks = { x: 0, y: 0, vx: 0, vy: 0 };
     this.terrainFn = def.kind === 'star' ? null : makeTerrain(def.terrain);
     this.solid = !def.gas && def.kind !== 'star';
     this.surface = new Float32Array(SURFACE_SAMPLES + 1);
@@ -119,7 +135,11 @@ export class Body {
     return this.surface[i] * (1 - t) + this.surface[Math.min(i + 1, SURFACE_SAMPLES)] * t;
   }
 
-  /** Orbital angular speed around the parent (negative = clockwise on screen, positive = backwards). */
+  /**
+   * Orbital angular speed around the parent (negative = clockwise on screen, positive =
+   * backwards). On a stretched orbit it's the average (the mean motion): faster close in,
+   * slower far out.
+   */
   get angularSpeed() {
     if (!this.parent) return 0;
     return this.orbitDir * Math.sqrt(this.parent.mu / this.orbitRadius ** 3);
@@ -129,14 +149,74 @@ export class Body {
     return this.parent ? (Math.PI * 2) / Math.abs(this.angularSpeed) : Infinity;
   }
 
+  /** Closest and farthest distance from the parent (both orbitRadius for a round orbit). */
+  get periapsis() {
+    return this.orbitRadius * (1 - this.ecc);
+  }
+
+  get apoapsis() {
+    return this.orbitRadius * (1 + this.ecc);
+  }
+
+  /** Direction from the parent at time t. */
   angleAt(t) {
+    if (this.ecc) {
+      const k = this.kepler(t);
+      return Math.atan2(k.y, k.x);
+    }
     return this.phase + this.angularSpeed * t;
+  }
+
+  /** Distance from the parent at time t. */
+  distAt(t) {
+    if (this.ecc) {
+      const k = this.kepler(t);
+      return Math.hypot(k.x, k.y);
+    }
+    return this.orbitRadius;
+  }
+
+  /**
+   * Position and velocity on a stretched orbit. Prediction asks for these a lot, so this is a
+   * few Newton steps on Kepler's equation (M = E - e sin E), not general propagation, and the
+   * last answer is kept (position and velocity are usually asked for at the same moment).
+   */
+  kepler(t) {
+    if (t === this.kt) return this.ks;
+    const e = this.ecc, a = this.orbitRadius;
+    const n = Math.abs(this.angularSpeed);
+    let M = (this.phase + n * t) % TWO_PI;
+    if (M > Math.PI) M -= TWO_PI;
+    else if (M < -Math.PI) M += TWO_PI;
+    // Danby's starting guess converges in a handful of steps for any e < 1.
+    let E = M + 0.85 * e * (M < 0 ? -1 : 1);
+    for (let i = 0; i < 12; i++) {
+      const d = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+      E -= d;
+      if (Math.abs(d) < 1e-12) break;
+    }
+    const cE = Math.cos(E), sE = Math.sin(E);
+    const b = a * Math.sqrt(1 - e * e) * this.orbitDir; // negative: going round clockwise
+    const Edot = n / (1 - e * cE);
+    const px = a * (cE - e), py = b * sE;
+    const vx = -a * sE * Edot, vy = b * cE * Edot;
+    const c = Math.cos(this.periArg), s = Math.sin(this.periArg);
+    const k = this.ks;
+    k.x = c * px - s * py; k.y = s * px + c * py;
+    k.vx = c * vx - s * vy; k.vy = s * vx + c * vy;
+    this.kt = t;
+    return k;
   }
 
   /** Position relative to parent at time t. */
   relPos(t, out = {}) {
     if (!this.parent) {
       out.x = 0; out.y = 0;
+      return out;
+    }
+    if (this.ecc) {
+      const k = this.kepler(t);
+      out.x = k.x; out.y = k.y;
       return out;
     }
     const a = this.angleAt(t);
@@ -150,11 +230,29 @@ export class Body {
       out.x = 0; out.y = 0;
       return out;
     }
+    if (this.ecc) {
+      const k = this.kepler(t);
+      out.x = k.vx; out.y = k.vy;
+      return out;
+    }
     const a = this.angleAt(t);
     const w = this.angularSpeed * this.orbitRadius;
     out.x = -w * Math.sin(a);
     out.y = w * Math.cos(a);
     return out;
+  }
+
+  /** Points (relative to the parent) tracing the whole orbit, for drawing: a circle or an ellipse. */
+  orbitPoints(count = 720) {
+    const pts = [];
+    const e = this.ecc, a = this.orbitRadius, b = a * Math.sqrt(1 - e * e);
+    const c = Math.cos(this.periArg), s = Math.sin(this.periArg);
+    for (let i = 0; i <= count; i++) {
+      const E = (i / count) * TWO_PI;
+      const px = a * (Math.cos(E) - e), py = b * Math.sin(E);
+      pts.push(c * px - s * py, s * px + c * py, 0);
+    }
+    return pts;
   }
 
   worldPos(t, out = {}) {

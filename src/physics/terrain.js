@@ -294,6 +294,67 @@ function makeFlip() {
   };
 }
 
+// Ducky, the comet: two icy lobes joined by a neck, like comet 67P's rubber duck (a big body and
+// a smaller head, both lying in the flight plane so the rocket's view shows the duck).
+// The ground is the far side of whichever lobe a ray from the middle leaves last, blended so
+// the neck is a smooth valley, not a crease.
+const DUCK_LOBES = [
+  { c: [-0.3, -0.05, 0], r: 0.95 }, // body
+  { c: [0.48, 0.2, 0], r: 0.6 }, // head (the middle stays inside it, so every ray leaves it once)
+];
+
+// Ducky's gas jets: sunlight warms the ice, and gas fizzes out of little vents (67P's jets).
+// Placed near the flight plane (z = 0, a little towards the camera) so they show while flying.
+// Exported for the plumes and for the buggy, which the jets push around (JETS in buggy.js).
+export const DUCKY_JETS = [
+  [-2.6, 0.12, 0.9], [-1.4, 0.18, 0.6], [0.2, 0.1, 0.8], [1.2, 0.2, 0.7], [2.3, 0.08, 1.0], [3.0, 0.45, 0.6], [-0.6, -0.5, 0.7],
+].map(([a, z, size]) => {
+  const s = Math.sqrt(1 - z * z);
+  return { x: s * Math.cos(a), y: s * Math.sin(a), z, size };
+});
+
+function makeDucky() {
+  const { fbm, noise } = makeNoise(113);
+  const pits = randomDirs(29, 14).map((c) => ({ ...c, radius: 0.1 + c.size * 0.2, deep: 0.8 + c.depth * 1.5 }));
+  const lobe = (x, y, z, l) => {
+    const b = x * l.c[0] + y * l.c[1] + z * l.c[2];
+    const cc = l.c[0] * l.c[0] + l.c[1] * l.c[1] + l.c[2] * l.c[2];
+    return b + Math.sqrt(Math.max(0, b * b - cc + l.r * l.r));
+  };
+  const shape = (x, y, z) => {
+    // A smooth maximum of the two lobes (k sets how soft the neck is).
+    const k = 10;
+    let sum = 0;
+    for (const l of DUCK_LOBES) sum += Math.exp(k * lobe(x, y, z, l));
+    return Math.log(sum) / k;
+  };
+  const jet = (x, y, z) => {
+    let d = Infinity;
+    for (const v of DUCKY_JETS) d = Math.min(d, Math.acos(Math.min(1, x * v.x + y * v.y + z * v.z)));
+    return d;
+  };
+  return {
+    height(x, y, z) {
+      let h = (shape(x, y, z) - 1) * 40 + fbm(x * 3, y * 3, z * 3, 4) * 2.5 + craters(pits, x, y, z, 1);
+      const d = jet(x, y, z);
+      if (d < 0.12) h -= (1 - smooth(0.02, 0.12, d)) * 1.5; // a little vent hollow
+      return h;
+    },
+    color(x, y, z, h) {
+      // Dark dusty ice (real comets are darker than coal), with bright frost in the hollows
+      // and a fizz of white frost around each jet.
+      const n = fbm(x * 5, y * 5, z * 5, 3);
+      let c = mix(rgb(0x5d6470), rgb(0x444955), n + 0.5);
+      c = mix(c, rgb(0xdfe9f2), smooth(0.2, 0.42, noise(x * 3 + 7, y * 3, z * 3)) * 0.85);
+      c = mix(c, rgb(0x8a95a3), smooth(-3, -8, h) * 0.6);
+      const d = jet(x, y, z);
+      c = mix(c, rgb(0xf4fbff), 1 - smooth(0.04, 0.16, d));
+      c = mix(c, rgb(0x2c3038), 1 - smooth(0.01, 0.035, d));
+      return c;
+    },
+  };
+}
+
 function makeFlat(hex) {
   return { height: () => 0, color: () => rgb(hex) };
 }
@@ -309,6 +370,7 @@ export function makeTerrain(kind) {
     case 'ringo': return makeRingo();
     case 'tumble': return makeTumble();
     case 'flip': return makeFlip();
+    case 'ducky': return makeDucky();
     default: return makeFlat(0xffd27a);
   }
 }
