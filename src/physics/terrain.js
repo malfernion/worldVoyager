@@ -93,11 +93,16 @@ function makePebble() {
   };
 }
 
+// Dusty's big volcano. Exported so the caldera puffs sit exactly on top of it.
+export const DUSTY_VOLCANO = (() => {
+  const v = { x: Math.cos(2.5), y: Math.sin(2.5), z: 0.15 };
+  const l = Math.hypot(v.x, v.y, v.z);
+  return { x: v.x / l, y: v.y / l, z: v.z / l };
+})();
+
 function makeDusty() {
   const { fbm, noise } = makeNoise(37);
-  const volcano = { x: Math.cos(2.5), y: Math.sin(2.5), z: 0.15 };
-  const vl = Math.hypot(volcano.x, volcano.y, volcano.z);
-  volcano.x /= vl; volcano.y /= vl; volcano.z /= vl;
+  const volcano = DUSTY_VOLCANO;
   const canyon = (x, y, z) => {
     const r = 1 - Math.abs(noise(x * 1.7 + 4, y * 1.7, z * 1.7));
     return Math.pow(r, 10);
@@ -140,9 +145,12 @@ function makeNibble() {
   };
 }
 
+// Sizzle's volcano vents. Exported so the plumes rise from exactly these spots.
+export const SIZZLE_VENTS = randomDirs(8, 7);
+
 function makeSizzle() {
   const { fbm, noise } = makeNoise(53);
-  const vents = randomDirs(8, 7);
+  const vents = SIZZLE_VENTS;
   return {
     height(x, y, z) {
       let h = fbm(x * 2.8, y * 2.8, z * 2.8, 4) * 5;
