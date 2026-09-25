@@ -220,8 +220,20 @@ export class FlightHud {
     h.className = hint ? (hint === 'HOLD!' ? 'hold' : hint === 'LET GO!' ? 'letgo' : 'wait') : 'hidden';
   }
 
+  /** Little dial under the height meter: which way we're moving, how fast. */
+  updateVelocity() {
+    const v = this.scene.velocity;
+    const dial = this.el('vel-dial');
+    dial.classList.toggle('hidden', !v);
+    if (!v) return;
+    dial.dataset.zone = v.zone;
+    dial.firstChild.style.transform = `rotate(${v.screenAngle}rad)`;
+    this.el('vel-num').textContent = Math.round(v.speed);
+  }
+
   update(dt) {
     this.updateCoach();
+    this.updateVelocity();
     this.timer -= dt;
     if (this.timer > 0) return;
     this.timer = 0.1;

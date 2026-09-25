@@ -58,7 +58,6 @@ export class FlightScene {
     this.lineGroup = new THREE.Group();
     this.scene.add(this.lineGroup);
     this.segLines = [];
-    this.flybyLines = [];
     this.orbitLines = new Map();
     for (const v of this.visuals) {
       const b = v.body;
@@ -592,29 +591,68 @@ export class FlightScene {
     }
   }
 
-  /** Anchor (world position minus origin) that a predicted segment is drawn around. */
-  segmentAnchors() {
+  /**
+   * How to draw a predicted segment. Segments around the world we're in (or its parents)
+   * are drawn around where that world is now. Segments inside a moon we haven't reached yet
+   * are drawn as seen from here: the moon's motion is added in, so the path carries straight
+   * on and meets the ghost of the moon exactly where it will be.
+   */
+  segmentFrames() {
     const pred = this.prediction;
     const s = this.flight.state;
-    const out = [];
-    if (!pred) return out;
-    let prev = null;
-    for (const seg of pred.segments) {
-      let a;
-      if (!prev) {
-        const w = seg.body.worldPos(s.t, {});
-        a = { x: w.x - this.origin.x, y: w.y - this.origin.y };
-      } else if (seg.body.parent === prev.seg.body) {
-        const p = seg.body.relPos(seg.t0);
-        a = { x: prev.a.x + p.x, y: prev.a.y + p.y };
-      } else {
-        const p = prev.seg.body.relPos(seg.t0);
-        a = { x: prev.a.x - p.x, y: prev.a.y - p.y };
+    if (!pred) return [];
+    return pred.segments.map((seg) => {
+      let b = seg.body;
+      const chain = [];
+      while (b !== s.body && !b.isAncestorOf(s.body)) {
+        chain.push(b);
+        b = b.parent;
       }
-      out.push(a);
-      prev = { seg, a };
+      const w = b.worldPos(s.t, {});
+      const anchor = { x: w.x - this.origin.x, y: w.y - this.origin.y };
+      const offset = (t) => {
+        let x = 0, y = 0;
+        for (const c of chain) {
+          const p = c.relPos(t);
+          x += p.x;
+          y += p.y;
+        }
+        return { x, y };
+      };
+      // Local point (in seg.body's frame) at time t -> scene position.
+      const at = (lx, ly, t) => {
+        const o = offset(t);
+        return { x: anchor.x + o.x + lx, y: anchor.y + o.y + ly };
+      };
+      return { seg, anchor, moving: chain.length > 0, offset, at };
+    });
+  }
+
+  /** Scene-relative points for a segment (relative to its frame anchor). */
+  segmentPolyline(f) {
+    const { seg } = f;
+    const pts = [];
+    if (!f.moving) {
+      const pts2 = segmentPoints(seg, seg.body.kind === 'star' ? 400 : 200);
+      for (let k = 0; k < pts2.length; k += 2) pts.push(pts2[k], pts2[k + 1], 0);
+      return pts;
     }
-    return out;
+    const steps = 160;
+    const tmp = {};
+    for (let k = 0; k <= steps; k++) {
+      const dt = ((seg.t1 - seg.t0) * k) / steps;
+      propagate(seg.body.mu, seg.start.x, seg.start.y, seg.start.vx, seg.start.vy, dt, tmp);
+      const o = f.offset(seg.t0 + dt);
+      pts.push(tmp.x + o.x, tmp.y + o.y, 0);
+    }
+    return pts;
+  }
+
+  /** When to show the ghost of a moon we're heading into: closest approach or the bump. */
+  ghostTime(seg) {
+    const pe = seg.el.timeToPe;
+    if (seg.end === 'impact' || pe === null || seg.t0 + pe > seg.t1) return seg.t1;
+    return seg.t0 + pe;
   }
 
   updateLines() {
@@ -631,21 +669,19 @@ export class FlightScene {
     }
     // Predicted path (geometry only rebuilt when the prediction changes).
     const pred = this.prediction;
-    const anchors = this.segmentAnchors();
-    const segs = pred ? pred.segments : [];
+    const frames = this.segmentFrames();
     const rebuild = pred !== this.drawnPrediction;
     this.drawnPrediction = pred;
-    for (let i = 0; i < Math.max(segs.length, this.segLines.length); i++) {
-      if (i >= segs.length) {
+    for (let i = 0; i < Math.max(frames.length, this.segLines.length); i++) {
+      if (i >= frames.length) {
         this.segLines[i].visible = false;
         continue;
       }
-      const seg = segs[i];
+      const f = frames[i];
+      const seg = f.seg;
       let line = this.segLines[i];
       if (rebuild || !line) {
-        const pts2 = segmentPoints(seg, seg.body.kind === 'star' ? 400 : 200);
-        const pts = [];
-        for (let k = 0; k < pts2.length; k += 2) pts.push(pts2[k], pts2[k + 1], 0);
+        const pts = this.segmentPolyline(f);
         const color = seg.end === 'impact' ? 0xff8a65 : SEG_COLORS[i % SEG_COLORS.length];
         if (!line) {
           line = this.makeLine(pts, color, 3.5);
@@ -660,55 +696,10 @@ export class FlightScene {
       line.visible = !this.crashed;
       line.material.opacity = map ? 0.95 : 0.55;
       line.material.linewidth = map ? 3.5 : 2.5;
-      line.position.set(anchors[i].x, anchors[i].y, 0);
-      // Show the moon where we'll meet it.
-      if (seg.end === 'encounter') {
-        const p = seg.next.relPos(seg.t1);
-        this.showGhost(seg.next, anchors[i].x + p.x, anchors[i].y + p.y);
-      }
-    }
-    // Fly-bys past a moon, also drawn "as seen from the planet": one smooth swing
-    // instead of a path that seems to turn around when the moon takes over.
-    if (rebuild) {
-      let n = 0;
-      segs.forEach((seg, i) => {
-        if (!seg.body.parent || seg.closed || seg.body.parent.kind === 'star' || seg.body.kind === 'star') return;
-        const pts = [];
-        const steps = 120;
-        const tmp = {};
-        for (let k = 0; k <= steps; k++) {
-          const dt = ((seg.t1 - seg.t0) * k) / steps;
-          propagate(seg.body.mu, seg.start.x, seg.start.y, seg.start.vx, seg.start.vy, dt, tmp);
-          const m = seg.body.relPos(seg.t0 + dt);
-          const m0 = seg.body.relPos(seg.t0);
-          pts.push(tmp.x + m.x - m0.x, tmp.y + m.y - m0.y, 0);
-        }
-        let line = this.flybyLines[n];
-        if (!line) {
-          line = this.makeLine(pts, 0xffffff, 2, 0.5);
-          line.material.dashed = true;
-          line.material.dashSize = 12;
-          line.material.gapSize = 8;
-          line.material.worldUnits = false;
-          line.material.needsUpdate = true;
-          this.flybyLines.push(line);
-        } else {
-          line.geometry.dispose();
-          line.geometry = new LineGeometry();
-          line.geometry.setPositions(pts);
-        }
-        line.computeLineDistances();
-        line.userData.seg = i;
-        n++;
-      });
-      for (let k = n; k < this.flybyLines.length; k++) this.flybyLines[k].userData.seg = -1;
-    }
-    for (const line of this.flybyLines) {
-      const i = line.userData.seg;
-      line.visible = map && i >= 0 && i < segs.length && !this.crashed;
-      if (line.visible) {
-        // Anchored where the moon is when we meet it, just like the moon-frame path.
-        line.position.set(anchors[i].x, anchors[i].y, 0);
+      line.position.set(f.anchor.x, f.anchor.y, 0);
+      if (f.moving) {
+        const g = f.at(0, 0, this.ghostTime(seg));
+        this.showGhost(seg.body, g.x, g.y);
       }
     }
     for (const [b, g] of this.ghosts) {
@@ -772,25 +763,27 @@ export class FlightScene {
         this.placeMarker(el, tmp.x - this.origin.x, tmp.y - this.origin.y - b.radius * sc * 1.05);
       }
       const segs = this.prediction?.segments || [];
-      const anchors = this.segmentAnchors();
-      segs.forEach((seg, i) => {
+      this.segmentFrames().forEach((f, i) => {
+        const { seg } = f;
         const el = seg.el;
-        const a = anchors[i];
         const span = seg.t1 - seg.t0;
-        if (el.e < 1 && el.ra < seg.body.soi && el.timeToAp !== null && (seg.closed || el.timeToAp < span)) {
+        if (!f.moving && el.e < 1 && el.ra < seg.body.soi && el.timeToAp !== null && (seg.closed || el.timeToAp < span)) {
           const p = pointAt(el, Math.PI);
-          this.placeMarker(this.marker(`ap-${i}`, 'apsis', '▲'), a.x + p.x, a.y + p.y);
+          const q = f.at(p.x, p.y, seg.t0 + el.timeToAp);
+          this.placeMarker(this.marker(`ap-${i}`, 'apsis', '▲'), q.x, q.y);
         }
-        if (el.timeToPe !== null && (seg.closed || el.timeToPe < span)) {
+        if (el.timeToPe !== null && (seg.closed || el.timeToPe < span) && seg.end !== 'impact') {
           const p = pointAt(el, 0);
-          this.placeMarker(this.marker(`pe-${i}`, 'apsis low', '▼'), a.x + p.x, a.y + p.y);
+          const q = f.at(p.x, p.y, seg.t0 + el.timeToPe);
+          this.placeMarker(this.marker(`pe-${i}`, 'apsis low', '▼'), q.x, q.y);
         }
         if (seg.end === 'impact') {
-          this.placeMarker(this.marker(`impact-${i}`, 'event', '💥'), a.x + seg.endState.x, a.y + seg.endState.y);
+          const q = f.at(seg.endState.x, seg.endState.y, seg.t1);
+          this.placeMarker(this.marker(`impact-${i}`, 'event', '💥'), q.x, q.y);
         }
-        if (seg.end === 'encounter' && seg.next === this.target) {
-          const p = seg.next.relPos(seg.t1);
-          this.placeMarker(this.marker(`meet-${i}`, 'event meet', `✨ ${seg.next.name}!`), a.x + p.x, a.y + p.y - seg.next.radius * this.mapScale(seg.next) * 1.4);
+        if (f.moving && seg.body === this.target) {
+          const g = f.at(0, 0, this.ghostTime(seg));
+          this.placeMarker(this.marker(`meet-${i}`, 'event meet', `✨ ${seg.body.name}!`), g.x, g.y - seg.body.radius * this.mapScale(seg.body) * 1.4);
         }
       });
       const closest = this.prediction?.closest;
@@ -821,43 +814,33 @@ export class FlightScene {
       el.classList.toggle('aligned', Math.abs(d) < 0.3);
     }
 
-    // Velocity arrow: which way we're moving and how fast. Near the ground it turns
-    // green / yellow / red to say whether we're slow enough to land.
+    // Velocity for the HUD dial: direction on screen, and whether a landing is looking safe.
+    this.velocity = null;
     const speed = this.flight.speed;
     if (!this.crashed && !s.landed && speed > 0.3) {
       const rwp = this.flight.worldPos({});
-      const mid = this.mode === 'map' ? 0 : this.rocket.height / 2;
-      const c = { x: rwp.x - this.origin.x + Math.cos(s.angle) * mid, y: rwp.y - this.origin.y + Math.sin(s.angle) * mid };
-      const el = this.marker('vel', 'vel-arrow', '<div class="spin"><div class="shaft"></div><div class="head"></div></div><b></b>');
-      const scr = this.placeMarker(el, c.x, c.y);
-      if (scr) {
-        const va = Math.atan2(s.vy, s.vx);
-        const centre = new THREE.Vector3(c.x, c.y, 0).project(this.camera);
-        const tip = new THREE.Vector3(c.x + Math.cos(va), c.y + Math.sin(va), 0).project(this.camera);
-        const dx = (tip.x - centre.x) * window.innerWidth, dy = -(tip.y - centre.y) * window.innerHeight;
-        const len = Math.min(130, 26 + 22 * Math.log2(1 + speed));
-        el.firstChild.style.transform = `rotate(${Math.atan2(dx, -dy)}rad)`;
-        el.style.setProperty('--len', `${len}px`);
-        const b = s.body;
-        const alt = this.flight.altitude;
-        const vr = (s.x * s.vx + s.y * s.vy) / Math.hypot(s.x, s.y);
-        const landing = b.solid && alt < Math.max(b.spaceLine * 1.5, 40) && vr < 0;
+      const c = { x: rwp.x - this.origin.x, y: rwp.y - this.origin.y };
+      const va = Math.atan2(s.vy, s.vx);
+      const centre = new THREE.Vector3(c.x, c.y, 0).project(this.camera);
+      const tip = new THREE.Vector3(c.x + Math.cos(va), c.y + Math.sin(va), 0).project(this.camera);
+      const dx = (tip.x - centre.x) * window.innerWidth, dy = -(tip.y - centre.y) * window.innerHeight;
+      const b = s.body;
+      const alt = this.flight.altitude;
+      const vr = (s.x * s.vx + s.y * s.vy) / Math.hypot(s.x, s.y);
+      const landing = b.solid && alt < Math.max(b.spaceLine * 1.5, 40) && vr < 0;
+      let zone = 'fly';
+      if (landing) {
         const safe = this.stats.safeSpeed;
-        let zone = 'fly';
-        if (landing) {
-          if (alt < 12) {
-            zone = speed < safe * 0.7 ? 'good' : speed < safe ? 'ok' : 'bad';
-          } else {
-            // Higher up: can the engine still stop us before the ground?
-            const brake = Math.max(0.5, this.stats.accel - this.flight.localGravity);
-            const stop = (speed * speed) / (2 * brake);
-            zone = stop < alt * 0.4 ? 'good' : stop < alt * 0.8 ? 'ok' : 'bad';
-          }
+        if (alt < 12) {
+          zone = speed < safe * 0.7 ? 'good' : speed < safe ? 'ok' : 'bad';
+        } else {
+          // Higher up: can the engine still stop us before the ground?
+          const brake = Math.max(0.5, this.stats.accel - this.flight.localGravity);
+          const stop = (speed * speed) / (2 * brake);
+          zone = stop < alt * 0.4 ? 'good' : stop < alt * 0.8 ? 'ok' : 'bad';
         }
-        el.dataset.zone = zone;
-        const face = { good: '😀', ok: '😬', bad: '😱' }[zone];
-        el.lastChild.textContent = landing ? `${face} ${Math.round(speed)}` : '';
       }
+      this.velocity = { screenAngle: Math.atan2(dx, -dy), speed, zone, down: Math.max(0, -vr) };
     }
 
     // Rocket icon: always in the map; in flight when the rocket is too small to see.

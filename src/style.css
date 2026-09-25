@@ -1047,6 +1047,10 @@ h1 {
   #height-meter {
     height: 26vh;
   }
+
+  #vel-dial {
+    top: calc(96px + 26vh + var(--safe-top));
+  }
 }
 
 /* ---------- coaching ---------- */
@@ -1203,63 +1207,57 @@ h1 {
   touch-action: none;
 }
 
-.vel-arrow {
-  width: 0;
-  height: 0;
-}
-
-.vel-arrow .spin {
+#vel-dial {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 0;
-  height: 0;
+  left: calc(8px + var(--safe-left));
+  top: calc(96px + 34vh + var(--safe-top));
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 3px solid rgba(246, 231, 200, 0.45);
+  background: rgba(20, 16, 36, 0.6);
+  pointer-events: none;
+  --vel: #8fe3ff;
 }
 
-.vel-arrow .shaft {
-  position: absolute;
-  left: -3px;
-  bottom: 0;
-  width: 6px;
-  height: var(--len, 40px);
-  border-radius: 3px;
-  background: var(--vel, #8fe3ff);
-  opacity: 0.85;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
-}
-
-.vel-arrow .head {
-  position: absolute;
-  left: -10px;
-  bottom: calc(var(--len, 40px) - 4px);
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-bottom: 16px solid var(--vel, #8fe3ff);
-  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.6));
-}
-
-.vel-arrow b {
-  position: absolute;
-  left: 22px;
-  top: 14px;
-  white-space: nowrap;
-  font-size: 20px;
-  color: var(--vel, #8fe3ff);
-  text-shadow: 0 2px 0 var(--ink), 0 0 6px #000;
-}
-
-.vel-arrow[data-zone='good'] {
+#vel-dial[data-zone='good'] {
   --vel: #7dff9a;
+  border-color: #7dff9a;
 }
 
-.vel-arrow[data-zone='ok'] {
+#vel-dial[data-zone='ok'] {
   --vel: #ffd166;
+  border-color: #ffd166;
 }
 
-.vel-arrow[data-zone='bad'] {
+#vel-dial[data-zone='bad'] {
   --vel: #ff6b6b;
+  border-color: #ff6b6b;
+}
+
+#vel-dial .needle {
+  position: absolute;
+  inset: 0;
+}
+
+#vel-dial .needle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  translate: -50% 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 12px solid var(--vel);
+}
+
+#vel-dial b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  color: var(--vel);
 }
 
 @media (max-width: 640px) {

@@ -339,6 +339,20 @@ export class BuilderScene {
     this.dragMove(ev.clientX, ev.clientY);
   }
 
+  /** Is the pointer close enough to the rocket to attach a part? */
+  nearRocket(x, y) {
+    const trayTop = document.getElementById('tray').getBoundingClientRect().top;
+    if (y > trayTop - 10) return false;
+    const project = (vx, vy) => {
+      const v = new THREE.Vector3(vx, vy, 0).project(this.camera);
+      return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight };
+    };
+    const h = Math.max(this.rocket.height, 0.5);
+    const top = project(0, h), bottom = project(0, 0), side = project(2.2, h / 2);
+    const halfWidth = Math.max(70, Math.abs(side.x - bottom.x) * 1.4);
+    return Math.abs(x - bottom.x) < halfWidth && y > top.y - 70 && y < bottom.y + 50;
+  }
+
   screenY(y) {
     const v = new THREE.Vector3(0, y, 0).project(this.camera);
     return (-v.y * 0.5 + 0.5) * window.innerHeight;
@@ -348,12 +362,12 @@ export class BuilderScene {
     const d = this.drag;
     if (!d) return;
     d.ghost.style.transform = `translate(${x - 48}px, ${y - 60}px)`;
-    const trayTop = document.getElementById('tray').getBoundingClientRect().top;
     const trash = document.getElementById('trash');
-    trash.classList.toggle('over', y > trayTop - 60);
     d.drop = null;
     this.indicator.visible = false;
-    if (y > trayTop - 20) return;
+    trash.classList.add('over');
+    if (!this.nearRocket(x, y)) return; // let go out here and the part is thrown away
+    trash.classList.remove('over');
     const parts = [...this.rocket.parts].sort((a, b) => a.index - b.index);
     if (d.item.radial) {
       const holders = parts.filter((p) => HOLDS_RADIAL.has(this.design.stack[p.index].type));
