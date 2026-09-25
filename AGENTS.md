@@ -172,7 +172,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   in plain string literals so the scanner finds it.
 - `tools/voice/lines.json` is generated (by `voice:check` / `voice:lines`) and **committed**:
   commit it whenever it changes, even if you can't record the new lines yourself. List the new
-  sentences in your hand-off so whoever has the voice setup can record them.
+  sentences (and the issue they came from) in a comment on the rolling **Record Pip's pending
+  voice lines** issue (#34), which always stays last on the roadmap, so the owner records them
+  on the next local run.
 - **Re-recording a bad take:** the seeds are fixed, so pick a new take:
   `record.py --voice jess --only "^Exact sentence start" --redo --take 1` (then 2, 3…).
   After a full run, very short or long takes are worth a listen: exclamations and lines with a
@@ -200,6 +202,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   the file beats an earlier media rule of the same specificity (the landscape `#vel-dial` fix
   silently did nothing for a while). HUD overrides for small screens go in the last section of
   the file.
+- Headless Chromium (Playwright, SwiftShader WebGL) is too slow for the animation loop: call
+  `app.renderer.setAnimationLoop(null)` and step frames yourself before taking screenshots. It
+  can't decode the `.m4a` clips either, so `[pip] no recording for:` warnings there are expected.
 - Line2 / LineMaterial widths are in pixels; update `resolution` on resize (flight.js does).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).
