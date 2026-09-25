@@ -56,6 +56,7 @@ def main():
     ap.add_argument("--only", help="regex: only record matching sentences")
     ap.add_argument("--redo", action="store_true", help="re-record even if a clip exists")
     ap.add_argument("--bitrate", type=int, default=40000)
+    ap.add_argument("--take", type=int, default=0, help="try different takes (changes the seeds), e.g. with --redo")
     a = ap.parse_args()
 
     lines = json.load(open(os.path.join(HERE, "lines.json")))
@@ -81,7 +82,7 @@ def main():
         for attempt in range(4):
             wav = os.path.join(TMP, "take.wav")
             try:
-                secs = synth(performed, a.voice, wav, seed=1000 + attempt * 7919)
+                secs = synth(performed, a.voice, wav, seed=1000 + attempt * 7919 + a.take * 104729)
             except Exception as e:  # garbled token stream: just try again
                 print(f"  retry ({e})", file=sys.stderr)
                 continue
