@@ -467,6 +467,15 @@ export class AudioEngine {
       case 'boing':
         this.tone(220, 0.4, { vol: 0.3, slide: 2.5, type: 'triangle' });
         break;
+      case 'bonk': // a soft, rubbery buggy bump
+        this.tone(170, 0.2, { vol: 0.3, slide: 0.6 });
+        this.tone(340, 0.1, { vol: 0.08, slide: 0.7, type: 'triangle' });
+        this.noiseBurst(0.08, 500, { vol: 0.2, type: 'lowpass' });
+        break;
+      case 'bonkTree': // the bump plus a leafy rustle
+        this.play('bonk');
+        this.noiseBurst(0.4, 3200, { vol: 0.08, q: 0.7, delay: 0.05 });
+        break;
       case 'whoosh':
         this.noiseBurst(0.5, 700, { vol: 0.25, q: 0.6 });
         break;

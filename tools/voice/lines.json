@@ -68,12 +68,20 @@
   "text": "Back to the rocket!"
  },
  {
+  "key": "back up and steer around it",
+  "text": "Back up and steer around it."
+ },
+ {
   "key": "big bouncy wheels that climb anything",
   "text": "Big bouncy wheels that climb anything."
  },
  {
   "key": "blast off",
   "text": "Blast off!"
+ },
+ {
+  "key": "bonk",
+  "text": "Bonk!"
  },
  {
   "key": "boosters need a tube to hold on to",

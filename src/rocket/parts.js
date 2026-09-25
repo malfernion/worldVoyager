@@ -32,10 +32,11 @@ export const PARTS = {
  * top speed below orbit speed, so jumps always come back down (except the Hopper's secret
  * super hop on Nibble, see ORBIT in physics/buggy.js).
  */
+// reach: how far the buggy's body sticks out from its middle (for bumping into things).
 export const BUGGIES = {
-  rover: { name: 'Rover', maxSpeed: 11, accel: 6, grip: 7, turn: 1.7, bounce: 0.15, ride: 0.75, jump: 0, wheel: 0.55 },
-  truck: { name: 'Monster Truck', maxSpeed: 8, accel: 5, grip: 9, turn: 1.3, bounce: 0.45, ride: 1.25, jump: 0, wheel: 0.95, climb: 0.5 },
-  hopper: { name: 'Hopper', maxSpeed: 13, accel: 7, grip: 4.5, turn: 2, bounce: 0.25, ride: 0.6, jump: 6, wheel: 0.42, superHop: true },
+  rover: { name: 'Rover', maxSpeed: 11, accel: 6, grip: 7, turn: 1.7, bounce: 0.15, ride: 0.75, jump: 0, wheel: 0.55, reach: 1.1 },
+  truck: { name: 'Monster Truck', maxSpeed: 8, accel: 5, grip: 9, turn: 1.3, bounce: 0.45, ride: 1.25, jump: 0, wheel: 0.95, climb: 0.5, reach: 1.5 },
+  hopper: { name: 'Hopper', maxSpeed: 13, accel: 7, grip: 4.5, turn: 2, bounce: 0.25, ride: 0.6, jump: 6, wheel: 0.42, superHop: true, reach: 1 },
 };
 
 export const DEFAULT_BUGGY = { kind: 'rover', paint: 'orange' };

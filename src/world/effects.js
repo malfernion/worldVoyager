@@ -88,9 +88,11 @@ export class Particles {
       const damp = Math.exp(-p.drag * dt);
       p.vx *= damp; p.vy *= damp; p.vz *= damp;
       if (p.gravity) {
-        const r = Math.hypot(p.x, p.y) || 1;
+        // Toward the middle of the world in 3D (buggy effects happen far off the flight plane).
+        const r = Math.hypot(p.x, p.y, p.z) || 1;
         p.vx -= (p.x / r) * p.gravity * dt;
         p.vy -= (p.y / r) * p.gravity * dt;
+        p.vz -= (p.z / r) * p.gravity * dt;
       }
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
       p.body.worldPos(t, tmp);

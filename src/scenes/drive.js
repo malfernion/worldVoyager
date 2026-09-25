@@ -1,9 +1,11 @@
 // Buggy mode: roll out of the garage, drive anywhere on the globe with a chase camera,
 // then head home to the rocket. The rocket stays parked on its flight plane the whole time.
 import * as THREE from 'three';
-import { Buggy, vec } from '../physics/buggy.js';
+import { Buggy, ObstacleGrid, vec } from '../physics/buggy.js';
 import { BUGGIES, DEFAULT_BUGGY, garageOf } from '../rocket/parts.js';
 import { buildBuggy } from '../rocket/buggyMesh.js';
+
+const LEAVES = [0x5d8c3a, 0x7aa84a, 0x3f6b2e, 0xd08a3a];
 
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
@@ -18,6 +20,9 @@ export class DriveMode {
     this.steerVis = 0;
     this.wide = 1; // camera pull-back while orbiting Nibble
     this.world = { x: 0, y: 0 };
+    this.shake = 0; // camera wobble after a bump
+    this.bonkWait = 0;
+    this.shakeOffset = new THREE.Vector3();
   }
 
   canDeploy() {
@@ -79,7 +84,8 @@ export class DriveMode {
     const foot = this.rocketFoot();
     // Roll out in front of the garage door (it faces the camera, +z).
     this.buggy.spawn(vec.add(foot, [0, 0, 6]), [0, 0, 1]);
-    this.buggy.obstacles = [{ p: foot, r: 2.6 }];
+    this.buggy.obstacles = [{ p: foot, r: 1.5 }];
+    this.buggy.grid = this.obstacleGrid(body);
     this.mesh = buildBuggy(choice.kind, choice.paint);
     fs.scene.add(this.mesh.group);
     this.active = true;
@@ -95,6 +101,17 @@ export class DriveMode {
     fs.app.audio.play('snap');
     const first = fs.app.progress.earn('drive');
     if (!first) fs.app.pip(`Let's go for a drive on ${body.name}!`, { speak: true });
+  }
+
+  /** This world's trees or rocks as a lookup grid for the buggy (built once per world). */
+  obstacleGrid(body) {
+    const v = this.fs.visuals.find((x) => x.body === body);
+    if (!v) return null;
+    if (!v.obstacleGrid) {
+      const plain = (list, tree) => list.map((o) => ({ p: [o.position.x, o.position.y, o.position.z], up: [o.up.x, o.up.y, o.up.z], r: o.radius, h: o.height, tree }));
+      v.obstacleGrid = new ObstacleGrid([...plain(v.trees || [], true), ...plain(v.rocks || [], false)]);
+    }
+    return v.obstacleGrid;
   }
 
   /** Back to the rocket: drive in if close, otherwise whoosh back with sparkles. */
@@ -235,8 +252,51 @@ export class DriveMode {
         fs.particles.spawn(i % 2 ? 'spark' : 'puff', body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], { size: 0.9, grow: 1.2, life: 0.8, drag: 2.5 });
       }
     }
+    this.bumpEffects(dt);
     this.orbitEffects(dt);
     fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : b.braking ? 0.2 : 0.06);
+  }
+
+  /** Bonk! A soft sound, a gentle shake and a few falling leaves (or a puff of dust). */
+  bumpEffects(dt) {
+    const b = this.buggy;
+    const fs = this.fs;
+    this.bonkWait = Math.max(0, this.bonkWait - dt);
+    this.shake *= Math.exp(-dt * 6);
+    const speed = b.bumped, o = b.bumpedInto;
+    b.bumped = 0;
+    b.bumpedInto = null;
+    // Leaning on a tree shouldn't bonk over and over.
+    if (speed < 1.2 || this.bonkWait > 0) return;
+    this.bonkWait = 0.5;
+    this.shake = Math.min(0.35, speed * 0.04);
+    fs.app.audio.play(o?.tree ? 'bonkTree' : 'bonk');
+    if (!this.bonked) {
+      this.bonked = true;
+      fs.app.pip('Bonk! Back up and steer around it.', { speak: true });
+    }
+    if (!o?.up) return;
+    const up = o.up;
+    if (o.tree) {
+      // Leaves flutter down from the treetop.
+      const n = Math.min(10, 3 + Math.round(speed));
+      for (let i = 0; i < n; i++) {
+        const j = () => (Math.random() - 0.5) * o.h * 0.5;
+        const pos = vec.add(vec.add(o.p, vec.mul(up, o.h * (0.6 + Math.random() * 0.3))), [j(), j(), j()]);
+        const vel = vec.add(vec.mul(up, -0.8 - Math.random()), [j() * 0.4, j() * 0.4, j() * 0.4]);
+        fs.particles.spawn('confetti', b.body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], {
+          size: 0.35, grow: 0, life: 2.2, drag: 1.5, gravity: 1.5, color: LEAVES[i % LEAVES.length],
+        });
+      }
+    } else {
+      const at = vec.sub(b.p, vec.mul(b.up, b.kind.ride * 0.6)); // a puff of dust by the wheels
+      for (let i = 0; i < 6; i++) {
+        const vel = vec.add(vec.mul(b.up, 1 + Math.random()), [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5]);
+        fs.particles.spawn('puff', b.body, at[0], at[1], at[2], vel[0], vel[1], vel[2], {
+          size: 0.6, grow: 1.2, life: 0.7, drag: 2.5, color: b.body.color,
+        });
+      }
+    }
   }
 
   /** The Nibble orbit secret: jets, Pip's hints and the sticker. */
@@ -302,6 +362,11 @@ export class DriveMode {
     if (r < minR) offset.add(V(vec.mul(vec.norm(local), minR - r)));
     camera.up.copy(this.camUp);
     camera.position.copy(target).add(offset);
+    if (this.shake > 0.01) {
+      const t = this.fs.time;
+      this.shakeOffset.set(Math.sin(t * 53), Math.sin(t * 61 + 1), Math.sin(t * 47 + 2)).multiplyScalar(this.shake);
+      camera.position.add(this.shakeOffset);
+    }
     camera.lookAt(target.clone().addScaledVector(f, 3));
     camera.near = 0.2;
   }

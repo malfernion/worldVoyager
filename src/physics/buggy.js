@@ -40,6 +40,50 @@ export const ORBIT = {
   sag: 0.01, // after a full lap the orbit slowly sags, so it always comes back down
 };
 
+// Trees and rocks: bucketed into a coarse 3D grid once per world, so each substep only looks
+// at the few cells around the buggy instead of ~900 trees.
+export class ObstacleGrid {
+  /** list: [{ p: [x,y,z], r, h }] (r: its own radius, h: how tall it is above p). */
+  constructor(list) {
+    this.list = list;
+    // A cell must span the farthest anything can touch us from: our reach (≤ 2) + r + h.
+    this.cell = Math.max(4, ...list.map((o) => o.r + (o.h || 0) + 2));
+    this.cells = new Map();
+    for (const o of list) {
+      const k = this.key(o.p);
+      if (!this.cells.has(k)) this.cells.set(k, []);
+      this.cells.get(k).push(o);
+    }
+    this.found = [];
+  }
+
+  key(p) {
+    const c = this.cell;
+    return this.keyOf(Math.floor(p[0] / c), Math.floor(p[1] / c), Math.floor(p[2] / c));
+  }
+
+  keyOf(i, j, k) {
+    return (i + 1024) * 4194304 + (j + 1024) * 2048 + (k + 1024);
+  }
+
+  /** Everything in the 27 cells around p (reuses one array: don't keep it). */
+  near(p) {
+    const out = this.found;
+    out.length = 0;
+    const c = this.cell;
+    const i = Math.floor(p[0] / c), j = Math.floor(p[1] / c), k = Math.floor(p[2] / c);
+    for (let a = -1; a <= 1; a++) {
+      for (let b = -1; b <= 1; b++) {
+        for (let e = -1; e <= 1; e++) {
+          const cell = this.cells.get(this.keyOf(i + a, j + b, k + e));
+          if (cell) for (const o of cell) out.push(o);
+        }
+      }
+    }
+    return out;
+  }
+}
+
 export class Buggy {
   constructor(body, kind) {
     this.body = body;
@@ -56,7 +100,10 @@ export class Buggy {
     this.jumpWasDown = false;
     this.orbiting = false; // in a super hop (the Nibble secret)
     this.lap = 0; // how far round the world we've flown since the super hop (radians)
-    this.obstacles = []; // [{ p: [x,y,z], r }] e.g. the parked rocket
+    this.obstacles = []; // [{ p: [x,y,z], r }] e.g. the parked rocket (r: its own radius)
+    this.grid = null; // ObstacleGrid of the world's trees or rocks
+    this.bumped = 0; // hardest bump since the scene last looked (m/s), and what we hit
+    this.bumpedInto = null;
   }
 
   /** Top speed on this world: the buggy's own limit, but always well below orbit speed. */
@@ -253,17 +300,39 @@ export class Buggy {
       if (vr < 0) this.v = sub(this.v, mul(u, vr));
     }
 
-    // Bump around obstacles (the parked rocket).
-    for (const o of this.obstacles) {
-      let d = sub(this.p, o.p);
-      if (this.orbiting && dot(d, u) > 12) continue; // flying high over it
-      d = sub(d, mul(u, dot(d, u)));
-      const dist = len(d);
-      if (dist < o.r && dist > 1e-6) {
-        const out = mul(d, 1 / dist);
-        this.p = add(this.p, mul(out, o.r - dist));
-        const vin = dot(this.v, out);
-        if (vin < 0) this.v = sub(this.v, mul(out, vin * 1.3));
+    // Bump around obstacles: the parked rocket, trees and rocks.
+    for (const o of this.obstacles) this.bump(o, u, h);
+    if (this.grid) for (const o of this.grid.near(this.p)) this.bump(o, u, h);
+  }
+
+  /** Friendly bump: push out of the obstacle, bounce a little and slide off at an angle. */
+  bump(o, u, h) {
+    let d = sub(this.p, o.p);
+    const above = dot(d, u);
+    // Wheels clear of the top: jumped over. The rocket only counts when super hopping over it.
+    if (o.h !== undefined ? above - this.kind.ride > o.h : this.orbiting && above > 12) return;
+    d = sub(d, mul(u, above));
+    const dist = len(d);
+    const r = o.r + (this.kind.reach ?? 1);
+    if (dist >= r || dist < 1e-6) return;
+    const out = mul(d, 1 / dist);
+    this.p = add(this.p, mul(out, r - dist));
+    const vin = dot(this.v, out);
+    if (vin < 0) {
+      // Only the push-in is taken away (so reversing or steering off always works), with a
+      // little bounce for proper crashes; gentle nudges just stop.
+      this.v = sub(this.v, mul(out, vin * (vin < -3 ? 1.3 : 1)));
+      // Glancing hits turn us to slide along it, faster the more glancing; head-on just stops.
+      const fin = dot(this.f, out);
+      const along = sub(this.f, mul(out, fin));
+      const side = len(along);
+      if (fin < 0 && side > 1e-3) {
+        const turn = Math.min(Math.acos(Math.min(1, side)), h * 3 * Math.min(1, side / 0.3));
+        this.f = norm(rotate(this.f, norm(cross(this.f, along)), turn));
+      }
+      if (-vin > this.bumped) {
+        this.bumped = -vin;
+        this.bumpedInto = o;
       }
     }
   }

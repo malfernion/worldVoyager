@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createSystem } from '../src/physics/bodies.js';
-import { Buggy, vec, ORBIT } from '../src/physics/buggy.js';
+import { Buggy, ObstacleGrid, vec, ORBIT } from '../src/physics/buggy.js';
 import { BUGGIES } from '../src/rocket/parts.js';
 
 function drive(bodyId, kind, seconds, input, setup) {
@@ -60,7 +60,7 @@ describe('buggy', () => {
     b.spawn([0, 1, 0], [1, 0, 0]);
     const ahead = vec.norm(vec.add([0, 1, 0], [10 / body.radius, 0, 0]));
     const rocket = vec.mul(ahead, b.groundRadius(ahead));
-    b.obstacles = [{ p: rocket, r: 2.5 }];
+    b.obstacles = [{ p: rocket, r: 1.4 }]; // + the rover's reach (1.1)
     let closest = Infinity;
     for (let i = 0; i < 60 * 8; i++) {
       b.step(1 / 60, { throttle: 1, steer: 0 });
@@ -69,6 +69,124 @@ describe('buggy', () => {
       closest = Math.min(closest, vec.len(vec.sub(d, vec.mul(u, vec.dot(d, u)))));
     }
     expect(closest).toBeGreaterThan(2.3);
+  });
+
+  describe('trees and rocks', () => {
+    // Spawn at the top of the world facing +x, with an obstacle `ahead` metres down the road
+    // and `aside` metres to the left or right of it.
+    function course(bodyId, kind, { ahead = 14, aside = 0, r = 0.35, h = 5 } = {}) {
+      const sys = createSystem();
+      const body = sys.byId[bodyId];
+      const b = new Buggy(body, BUGGIES[kind]);
+      b.spawn([0, 1, 0], [1, 0, 0]);
+      const dir = vec.norm([ahead / body.radius, 1, aside / body.radius]);
+      const o = { p: vec.mul(dir, b.groundRadius(dir) - 0.3), up: dir, r, h };
+      b.grid = new ObstacleGrid([o]);
+      const gap = () => {
+        const d = vec.sub(b.p, o.p);
+        const u = b.up;
+        return vec.len(vec.sub(d, vec.mul(u, vec.dot(d, u))));
+      };
+      const run = (seconds, input) => {
+        let closest = Infinity, bump = 0;
+        for (let i = 0; i < seconds * 60; i++) {
+          b.step(1 / 60, input);
+          closest = Math.min(closest, gap());
+          bump = Math.max(bump, b.bumped);
+          b.bumped = 0;
+        }
+        return { closest, bump };
+      };
+      return { b, o, gap, run };
+    }
+
+    it('driving straight into a tree stops the buggy', () => {
+      const { b, o, run } = course('homestead', 'rover');
+      const { closest, bump } = run(6, { throttle: 1, steer: 0 });
+      expect(closest).toBeGreaterThan(o.r + b.kind.reach - 0.1);
+      expect(bump).toBeGreaterThan(2);
+      expect(b.p[0]).toBeLessThan(o.p[0]); // still on this side of it
+    });
+
+    it('a glancing hit slides off past the tree', () => {
+      const { b, o, run } = course('homestead', 'rover', { aside: 0.8 });
+      const { closest, bump } = run(6, { throttle: 1, steer: 0 });
+      expect(closest).toBeGreaterThan(o.r + b.kind.reach - 0.1);
+      expect(bump).toBeGreaterThan(0);
+      expect(b.p[0]).toBeGreaterThan(o.p[0] + 10); // carried on past it
+    });
+
+    it('can always back away from a tree', () => {
+      const { b, gap, run } = course('homestead', 'truck');
+      run(6, { throttle: 1, steer: 0 });
+      const stuck = gap();
+      run(3, { throttle: -1, steer: 0.5 });
+      expect(gap()).toBeGreaterThan(stuck + 4);
+      // ...and then drive off round it.
+      const before = b.p[0];
+      run(4, { throttle: 1, steer: 1 });
+      expect(Math.abs(b.p[0] - before) + Math.abs(b.p[2])).toBeGreaterThan(3);
+    });
+
+    it('the Hopper can jump over a bush', () => {
+      const { b, o, run } = course('homestead', 'hopper', { ahead: 16, r: 0.8, h: 1.2 });
+      const { closest } = run(4, (() => {
+        let i = 0;
+        return { get throttle() { return 1; }, steer: 0, get jump() { return i++ > 0 && Math.abs(b.p[0] - o.p[0]) < 7; } };
+      })());
+      expect(closest).toBeLessThan(0.8 + b.kind.reach);
+      expect(b.p[0]).toBeGreaterThan(o.p[0]);
+    });
+
+    for (const world of ['pebble', 'nibble', 'dusty', 'sizzle', 'frosty']) {
+      // A big boulder, so crests on the bumpier moons can't just fly us over it.
+      it(`a rock on ${world} blocks the buggy`, () => {
+        const { b, o, run } = course(world, 'rover', { ahead: 8, r: 0.8, h: 2.5 });
+        const { closest, bump } = run(6, { throttle: 1, steer: 0 });
+        expect(closest).toBeGreaterThan(o.r + b.kind.reach - 0.1);
+        expect(bump).toBeGreaterThan(0.5);
+      });
+    }
+
+    it('the lookup finds every nearby tree and not the far ones', () => {
+      const sys = createSystem();
+      const body = sys.home;
+      const R = body.radius;
+      let seed = 1;
+      const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const randDir = () => {
+        const z = rand() * 2 - 1, a = rand() * Math.PI * 2, k = Math.sqrt(1 - z * z);
+        return [k * Math.cos(a), k * Math.sin(a), z];
+      };
+      const list = [];
+      for (let i = 0; i < 900; i++) {
+        const d = randDir();
+        const h = 3 + rand() * 6;
+        list.push({ p: vec.mul(d, R + body.terrainFn.height(...d)), r: 0.2 + rand() * 0.3, h });
+      }
+      const grid = new ObstacleGrid(list);
+      const rover = BUGGIES.rover;
+      let seen = 0, most = 0;
+      for (let q = 0; q < 400; q++) {
+        // Query near a real tree half the time, so there's something to find.
+        const base = q % 2 ? list[q].p : vec.mul(randDir(), R + 1);
+        const p = vec.add(base, [rand() * 4 - 2, rand() * 4 - 2, rand() * 4 - 2]);
+        const u = vec.norm(p);
+        const found = grid.near(p);
+        most = Math.max(most, found.length);
+        for (const o of list) {
+          const d = vec.sub(p, o.p);
+          const above = vec.dot(d, u);
+          const side = vec.len(vec.sub(d, vec.mul(u, above)));
+          if (above <= o.h && side < o.r + rover.reach) {
+            seen++;
+            expect(found).toContain(o);
+          }
+        }
+      }
+      expect(seen).toBeGreaterThan(50);
+      expect(most).toBeLessThan(40); // a handful, not all 900
+    });
   });
 
   it('is slower in the water on Homestead', () => {

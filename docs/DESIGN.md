@@ -107,6 +107,22 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   real radial gravity, ground normals taken from the same terrain functions as the planet
   mesh, tyre grip (less on icy Frosty), slower in Homestead's water, and bumping around the
   parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
+- **Trees and rocks are things to bump into** (#6). Homestead's ~900 trees and the moons'
+  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, one
+  InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours) are
+  circle colliders: trunk (or most of a bush's / rock's width) plus the buggy's `reach` from
+  `BUGGIES`. Rocks keep a narrower strip in front of the flight plane clear than trees do
+  (z from -4 to 16 m, as they're low), and stay off Sizzle's vents and Dusty's caldera.
+  - The drive scene turns the visuals' lists into plain `{ p, up, r, h }` data and builds an
+    `ObstacleGrid` once per world: a coarse 3D grid (cells as big as the tallest reach), so
+    each physics substep looks at the 27 cells around the buggy, typically a handful.
+  - The bump is friendly: only the push-in part of the velocity is removed (a little bounce
+    above 3 m/s), so reversing or steering away always works. A glancing hit turns the buggy
+    to slide along past (faster the more glancing); head-on it stops, and if you keep pushing
+    it slowly slides off to one side. Clear the top with your wheels (Hopper jumps, flying off
+    crests) and you pass over. The scene plays a soft "bonk" (plus a leafy rustle for trees),
+    a gentle camera wobble, and leaves fluttering down or a puff of dust, at most every half
+    second; the first bump each session Pip says "Bonk! Back up and steer around it."
 - **Never orbit.** Top speed is capped at 70% of the world's orbit speed, and airborne
   speed at 75% of local circular speed, so every jump comes back down. The rocket stays
   parked on its flight plane the whole time, so driving never disturbs the flight model.

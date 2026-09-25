@@ -72,8 +72,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
   autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner
-  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity)
-src/world/             three.js visuals: planets, ambient (plumes/dust), trees, effects, sky, materials, thumbnails
+  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid)
+src/world/             three.js visuals: planets, ambient (plumes/dust), trees, rocks (moon boulders), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures), narrator.js (Pip's voice), speech.js (sentence splitting)
@@ -100,7 +100,9 @@ test/                  vitest suites
 - **Kid-first UX.** Everything must work without reading: icons, big buttons, Pip speaks.
   Failure is funny and cheap (rewind). Spoken lines are short and cheerful.
 - **Phones first.** Watch draw calls and triangle counts (instancing, shared materials,
-  no per-frame allocation in hot paths).
+  no per-frame allocation in hot paths). Trees and rocks are one InstancedMesh (+ ink) per
+  shape; the buggy finds nearby ones through a grid built once per world (`ObstacleGrid`),
+  never by looping over all of them each step.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).

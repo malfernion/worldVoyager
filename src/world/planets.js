@@ -6,7 +6,8 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toonGradient, glowTexture, woodTexture, toon, withOutline } from './materials.js';
 import { createAmbient } from './ambient.js';
 import { createForest } from './trees.js';
-import { RINGO_AXIS } from '../physics/terrain.js';
+import { createRocks } from './rocks.js';
+import { RINGO_AXIS, SIZZLE_VENTS, DUSTY_VOLCANO } from '../physics/terrain.js';
 import { mulberry32 } from '../physics/noise.js';
 
 const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36 };
@@ -201,6 +202,41 @@ function trees(body, group) {
   return forest.trees;
 }
 
+// Boulders on the moons: how many, how big (typical width), and in each world's colours.
+const ROCKS = {
+  pebble: { count: 50, size: [1, 2.4], palette: [0x9e978c, 0x857e74, 0xb8b2a6] },
+  nibble: { count: 24, size: [0.8, 1.8], palette: [0x7a6857, 0x8f7c68, 0x5f5044] },
+  dusty: { count: 110, size: [1.2, 3], palette: [0xa9502e, 0x8a3f25, 0xc4693c] },
+  sizzle: { count: 70, size: [1, 2.4], palette: [0x5a4030, 0x3d2a1f, 0x8a6a3a] },
+  frosty: { count: 80, size: [1, 2.6], palette: [0xcfe3ef, 0xa9c6d8, 0xe8f1f6, 0xb98a6c] },
+};
+
+/** Scatter boulders over a moon; returns the rock list (for collisions). */
+function rocks(body, group) {
+  const def = ROCKS[body.id];
+  const rand = mulberry32(body.radius * 7 + def.count);
+  // Lava vents and Dusty's caldera stay clear (the plumes and puffs rise there).
+  const hot = body.id === 'sizzle' ? SIZZLE_VENTS : body.id === 'dusty' ? [DUSTY_VOLCANO] : [];
+  const spots = [];
+  for (let tries = 0; tries < 5000 && spots.length < def.count; tries++) {
+    const z = rand() * 2 - 1;
+    const a = rand() * Math.PI * 2;
+    const k = Math.sqrt(1 - z * z);
+    const up = new THREE.Vector3(k * Math.cos(a), k * Math.sin(a), z);
+    // Like the trees, keep the strip in front of the flight path clear (rocks are low, so a
+    // narrower strip is enough, which leaves room on tiny Nibble).
+    const zw = z * body.radius;
+    if (zw > -4 && zw < 16) continue;
+    if (hot.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > Math.cos(0.12))) continue;
+    const h = body.terrainFn.height(up.x, up.y, up.z);
+    const size = def.size[0] + rand() * (def.size[1] - def.size[0]);
+    spots.push({ position: up.clone().multiplyScalar(body.radius + h - 0.1), up, size });
+  }
+  const field = createRocks(spots, rand, def.palette);
+  group.add(field.group);
+  return field.rocks;
+}
+
 /** The little village around the launch pad: pad, wooden tower, cabin and campfire. */
 function launchSite(body, group) {
   const site = new THREE.Group();
@@ -344,6 +380,7 @@ export function createBodyVisual(body) {
       const site = launchSite(body, group);
       out.updates.push((time) => site.update(time));
     }
+    if (ROCKS[body.id]) out.rocks = rocks(body, group);
   }
   group.add(mesh);
   out.mesh = mesh;
