@@ -15,7 +15,10 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
 - **Go somewhere:** open the map and tap a world.
   - **🧭 Show me how:** Pip tells you when to turn and when to burn. You fly!
   - **🤖 Fly me there:** Pip flies, you watch.
-- **Helpers:** 🌀 Orbit, ⏫ Faster / ⏬ Slower (hold), 🛬 Land.
+- **Helpers:** 🌀 Orbit, ⏫ Faster / ⏬ Slower (hold), 🛬 Land. After a "Show me how" trip, Pip
+  carries straight on and coaches the landing too: point up at the arrow, then HOLD / LET GO to
+  keep the descent gentle (Pip steps in if it gets too fast). Land coaches you if you've been
+  using "Show me how"; tap it again to let Pip land for you.
 - **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
   its colour). After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
   compass points back to your rocket, and 🏠 takes you home.

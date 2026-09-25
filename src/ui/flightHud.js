@@ -288,7 +288,7 @@ export class FlightHud {
     this.el('map-tools').classList.toggle('hidden', s.mode !== 'map');
     for (const btn of document.querySelectorAll('.helper')) btn.classList.toggle('active', s.autopilot.mode === btn.dataset.helper);
     const going = s.autopilot.mode === 'goto';
-    const coaching = going && s.autopilot.coachSession;
+    const coaching = s.autopilot.coachSession && (going || s.autopilot.mode === 'land');
     this.el('goto-btn').textContent = going && !coaching ? '✋ Stop' : '🤖 Fly me there';
     this.el('coach-btn').textContent = coaching ? '✋ Stop' : '🧭 Show me how';
     const status = this.el('status-line');

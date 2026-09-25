@@ -40,10 +40,12 @@ borrow the vibe, not the content: all names, worlds and music are original.
    the waits.
 2. **You fly it; Pip helps as much as you want.** There are three levels of help:
    - *Manual:* ⟲ ⟳ to aim, hold **GO** to burn, map, time warp, rewind.
-   - *Coach* ("🧭 Show me how"): Pip plans the transfer and tells you what to do. An arrow shows
+   - *Coach* ("🧭 Show me how"): Pip plans the transfer, then the landing, and tells you what to do. An arrow shows
      where to point, the right turn button glows, and GO says **HOLD!** / **LET GO!**. You do the
-     launch, gravity turn, transfer burn and capture brake. Pip does only the tiny correction
-     nudges and emergency ground-avoidance, which are too fiddly for small thumbs.
+     launch, gravity turn, transfer burn, capture brake and landing. The coached landing is: point
+     up at the arrow, then HOLD / LET GO to keep the descent gentle (with hysteresis so cues don't
+     flicker, and a short look-ahead for reaction time). Pip does only the tiny correction nudges,
+     emergency ground-avoidance, and takes over a landing that would be too fast.
    - *Autopilot* ("🤖 Fly me there", Orbit, Land): watch and learn.
    Helpers run closed-loop on the real state, so imperfect flying still works out.
 3. **Failure is funny and cheap.** Crashes are cartoon explosions with bouncing parts. **↺ Rewind**

@@ -252,6 +252,11 @@ export class FlightScene {
   helper(mode, { coach = false } = {}) {
     if (this.crashed) return;
     const ap = this.autopilot;
+    // "Show me how" doubles as Stop during the coached landing it leads into.
+    if (mode === 'goto' && coach && ap.coachSession && ap.mode === 'land') {
+      ap.stop();
+      return;
+    }
     if (mode === 'goto') this.likesCoaching = coach;
     // Land coaches you if you've been using "Show me how"; tapping it again mid-lesson
     // means "you do it, Pip".
