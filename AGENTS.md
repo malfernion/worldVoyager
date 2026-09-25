@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights, buggy, discoveries, friends (+ the band's music), speech, zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights, buggy, discoveries, friends (+ the band's music), speech (+ the speech queue), zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -86,6 +86,7 @@ src/world/             three.js visuals: planets (incl. rings), ambient (plumes/
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
+                       speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
 src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
 src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): playback audio session, tap-to-resume,
@@ -158,6 +159,11 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   second (`App.updateBand`); the engine only glides (`setTargetAtTime`) when a level really
   changes and schedules no notes for silent parts. Friends' parts play **only chord tones** of
   the sequencer's current chord (a test checks), so any mix of them fits.
+- **Pip says one line at a time** (#31). Every spoken line goes through `App.pip(text, { pri, key })`
+  and the speech queue (`src/ui/speechQueue.js`); never call `narrator.say()` directly, and never
+  chain lines with `setTimeout` (that's what cut lines off). To do something after Pip's
+  current lines (the next sticker), use `app.afterPip(fn)`. Give each new line a priority on
+  purpose (see "Pip's voice").
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).
@@ -227,6 +233,23 @@ npm run voice:check                                         # lists missing sent
 tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only what's missing
 ```
 
+- **The speech queue** (#31, `src/ui/speechQueue.js`, pure and tested; `App.pip` in `main.js`
+  drives it, the bubble shows the line being said). One line at a time; the next starts
+  `GAP` (0.4 s) after the last ends. Priorities (`pri`):
+  - `urgent`: crash, safety takeovers (too fast, too low). Cuts in and drops the queue.
+  - `cue`: the coach's in-flight HOLD / LET GO / turn / tiny-push lines (`CUE` in
+    `autopilot.js`), the first-flight "Blast off", the super hop. Jumps the queue and cuts the
+    current line off, unless it ends within `CUE_WAIT` (2 s). Stale after 3 s.
+  - `normal` (default): waits its turn. Stale after 30 s (stickers 60 s).
+  - `chatter`: only if Pip is free, else dropped and `pip()` returns false (idle hints, the
+    compass hints, bonk, "We're at…"). Once-only hints set their flag from that return value.
+  A `key` groups lines of one kind (`coach`, `goal`, `target`, `build`, `journal`…): a new one
+  replaces a waiting one, and a newer `cue` cuts off a playing one of the same key. The first
+  step of a coach lesson (the rocket waits for the player) is `normal` with key `coach`
+  (`COACH`), so it doesn't cut off a sticker line but is dropped if a cue overtakes it. At most
+  `CAP` (3) lines wait; the least important, oldest go first, and sticker lines (`keep`) last of all. With the voice off (or no sound
+  yet, or speech failing) a line is paced by `estimateDuration()` (fitted to the clips); a line
+  that never ends is given up after `stallTimeout()`. Music stays ducked across the gap.
 - Sampling uses the reference Orpheus settings (`REFERENCE` in `tools/voice/orpheus.py`:
   top-k 50, no min-p, long repeat window). They sounded clearly better than llama.cpp's defaults.
 - `<gasp>` and `<chuckle>` tags are OK with jess but **use them sparingly** (the `PERFORMANCE`
@@ -303,5 +326,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   did, #15). Wrap the content in a `<span>` and animate that.
 - **Friends' campfire glow in daylight:** an additive glow sprite is nearly invisible on a bright
   day-side surface at low opacity; the orbit glow needs ~0.7 opacity and a deep orange to show.
+- **Browser speech doesn't always say it's finished**: Chrome sometimes never fires `onend`
+  (or `onerror`), and before the first tap it fails at once. `Narrator.speakFallback()` gives up
+  after `stallTimeout()`, and the speech queue has its own watchdog, so Pip never goes quiet
+  for good (#31).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

@@ -78,7 +78,7 @@ fact again, or a ❓ one for a hint from Pip. Tap a friend in the 🎵 Band to h
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coach-mode flights, buggy, discoveries, friends
+npm test         # physics, autopilot missions, coach-mode flights, buggy, discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

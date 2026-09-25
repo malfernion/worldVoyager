@@ -8,6 +8,7 @@ import { FlightScene } from './scenes/flight.js';
 import { BuilderScene } from './scenes/builder.js';
 import { FlightHud } from './ui/flightHud.js';
 import { Narrator } from './ui/narrator.js';
+import { SpeechQueue } from './ui/speechQueue.js';
 import { AudioEngine } from './audio/audio.js';
 import { Progress, GOALS, STICKERS, DISCOVERY_IDS, BAND_IDS } from './progress.js';
 import { friendLevels, FRIEND_BY_ID } from './physics/friends.js';
@@ -27,6 +28,12 @@ class App {
     this.audio.listen(); // the first tap anywhere starts the sound (#24)
     if (/[?&]audiodebug/.test(location.search)) this.audio.showDebug();
     this.narrator = new Narrator(this.audio);
+    // Pip says one line at a time (#31): the bubble shows the line being said.
+    this.speech = new SpeechQueue({
+      play: (item) => this.showLine(item),
+      stop: () => this.narrator.stop(),
+      onEnd: (item) => this.lineEnded(item),
+    });
     this.applySettings();
 
     this.system = createSystem();
@@ -79,7 +86,7 @@ class App {
       const g = this.progress.currentGoal;
       this.pip(g && g.id === 'space'
         ? 'Howdy, space explorer! I\'m Pip. Let\'s build a rocket! Tap or drag parts, then press Fly!'
-        : 'Welcome back, explorer! Let\'s build a rocket!', { speak: true });
+        : 'Welcome back, explorer! Let\'s build a rocket!', { speak: true, key: 'hello' });
     });
     $('journal-btn').addEventListener('click', () => {
       this.audio.play('tap');
@@ -118,7 +125,7 @@ class App {
   /** Wipe the adventure and start again from the title screen, as on the very first visit. */
   newAdventure() {
     this.progress.reset();
-    this.narrator.stop();
+    this.speech.clear({ actions: true });
     clearTimeout(this.pipTimer);
     clearTimeout(this.stickerTimer);
     for (const id of ['settings-card', 'garage-panel', 'journal-screen', 'sticker-pop', 'pip']) $(id).classList.add('hidden');
@@ -171,9 +178,9 @@ class App {
       st.coachOffered = true;
       this.progress.save();
       const offer = 'Want me to show you how to fly? Tap the compass!';
-      this.pip(`${g.text} ${g.hint} ${offer}`, { speak: true });
+      this.pip(`${g.text} ${g.hint} ${offer}`, { speak: true, key: 'goal' });
     } else if (g) {
-      this.pip(`${g.text} ${g.hint}`, { speak: true });
+      this.pip(`${g.text} ${g.hint}`, { speak: true, key: 'goal' });
     }
   }
 
@@ -182,16 +189,47 @@ class App {
     $('goal-chip').textContent = g ? `${g.icon} Next: ${g.text}` : '🌟 You explored everything!';
   }
 
-  pip(text, { speak = false, duration } = {}) {
+  /**
+   * Pip says something (#31): it waits its turn in the speech queue, and the bubble shows it
+   * while it's said. `pri`: 'urgent' (crash, safety), 'cue' (the coach's HOLD / LET GO),
+   * 'normal', or 'chatter' (dropped if Pip is busy). `key`: lines of one kind replace each other.
+   * `duration`: keep the bubble up at least this long (ms). Returns false if dropped.
+   */
+  pip(text, { speak = false, duration, pri = 'normal', key = null, stale, onStart, keep } = {}) {
+    return this.speech.push(text, { pri, key, stale, speak, duration, onStart, keep });
+  }
+
+  /** Run fn once Pip has finished what's already queued (e.g. the next sticker after this one). */
+  afterPip(fn) {
+    this.speech.action(fn);
+  }
+
+  /** Stop talking now and drop waiting lines (a crash makes them old news). */
+  hush() {
+    this.speech.clear();
+    clearTimeout(this.pipTimer);
+    this.pipTimer = setTimeout(() => $('pip').classList.add('hidden'), 1500);
+  }
+
+  /** The speech queue starts a line: show the bubble, and say it (if the voice is on). */
+  showLine(item) {
     const box = $('pip');
-    $('pip-text').textContent = text;
+    $('pip-text').textContent = item.text;
     box.classList.remove('hidden');
     box.style.animation = 'none';
     void box.offsetWidth;
     box.style.animation = '';
     clearTimeout(this.pipTimer);
-    this.pipTimer = setTimeout(() => box.classList.add('hidden'), duration ?? 2500 + text.length * 55);
-    if (speak) this.narrator.say(text);
+    this.pipTimer = null;
+    return item.speak ? this.narrator.say(item.text) : false;
+  }
+
+  /** A line has been said: the bubble lingers a little (and at least its own minimum). */
+  lineEnded(item) {
+    const shown = performance.now() - item.started * 1000;
+    const min = item.duration ?? 2500 + item.text.length * 55;
+    const box = $('pip');
+    this.pipTimer = setTimeout(() => box.classList.add('hidden'), Math.max(1500, min - shown));
   }
 
   onSticker(id) {
@@ -199,25 +237,29 @@ class App {
     // Landing, visiting and discovery (#15) stickers show their world.
     const bodyId = id.startsWith('land-') || id.startsWith('visit-') ? id.split('-')[1] : st.world ?? null;
     const body = bodyId ? this.system.byId[bodyId] : null;
-    this.audio.play('sticker');
-    const img = $('sticker-img');
-    if (body) img.src = this.thumbs[body.id];
-    else img.removeAttribute('src');
-    $('sticker-icon').textContent = st.icon;
-    $('sticker-name').textContent = st.name;
-    const pop = $('sticker-pop');
-    pop.classList.remove('hidden');
-    pop.style.animation = 'none';
-    void pop.offsetWidth;
-    pop.style.animation = '';
-    clearTimeout(this.stickerTimer);
-    this.stickerTimer = setTimeout(() => pop.classList.add('hidden'), 3200);
+    // The sticker pops up when Pip gets to it, so it matches what Pip is saying.
+    const pop = () => {
+      this.audio.play('sticker');
+      const img = $('sticker-img');
+      if (body) img.src = this.thumbs[body.id];
+      else img.removeAttribute('src');
+      $('sticker-icon').textContent = st.icon;
+      $('sticker-name').textContent = st.name;
+      const el = $('sticker-pop');
+      el.classList.remove('hidden');
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+      clearTimeout(this.stickerTimer);
+      this.stickerTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+    };
     const line = id.startsWith('land-') ? `You landed on ${body.name}! ${body.blurb}` : st.say || st.name;
-    this.pip(line, { speak: true, duration: Math.max(7000, line.length * 70) });
+    // A sticker is worth waiting for: it keeps longer in the queue than other news, and a full
+    // queue drops other lines before it (a first landing can bring a sticker, a discovery and a friend).
+    this.pip(line, { speak: true, duration: Math.max(7000, line.length * 70), stale: 60, onStart: pop, keep: true });
     const next = this.progress.currentGoal;
-    if (next && GOALS.some((g) => g.id === id)) {
-      setTimeout(() => this.pip(`Next: ${next.text}`, { speak: true }), 7500);
-    }
+    // Then the next goal, once that's been said.
+    if (next && GOALS.some((g) => g.id === id)) this.pip(`Next: ${next.text}`, { speak: true, key: 'goal' });
     this.updateGoalChip();
   }
 
@@ -232,7 +274,7 @@ class App {
       card.innerHTML = `<img src="${this.thumbs[b.id]}" alt=""><b>${visited ? b.name : '???'}</b><div class="badges">${badges}</div>`;
       card.addEventListener('click', () => {
         this.audio.play('tap');
-        this.pip(visited ? b.blurb : 'We haven\'t been there yet. Let\'s go exploring!', { speak: true, duration: 8000 });
+        this.pip(visited ? b.blurb : 'We haven\'t been there yet. Let\'s go exploring!', { speak: true, duration: 8000, key: 'journal' });
       });
       worlds.appendChild(card);
     }
@@ -259,7 +301,7 @@ class App {
       d.addEventListener('click', () => {
         this.audio.play('tap');
         const line = has ? st.say : st.hint;
-        this.pip(line, { speak: true, duration: Math.max(6000, line.length * 70) });
+        this.pip(line, { speak: true, duration: Math.max(6000, line.length * 70), key: 'journal' });
       });
       found.appendChild(d);
     }
@@ -273,7 +315,7 @@ class App {
     pip.innerHTML = '<span>🪕</span>Pip';
     pip.addEventListener('click', () => {
       this.audio.play('tap');
-      this.pip('That\'s me! I play the banjo.', { speak: true });
+      this.pip('That\'s me! I play the banjo.', { speak: true, key: 'journal' });
     });
     band.appendChild(pip);
     for (const id of BAND_IDS) {
@@ -286,7 +328,7 @@ class App {
       d.addEventListener('click', () => {
         this.audio.play('tap');
         const line = has ? st.say : st.hint;
-        this.pip(line, { speak: true, duration: Math.max(6000, line.length * 70) });
+        this.pip(line, { speak: true, duration: Math.max(6000, line.length * 70), key: 'journal' });
         if (has && FRIEND_BY_ID[id]) this.solo = { id, until: performance.now() + 9000 };
       });
       band.appendChild(d);

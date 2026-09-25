@@ -71,7 +71,12 @@ borrow the vibe, not the content: all names, worlds and music are original.
 3. **Failure is funny and cheap.** Crashes are cartoon explosions with bouncing parts. **↺ Rewind**
    goes back 5 seconds, or you can go back to the pad or the workshop.
 4. **Readable without reading.** Emoji icons, a height meter with a space line, a spoken narrator
-   (speech synthesis, can be turned off), and stickers.
+   (recorded lines, browser speech for the rest, can be turned off), and stickers.
+   Pip says **one line at a time** (#31): a new line waits for the current one to finish, then
+   a short pause, so a child hears every sentence to the end. Only what can't wait cuts in:
+   a crash or safety takeover, and the coach's HOLD / LET GO cues (a newer cue replaces an
+   older one). Idle hints are dropped if Pip is busy, and the queue stays short, so Pip never
+   reads out a backlog of old news. Stickers pop up when Pip gets to them.
 
 ## Structure
 
@@ -86,7 +91,7 @@ src/physics/   pure, headless, unit-tested
 src/world/     three.js visuals: planets, rings, atmospheres, sky, effects, thumbnails
 src/rocket/    parts catalogue + stats, procedural rocket meshes
 src/scenes/    builder (drag & drop workshop) and flight (flight cam + map)
-src/ui/        flight HUD & gestures, narrator
+src/ui/        flight HUD & gestures, narrator + its speech queue
 src/audio/     procedural campfire music + sound effects (WebAudio, no asset files), and the
                iPad/iPhone unlock (first tap anywhere starts the sound, later taps resume it)
 ```

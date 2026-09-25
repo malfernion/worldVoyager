@@ -170,7 +170,7 @@ export class BuilderScene {
       this.design = { stack: [] };
       this.app.audio.play('remove');
       this.rebuild();
-      this.app.pip('A fresh start! Drag or tap parts to build.', { speak: true });
+      this.app.pip('A fresh start! Drag or tap parts to build.', { speak: true, key: 'build' });
     });
     $('garage-done').addEventListener('click', () => {
       this.app.audio.play('tap');
@@ -180,7 +180,7 @@ export class BuilderScene {
       const stats = rocketStats(this.design);
       if (!stats.canFly) {
         this.app.audio.play('boing');
-        this.app.pip(PROBLEMS[stats.problem], { speak: true });
+        this.app.pip(PROBLEMS[stats.problem], { speak: true, key: 'build' });
         return;
       }
       this.app.launch(this.design);
@@ -223,7 +223,7 @@ export class BuilderScene {
     if (def.slot === 'radial') {
       const holders = stack.map((p, i) => ({ p, i })).filter(({ p }) => HOLDS_RADIAL.has(p.type));
       if (!holders.length) {
-        this.app.pip(`${def.name} need a tube to hold on to. Add a tube first!`, { speak: true });
+        this.app.pip(`${def.name} need a tube to hold on to. Add a tube first!`, { speak: true, key: 'build' });
         return false;
       }
       const free = holders.filter(({ p }) => !p.radial);
@@ -234,7 +234,7 @@ export class BuilderScene {
     const part = { type, paint };
     if (def.garage) {
       if (garageOf(this.design)) {
-        this.app.pip('One garage is plenty! Tap it to pick your buggy.', { speak: true });
+        this.app.pip('One garage is plenty! Tap it to pick your buggy.', { speak: true, key: 'build' });
         return false;
       }
       part.buggy = { ...DEFAULT_BUGGY };
@@ -365,7 +365,7 @@ export class BuilderScene {
           g.buggy.kind = kind;
           this.app.audio.play('snap');
           const lines = { rover: 'The Rover! Nice and easy to drive.', truck: 'The Monster Truck! Big bouncy wheels that climb anything.', hopper: 'The Hopper! It can jump!' };
-          this.app.pip(lines[kind], { speak: true });
+          this.app.pip(lines[kind], { speak: true, key: 'build' });
           this.rebuild();
           render();
         });
@@ -393,7 +393,7 @@ export class BuilderScene {
   maybeOpenGarage() {
     if (!this.pendingGarage) return;
     this.pendingGarage = false;
-    this.app.pip('A garage! Pick a buggy to drive around on other worlds.', { speak: true });
+    this.app.pip('A garage! Pick a buggy to drive around on other worlds.', { speak: true, key: 'build' });
     this.openGarage();
   }
 
@@ -495,7 +495,7 @@ export class BuilderScene {
       if (it.carried && HOLDS_RADIAL.has(it.type)) part.radial = it.carried;
       if (PARTS[it.type].garage) {
         if (garageOf(this.design)) {
-          this.app.pip('One garage is plenty! Tap it to pick your buggy.', { speak: true });
+          this.app.pip('One garage is plenty! Tap it to pick your buggy.', { speak: true, key: 'build' });
           this.app.audio.play('boing');
           this.rebuild();
           return;

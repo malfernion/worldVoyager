@@ -45,7 +45,7 @@ export class FlightHud {
     click('crash-build', () => this.app.toBuilder());
     this.el('goal-banner').addEventListener('click', () => {
       const g = this.app.progress.currentGoal;
-      if (g) this.app.pip(g.hint, { speak: true });
+      if (g) this.app.pip(g.hint, { speak: true, key: 'goal' });
     });
     this.bindKeys();
     this.bindZoomSlider();

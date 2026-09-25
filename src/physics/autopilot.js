@@ -5,6 +5,13 @@ import { propagate, elements, wrapPi } from './orbit.js';
 import { predict } from './predict.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// How the speech queue treats a line (#31, src/ui/speechQueue.js). Cues in flight are
+// time-critical and cut in; the first step of a lesson (the rocket waits for the player) waits
+// its turn. A newer coach line replaces an older one still waiting. Safety takeovers cut in.
+// Anything else waits its turn.
+const CUE = { pri: 'cue', key: 'coach' };
+const COACH = { key: 'coach' };
+const URGENT = { pri: 'urgent' };
 
 // The comet is far too small to aim a whole trip at, so a trip only has to pass this close;
 // then Pip homes in on it (catchComet).
@@ -272,7 +279,7 @@ export class Autopilot {
   }
 
   /** Say one thing when flying for them, another when coaching. */
-  tip(auto, coach, extra) {
+  tip(auto, coach, extra = {}) {
     this.say(this.coach ? coach : auto, extra);
   }
 
@@ -311,8 +318,7 @@ export class Autopilot {
     let dir = -1;
     if (!f.state.landed && f.speed > 5) dir = f.elements().dir;
     const fromGround = f.state.landed;
-    // One line at a time: a new line cuts the last one off.
-    if (this.coach && fromGround) this.say('First we fly up high. Point up and hold GO!');
+    if (this.coach && fromGround) this.say('First we fly up high. Point up and hold GO!', COACH);
     else if (!quiet) this.say('Up, up and away! Let\'s go around!');
     this.status = 'Flying up';
 
@@ -333,12 +339,12 @@ export class Autopilot {
     this.setThrottle(0);
     // A comet's pull is so weak that going round it is all tiny pushes, so Pip does the rest.
     if (body.comet) {
-      if (this.coach && fromGround) this.say('Let go! Comets are tricky, so I\'ll steer us round.');
+      if (this.coach && fromGround) this.say('Let go! Comets are tricky, so I\'ll steer us round.', CUE);
       const ok = yield* this.catchComet(body, null);
       if (ok && !quiet) this.say(`Hooray! We're in orbit around ${body.name}! Round and round we go!`);
       return ok;
     }
-    if (this.coach && fromGround) this.say('Let go! Now we glide up to the top.');
+    if (this.coach && fromGround) this.say('Let go! Now we glide up to the top.', CUE);
 
     // 2. Coast up to the high point.
     this.status = 'Coasting to the top';
@@ -360,7 +366,7 @@ export class Autopilot {
 
     // 3. Burn sideways until the path is nice and round.
     this.status = 'Going around!';
-    if (this.coach) this.say(fromGround ? 'Turn sideways to the arrow and hold GO, so we go around!' : 'Follow the arrow and hold GO to make our path nice and round.');
+    if (this.coach) this.say(fromGround ? 'Turn sideways to the arrow and hold GO, so we go around!' : 'Follow the arrow and hold GO to make our path nice and round.', CUE);
     this.warp = 1;
     const wasCoach = this.coach;
     let guard = 0;
@@ -382,14 +388,14 @@ export class Autopilot {
       // A late LET GO on a small moon flings us right out of orbit, so Pip does the last bit.
       if (this.coach && need < f.stats.accel * 0.5) {
         this.coach = false;
-        this.say(`Let go! We're going around ${body.name}!`);
+        this.say(`Let go! We're going around ${body.name}!`, CUE);
       }
       this.setThrottle(ok ? clamp(need / (f.stats.accel * 0.5), 0.05, 1) : 0);
       yield;
     }
     this.setThrottle(0);
     // The player finished it themselves (Pip didn't take the last bit)?
-    if (this.coach) this.say(`Let go! We're going around ${body.name}!`);
+    if (this.coach) this.say(`Let go! We're going around ${body.name}!`, CUE);
     if (wasCoach && !this.coach) f.targetAngle = null;
     this.coach = wasCoach;
     // A coached player just heard "Let go! We're going around…", which says it already.
@@ -473,7 +479,7 @@ export class Autopilot {
   cue(text) {
     if (this.clock - this.saidAt < 3 || this.clock - this.cuedAt < 1.5) return;
     const at = this.saidAt;
-    this.say(text);
+    this.say(text, CUE);
     this.saidAt = at; // short cues shouldn't hold back the next one
     this.cuedAt = this.clock;
   }
@@ -489,7 +495,7 @@ export class Autopilot {
     const f = this.flight;
     const wasCoach = this.coach;
     this.coach = false;
-    this.say(line);
+    this.say(line, CUE);
     this.warp = 1;
     for (let guard = 0; guard < 60 * 20 && !f.state.landed && !f.state.crashed; guard++) {
       const d = this.descent();
@@ -528,12 +534,12 @@ export class Autopilot {
     // Only long sideways stops (a second or more of GO) are left to the player.
     let sideways = Math.abs(d.vt) > amax;
     if (sideways) {
-      this.say(`${intro} ${stopSide}`);
+      this.say(`${intro} ${stopSide}`, COACH);
     } else if (Math.abs(d.vt) > 1.5) {
       yield* this.stopSideways(`${intro} ${tinyPush}`);
-      this.say(pointUp);
+      this.say(pointUp, CUE);
     } else {
-      this.say(`${intro} ${pointUp}`);
+      this.say(`${intro} ${pointUp}`, COACH);
     }
     let hold = false;
     let flipAt = -Infinity;
@@ -550,7 +556,7 @@ export class Autopilot {
         // Safety first: if it's gone badly, Pip lands the last bit (like the other takeovers).
         this.coach = false;
         this.goPower = 1;
-        this.say('Whoa, too fast! I\'ll catch us this time.');
+        this.say('Whoa, too fast! I\'ll catch us this time.', URGENT);
         // Brake hard first, then the Land helper finishes gently.
         for (let e = d; !f.state.landed && !f.state.crashed && -e.vr > vLand; e = this.descent()) {
           this.setThrottle(this.aim(e.up + clamp(-e.vt * 0.2, -0.2, 0.2), 0.3) ? 1 : 0);
@@ -572,7 +578,7 @@ export class Autopilot {
           continue;
         }
         sideways = false;
-        this.say(`Let go! ${pointUp}`);
+        this.say(`Let go! ${pointUp}`, CUE);
       }
       // Still drifting a lot? Pip tidies that up while there's room.
       if (Math.abs(d.vt) > 4 && d.alt > 10) {
@@ -821,7 +827,7 @@ export class Autopilot {
     const burnT = dvAbs / f.stats.accel;
     const start = plan.tb - burnT / 2;
     this.status = 'Waiting for the right moment';
-    if (this.coach) this.say(`See the fire on the map? When we get there, point along the arrow and hold GO!`);
+    if (this.coach) this.say(`See the fire on the map? When we get there, point along the arrow and hold GO!`, COACH);
     const home = f.state.body;
     while (f.state.t < start) {
       if (f.state.body !== home) return false;
@@ -832,7 +838,7 @@ export class Autopilot {
       yield;
     }
     this.status = 'Blast off!';
-    this.tip('Now! Full power!', 'Now! Hold GO!');
+    this.tip('Now! Full power!', 'Now! Hold GO!', this.coach ? CUE : {});
     this.warp = 1;
     const dv0 = f.dvUsed;
     const hopBody = plan.hop.body;
@@ -866,7 +872,7 @@ export class Autopilot {
       yield;
     }
     this.setThrottle(0);
-    if (this.coach) this.say(`Let go! We're on our way to ${hopBody.name}!`);
+    if (this.coach) this.say(`Let go! We're on our way to ${hopBody.name}!`, CUE);
     this.marker = null;
     return true;
   }
@@ -956,7 +962,7 @@ export class Autopilot {
     const wasCoach = this.coach;
     if (wasCoach) {
       this.coach = false;
-      this.say('I\'ll do this tiny push for you!');
+      this.say('I\'ll do this tiny push for you!', CUE);
     }
     let guard = 0;
     while (!this.aim(angle, 0.1) && guard++ < 400) {
@@ -979,7 +985,8 @@ export class Autopilot {
     const f = this.flight;
     if (body.comet) return yield* this.catchComet(body);
     this.status = `Arriving at ${body.name}`;
-    if (announce) this.say(`We're at ${body.name}!`, { visiting: body });
+    // Chatter: usually Pip is still saying the welcome for this world.
+    if (announce) this.say(`We're at ${body.name}!`, { visiting: body, pri: 'chatter' });
     const floor = body.solid ? body.maxSurface : body.radius;
     const want = parkingRadius(body);
 
@@ -1000,7 +1007,7 @@ export class Autopilot {
       const wasCoach = this.coach;
       if (wasCoach) {
         this.coach = false;
-        this.say('Whoa, too low! I\'ll steer us away from the ground!');
+        this.say('Whoa, too low! I\'ll steer us away from the ground!', URGENT);
       }
       while (el.rp < want * 0.95 && f.state.body === body && !f.state.landed) {
         const up = f.upAngle;
@@ -1064,9 +1071,9 @@ export class Autopilot {
       // Pip's "Moving closer" below does it all.
     } else if (this.coach && tiny()) {
       this.coach = false;
-      this.say('I\'ll do this tiny push for you!');
+      this.say('I\'ll do this tiny push for you!', CUE);
     } else {
-      this.tip('Slow down, rocket!', 'Point backwards to the arrow and hold GO to slow down, or we\'ll zoom right past!');
+      this.tip('Slow down, rocket!', 'Point backwards to the arrow and hold GO to slow down, or we\'ll zoom right past!', this.coach ? CUE : {});
     }
     this.warp = 1;
     for (let guard = 0; !inMoonPath && guard < 60 * 60 && f.state.body === body && !f.state.landed; guard++) {
@@ -1074,14 +1081,14 @@ export class Autopilot {
       if (f.elements().e < 0.03 || err < 0.1) break;
       if (this.coach && err < f.stats.accel * 0.5) {
         this.coach = false;
-        this.say(`Let go! We're going around ${body.name}!`);
+        this.say(`Let go! We're going around ${body.name}!`, CUE);
       }
       const ok = this.aim(angle, 0.25);
       this.setThrottle(ok ? clamp(err / (f.stats.accel * 0.3), 0.1, 1) : 0);
       yield;
     }
     this.setThrottle(0);
-    if (this.coach && !inMoonPath && f.state.body === body) this.say(`Let go! We're going around ${body.name}!`);
+    if (this.coach && !inMoonPath && f.state.body === body) this.say(`Let go! We're going around ${body.name}!`, CUE);
 
     // Parked way up high, at the edge of this world's pull, or across a moon's path? Drop down
     // to a cosy orbit (lower the low point, then round it off). Pip does this bit even when

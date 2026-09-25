@@ -308,7 +308,7 @@ export class FlightScene {
       this.helper('orbit');
       return;
     }
-    this.app.pip(on ? 'I\'ll tell you when to hold GO!' : 'I\'ll fly, you watch!', { speak: true });
+    this.app.pip(on ? 'I\'ll tell you when to hold GO!' : 'I\'ll fly, you watch!', { speak: true, key: 'coach-switch' });
   }
 
   /** A trip from the target card is running (including the landing a coached trip ends with). */
@@ -347,13 +347,14 @@ export class FlightScene {
     this.target = body;
     this.prediction = null;
     this.app.hud.showTarget(body);
-    if (body) this.app.pip(`That's ${body.name}! Tap the button to fly there!`, { speak: true });
+    if (body) this.app.pip(`That's ${body.name}! Tap the button to fly there!`, { speak: true, key: 'target' });
   }
 
   // ---- events --------------------------------------------------------------
 
   onPilotMessage(m) {
-    if (m.text) this.app.pip(m.text, { speak: true });
+    // The helper says how urgent each line is (coach cues, safety takeovers, chat).
+    if (m.text) this.app.pip(m.text, { speak: true, pri: m.pri, key: m.key });
     // A helper just finished: a GO still held from its last cue mustn't burn on by itself.
     if (m.done) this.goLatched = true;
     if (m.visiting) this.discover(m.visiting);
@@ -369,7 +370,8 @@ export class FlightScene {
     switch (type) {
       case 'liftoff':
         if (d.body === this.system.home && this.flight.state.landAngle === Math.PI / 2 && !app.progress.has('space')) {
-          app.pip('Blast off! Keep holding GO!', { speak: true });
+          // Replaces the goal line (how to blast off): that's being done now.
+          app.pip('Blast off! Keep holding GO!', { speak: true, pri: 'cue', key: 'goal' });
         }
         break;
       case 'soi': {
@@ -381,7 +383,7 @@ export class FlightScene {
         } else if (d.to.kind === 'star') {
           app.pip(`We're flying around Ember now! ${d.from.name} is behind us.`, { speak: true });
         } else {
-          app.pip(`Back in ${d.to.name}'s space.`, { speak: false });
+          app.pip(`Back in ${d.to.name}'s space.`, { speak: false, pri: 'chatter' });
         }
         if (this.mode === 'map') this.focusMapOn(d.to, true);
         break;
@@ -406,10 +408,9 @@ export class FlightScene {
         else if (!found && !met) app.pip(`Touchdown on ${b.name}! ${b.icon}`, { speak: true });
         this.warpIndex = 0;
         this.discover(b);
-        // Landed right by (or in) a discovery: straight away, or after the landing sticker.
-        const wait = first ? 7500 : 0;
-        if (found) setTimeout(() => this.found(found), wait);
-        if (met) setTimeout(() => this.metFriend(met), wait + (found ? 7500 : 0));
+        // Landed right by (or in) a discovery or a friend: once Pip has said what's before it.
+        if (found) app.afterPip(() => this.found(found));
+        if (met) app.afterPip(() => this.metFriend(met));
         break;
       }
       case 'crash': {
@@ -420,15 +421,19 @@ export class FlightScene {
         this.debris.explode(this.rocket, s.body, { x: s.x, y: s.y }, s.angle, Math.atan2(s.y, s.x));
         this.rocketHolder.visible = false;
         this.burst(s.body, 'explosion');
-        if (d.reason === 'gas') app.progress.earn('dive');
-        const first = app.progress.earn('kaboom');
+        // A crash makes anything Pip was about to say old news.
+        app.hush();
+        const first = !app.progress.has('kaboom');
         const lines = {
           gas: `Whoosh! ${s.body.name} is made of clouds, there's no ground!`,
           star: 'Yikes, too hot! Ember is a star!',
           fast: 'Kaboom! Too fast! Slow down before landing.',
           tipped: 'Oops, we tipped over! Land standing up straight.',
         };
-        if (!first) app.pip(lines[d.reason] || 'Kaboom!', { speak: true });
+        if (!first) app.pip(lines[d.reason] || 'Kaboom!', { speak: true, pri: 'urgent' });
+        // Stickers after the crash line, so it doesn't cut their lines off.
+        if (d.reason === 'gas') app.progress.earn('dive');
+        app.progress.earn('kaboom');
         setTimeout(() => this.crashed && app.hud.showCrash(), 1400);
         break;
       }
@@ -461,10 +466,8 @@ export class FlightScene {
     this.landmarkCtx.hello = { id, time: this.time };
     this.discover();
     app.progress.earn(id);
-    // The last one: time to take everyone home (after Pip's hello).
-    if (allFound(has) && !has(FULL_BAND)) {
-      setTimeout(() => app.pip('That\'s everyone! Let\'s go home to the campfire!', { speak: true }), 10000);
-    }
+    // The last one: time to take everyone home (queued after Pip's hello).
+    if (allFound(has) && !has(FULL_BAND)) app.pip('That\'s everyone! Let\'s go home to the campfire!', { speak: true });
   }
 
   /**

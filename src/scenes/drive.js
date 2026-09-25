@@ -133,7 +133,7 @@ export class DriveMode {
     const fs = this.fs;
     const d = vec.len(vec.sub(this.buggy.p, this.rocketFoot()));
     if (d > 12) {
-      fs.app.pip('Whoosh! Back to the rocket!', { speak: false });
+      fs.app.pip('Whoosh! Back to the rocket!', { speak: false, pri: 'chatter' });
       fs.app.audio.play('rewind');
       this.sparkle();
     }
@@ -286,10 +286,8 @@ export class DriveMode {
     this.bonkWait = 0.5;
     this.shake = Math.min(0.35, speed * 0.04);
     fs.app.audio.play(o?.tree ? 'bonkTree' : 'bonk');
-    if (!this.bonked) {
-      this.bonked = true;
-      fs.app.pip('Bonk! Back up and steer around it.', { speak: true });
-    }
+    // A tip only helps right away: if Pip's busy, try again at the next bonk.
+    if (!this.bonked) this.bonked = fs.app.pip('Bonk! Back up and steer around it.', { speak: true, pri: 'chatter' });
     if (!o?.up) return;
     const up = o.up;
     if (o.tree) {
@@ -322,10 +320,8 @@ export class DriveMode {
     // Driving the Hopper on Nibble: a whispered hint, once a session until the sticker is earned.
     if (b.canOrbit && !this.whispered && !app.progress.has('orbit-nibble')) {
       this.driven = (this.driven || 0) + dt;
-      if (this.driven > 6) {
-        this.whispered = true;
-        app.pip('Psst! Drive really fast, then jump and hold it!', { speak: true });
-      }
+      // Whispered when Pip isn't busy saying something else.
+      if (this.driven > 6) this.whispered = app.pip('Psst! Drive really fast, then jump and hold it!', { speak: true, pri: 'chatter' });
     }
     if (b.superHop) {
       b.superHop = false;
@@ -333,7 +329,7 @@ export class DriveMode {
       app.audio.play('whoosh');
       if (!this.hinted) {
         this.hinted = true;
-        app.pip('Super hop! Keep holding jump to fire the jets!', { speak: true });
+        app.pip('Super hop! Keep holding jump to fire the jets!', { speak: true, pri: 'cue', key: 'hop' });
       }
     }
     if (b.puffed) {
@@ -345,7 +341,7 @@ export class DriveMode {
     if (b.braking && Math.random() < dt * 25) this.jetPuff(1, 3);
     if (b.orbiting && !this.halfway && b.lap > Math.PI && !app.progress.has('orbit-nibble')) {
       this.halfway = true;
-      app.pip('Halfway round! Keep going!', { speak: true });
+      app.pip('Halfway round! Keep going!', { speak: true, stale: 5 });
     }
     if (b.orbited) {
       b.orbited = false;
@@ -362,7 +358,7 @@ export class DriveMode {
         this.fs.app.audio.play('whoosh');
         if (!this.fizzed) {
           this.fizzed = true;
-          this.fs.app.pip('Whee! Gas from the comet is pushing us up!', { speak: true });
+          this.fs.app.pip('Whee! Gas from the comet is pushing us up!', { speak: true, stale: 5 });
         }
       }
       if (Math.random() < dt * 30 * b.fizz) {
@@ -410,13 +406,9 @@ export class DriveMode {
       this.sought = (this.sought || 0) + 0.1;
       if (this.sought > 3) {
         this.sought = 0;
-        if (friend) {
-          this.notesHinted = true;
-          app.pip('Listen! Can you hear music? Follow the notes!', { speak: true });
-        } else {
-          this.compassHinted = true;
-          app.pip('Psst! Follow the sparkles to find a secret!', { speak: true });
-        }
+        // Only when Pip isn't busy (else try again in a few seconds).
+        if (friend) this.notesHinted = app.pip('Listen! Can you hear music? Follow the notes!', { speak: true, pri: 'chatter' });
+        else this.compassHinted = app.pip('Psst! Follow the sparkles to find a secret!', { speak: true, pri: 'chatter' });
       }
     }
   }
