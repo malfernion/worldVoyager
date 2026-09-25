@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { propagate, elements } from '../src/physics/orbit.js';
+import { propagate, elements, anomalyOf, pointAt } from '../src/physics/orbit.js';
 import { createSystem } from '../src/physics/bodies.js';
 import { Flight } from '../src/physics/sim.js';
-import { predict } from '../src/physics/predict.js';
+import { predict, segmentPoints, nearRadial, radialApex } from '../src/physics/predict.js';
 import { inStableOrbit, nextHop } from '../src/physics/autopilot.js';
 import { mission, kidFlies } from './missions.js';
 
@@ -113,6 +113,106 @@ describe('predict', () => {
     const pred = predict(s);
     expect(pred.segments[0].end).toBe('exit');
     expect(pred.segments[1].body.id).toBe('ember');
+  });
+});
+
+describe('drawing the predicted path (#19)', () => {
+  // Launch from the ground at angle `ang`, `tilt` radians off vertical.
+  const launch = (tilt, speed = 40, ang = 0.7) => {
+    const sys = createSystem();
+    const home = sys.home;
+    const r = home.surfaceAt(ang) + 1;
+    const d = ang - tilt;
+    return { home, state: { body: home, x: r * Math.cos(ang), y: r * Math.sin(ang), vx: speed * Math.cos(d), vy: speed * Math.sin(d), t: 0 } };
+  };
+  const radii = (pts) => {
+    const out = [];
+    for (let k = 0; k < pts.length; k += 2) out.push(Math.hypot(pts[k], pts[k + 1]));
+    return out;
+  };
+  // Every drawn point should lie on the real path: match a brute-force integration in time.
+  const onPath = (s, seg, pts) => {
+    let worst = 0;
+    for (let k = 0; k < pts.length; k += 2) {
+      let best = Infinity;
+      for (let i = 0; i <= 400; i++) {
+        const q = propagate(s.body.mu, s.x, s.y, s.vx, s.vy, ((seg.t1 - seg.t0) * i) / 400);
+        best = Math.min(best, Math.hypot(q.x - pts[k], q.y - pts[k + 1]));
+      }
+      worst = Math.max(worst, best);
+    }
+    return worst;
+  };
+
+  it('draws a straight-up launch as an up-and-down line with its apex', () => {
+    const { home, state } = launch(0);
+    const seg = predict(state).segments[0];
+    expect(seg.end).toBe('impact');
+    expect(nearRadial(seg)).toBe(true);
+    const pts = segmentPoints(seg, 200);
+    const r = radii(pts);
+    // Not collapsed onto the centre: every point is at or above the ground.
+    expect(Math.min(...r)).toBeGreaterThan(home.radius * 0.9);
+    const apex = radialApex(seg);
+    const rTop = Math.hypot(apex.x, apex.y);
+    // Energy says how high it climbs: v^2/2 - mu/r0 = -mu/rTop.
+    const r0 = Math.hypot(state.x, state.y);
+    const expected = home.mu / (home.mu / r0 - (state.vx ** 2 + state.vy ** 2) / 2);
+    expect(rTop).toBeCloseTo(expected, 1);
+    expect(Math.max(...r)).toBeGreaterThan(rTop - 1);
+    expect(rTop - r0).toBeGreaterThan(50);
+    // Points are spread along the path, not bunched: consecutive radii step smoothly.
+    expect(new Set(r.map((v) => Math.round(v))).size).toBeGreaterThan(50);
+    // Straight up, straight down: every point stays on the launch line.
+    for (let k = 0; k < pts.length; k += 2) {
+      expect(Math.abs(Math.atan2(pts[k + 1], pts[k]) - 0.7)).toBeLessThan(1e-3);
+    }
+    expect(apex.t).toBeGreaterThan(0);
+    expect(apex.t).toBeLessThan(seg.t1 - seg.t0);
+  });
+
+  it('draws a slightly tilted launch along the real curve', () => {
+    for (const tilt of [0.01, 0.05, 0.2]) {
+      const { state } = launch(tilt);
+      const seg = predict(state).segments[0];
+      const pts = segmentPoints(seg, 200);
+      expect(onPath(state, seg, pts)).toBeLessThan(2);
+      expect(Math.max(...radii(pts)) - Math.hypot(state.x, state.y)).toBeGreaterThan(40);
+    }
+  });
+
+  it('draws the same curve on either side of the near-radial threshold', () => {
+    // Sweep the tilt through the switch between time and angle sampling: the apex stays put.
+    let prevTop = null;
+    for (let tilt = 0; tilt <= 0.6; tilt += 0.01) {
+      const { state } = launch(tilt, 50);
+      const seg = predict(state).segments[0];
+      const pts = segmentPoints(seg, 200);
+      expect(onPath(state, seg, pts)).toBeLessThan(3);
+      const top = Math.max(...radii(pts));
+      if (prevTop !== null) expect(Math.abs(top - prevTop)).toBeLessThan(3);
+      prevTop = top;
+      // The ▲ marker (found in time or from the conic, as flight.js does) sits at the top.
+      const ap = nearRadial(seg) ? radialApex(seg) : pointAt(seg.el, Math.PI);
+      expect(Math.hypot(ap.x, ap.y)).toBeCloseTo(seg.el.ra, 0);
+    }
+  });
+
+  it('still draws normal orbits by angle', () => {
+    const sys = createSystem();
+    const home = sys.home;
+    const r = 400, v = Math.sqrt(home.mu / r) * 1.1;
+    const seg = predict({ body: home, x: r, y: 0, vx: 0, vy: v, t: 0 }).segments[0];
+    expect(seg.closed).toBe(true);
+    expect(nearRadial(seg)).toBe(false);
+    const pts = segmentPoints(seg, 100);
+    // Evenly spaced in true anomaly, as before.
+    const nu0 = anomalyOf(seg.el, r, 0);
+    for (const i of [0, 25, 50, 75]) {
+      const q = pointAt(seg.el, nu0 + (Math.PI * 2 * i) / 100);
+      expect(pts[i * 2]).toBeCloseTo(q.x, 6);
+      expect(pts[i * 2 + 1]).toBeCloseTo(q.y, 6);
+    }
   });
 });
 

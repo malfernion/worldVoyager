@@ -5,7 +5,7 @@ import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { Flight } from '../physics/sim.js';
-import { predict, segmentPoints } from '../physics/predict.js';
+import { predict, segmentPoints, nearRadial, radialApex } from '../physics/predict.js';
 import { Autopilot, inStableOrbit } from '../physics/autopilot.js';
 import { pointAt, propagate } from '../physics/orbit.js';
 import { buildRocket } from '../rocket/rocketMesh.js';
@@ -861,7 +861,13 @@ export class FlightScene {
         const { seg } = f;
         const el = seg.el;
         const span = seg.t1 - seg.t0;
-        if (!f.moving && el.e < 1 && el.ra < seg.body.soi && el.timeToAp !== null && (seg.closed || el.timeToAp < span)) {
+        const radial = !f.moving && nearRadial(seg);
+        const apex = radial ? radialApex(seg) : null;
+        if (apex) {
+          // Straight up: the conic is a line, so find the top of the climb in time instead.
+          const q = f.at(apex.x, apex.y, seg.t0 + apex.t);
+          this.placeMarker(this.marker(`ap-${i}`, 'apsis', '▲'), q.x, q.y);
+        } else if (!radial && !f.moving && el.e < 1 && el.ra < seg.body.soi && el.timeToAp !== null && (seg.closed || el.timeToAp < span)) {
           const p = pointAt(el, Math.PI);
           const q = f.at(p.x, p.y, seg.t0 + el.timeToAp);
           this.placeMarker(this.marker(`ap-${i}`, 'apsis', '▲'), q.x, q.y);

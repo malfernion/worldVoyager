@@ -10,7 +10,10 @@ circularise into orbit → plan a transfer (Hohmann burn at the right *phase ang
 capture burn at periapsis → deorbit → suicide-burn landing. KSP simulates this with *patched
 conics*: only one body pulls on you at a time, and you switch bodies at the edge of each
 "sphere of influence" (SOI). The map shows your predicted conic, apoapsis/periapsis, future SOI
-patches and a "ghost" of the moon where you'll meet it. We keep all of that.
+patches and a "ghost" of the moon where you'll meet it. We keep all of that. Paths are drawn
+from the conic's geometry, except near-vertical ones (a squashed conic whose geometry
+degenerates to the planet's centre), which are sampled in time instead: a kid sees the
+straight up-and-down line, ▲ at the top and 💥 at the bottom, from the moment of liftoff.
 
 **What KSP makes hard, and we drop:** fuel and staging (every rocket has endless fuel), structural
 wobble, aerodynamics and heat, maneuver-node editing, inclination (everything is in one

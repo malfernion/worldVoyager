@@ -121,9 +121,57 @@ export function predict(state, opts = {}) {
   return { segments, closest: closestRef.value };
 }
 
+// Flying straight up gives a conic squashed into a line through the planet's centre (p ~ 0,
+// e ~ 1), so building points from p and e puts them all at the centre. Below this p / r we sample
+// such "barely curved" paths in time instead. Both methods trace the same curve, so crossing the
+// threshold while tipping over only changes the point spacing, not the drawn path.
+const RADIAL_P = 0.1;
+
+/** True when the segment is (nearly) a straight up-and-down line. */
+export function nearRadial(seg) {
+  return seg.el.p < RADIAL_P * Math.hypot(seg.start.x, seg.start.y);
+}
+
+/**
+ * Highest point of a near-radial segment ({ x, y, t } local, t from seg.t0), or null if the
+ * path doesn't turn back down within the segment. Found by bisecting on the radial speed,
+ * because the anomaly-based timeToAp is meaningless when the conic is a line.
+ */
+export function radialApex(seg) {
+  if (seg.apex !== undefined) return seg.apex;
+  const { body, start } = seg;
+  const span = seg.t1 - seg.t0;
+  const p = {};
+  const vr = (t) => {
+    propagate(body.mu, start.x, start.y, start.vx, start.vy, t, p);
+    return p.x * p.vx + p.y * p.vy;
+  };
+  seg.apex = null;
+  if (seg.el.energy < 0 && vr(0) > 0 && vr(span) < 0) {
+    let lo = 0, hi = span;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (vr(mid) > 0) lo = mid; else hi = mid;
+    }
+    propagate(body.mu, start.x, start.y, start.vx, start.vy, lo, p);
+    seg.apex = { x: p.x, y: p.y, t: lo };
+  }
+  return seg.apex;
+}
+
 /** Points (local to the segment's body) tracing the segment's conic, for drawing. */
 export function segmentPoints(seg, count = 160) {
   const { el, start, endState } = seg;
+  if (nearRadial(seg)) {
+    const pts = [];
+    const p = {};
+    const span = seg.t1 - seg.t0;
+    for (let i = 0; i <= count; i++) {
+      propagate(el.mu, start.x, start.y, start.vx, start.vy, (span * i) / count, p);
+      pts.push(p.x, p.y);
+    }
+    return pts;
+  }
   const nu0 = anomalyOf(el, start.x, start.y);
   let nu1;
   if (seg.closed && seg.end === 'none') {

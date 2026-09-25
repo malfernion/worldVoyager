@@ -184,6 +184,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   and the shader silently fails (all outlines vanished until this was fixed). Don't outline **open**
   shapes such as engine bells and nozzles; the hull shows through the opening as a black blob.
 - Check the console for `Shader Error` after visual changes. three.js logs it once and carries on.
+- Flying straight up gives a **degenerate conic** (p ≈ 0, e ≈ 1): anything built from p and e
+  (`pointAt`, `radiusAt`, `timeToAp`) collapses to the planet's centre or is nonsense. The
+  prediction is still right (it's an impact). `segmentPoints()` samples near-radial segments
+  (`nearRadial()`: p < 0.1 × start radius) in time with `propagate()`, and the ▲ marker uses
+  `radialApex()`. Use those rather than conic geometry for anything that can be vertical (#19).
 - Line2 / LineMaterial widths are in pixels; update `resolution` on resize (flight.js does).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).
