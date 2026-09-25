@@ -7,6 +7,7 @@ import { partThumb, buggyThumb } from '../world/thumbs.js';
 import { createSky } from '../world/sky.js';
 import { toon, glowTexture, woodTexture, withOutline } from '../world/materials.js';
 import { mulberry32 } from '../physics/noise.js';
+import { createForest } from '../world/trees.js';
 
 const PROBLEMS = {
   crew: 'Pip needs a cabin! Add a Cabin or a Bubble.',
@@ -92,19 +93,16 @@ export class BuilderScene {
     deck.position.y = -0.4;
     s.add(withOutline(deck, 0.06));
     const rand = mulberry32(3);
-    const foliage = new THREE.ConeGeometry(1, 1, 7);
-    foliage.translate(0, 0.5, 0);
+    const spots = [];
+    const up = new THREE.Vector3(0, 1, 0);
     for (let i = 0; i < 60; i++) {
       const a = rand() * Math.PI * 2;
       const r = 16 + rand() * 60;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (z > -12 && Math.abs(x) < 40) continue;
-      const h = 5 + rand() * 7;
-      const tree = new THREE.Mesh(foliage, toon(new THREE.Color().setHSL(0.28 + rand() * 0.06, 0.4, 0.22 + rand() * 0.1)));
-      tree.scale.set(h * 0.33, h, h * 0.33);
-      tree.position.set(x, -0.8 - r * r * 0.0006, z);
-      s.add(tree);
+      spots.push({ position: new THREE.Vector3(x, -0.8 - r * r * 0.0006, z), up, size: 5 + rand() * 7 });
     }
+    s.add(createForest(spots, rand).group);
     const fire = new THREE.Group();
     this.fireSprites = [];
     for (const [sz, c, y] of [[2.6, 'rgba(255,140,40,1)', 0.9], [1.6, 'rgba(255,220,120,1)', 0.7]]) {

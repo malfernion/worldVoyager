@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toonGradient, glowTexture, woodTexture, toon, withOutline } from './materials.js';
 import { createAmbient } from './ambient.js';
+import { createForest } from './trees.js';
 import { RINGO_AXIS } from '../physics/terrain.js';
 import { mulberry32 } from '../physics/noise.js';
 
@@ -178,49 +179,26 @@ function starVisual(body) {
   return { group, mesh: core, light, glows: [glowA, glowB] };
 }
 
+/** Scatter the forest over Homestead's lowlands; returns the tree list (for collisions). */
 function trees(body, group) {
   const rand = mulberry32(7);
-  const foliage = new THREE.ConeGeometry(1, 1, 7);
-  foliage.translate(0, 0.5, 0);
-  const trunk = new THREE.CylinderGeometry(0.18, 0.25, 1, 6);
-  trunk.translate(0, 0.5, 0);
-  const count = 900;
-  const fMesh = new THREE.InstancedMesh(foliage, toon(0xffffff), count);
-  const tMesh = new THREE.InstancedMesh(trunk, toon(0x6b4a2e), count);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const s = new THREE.Vector3();
-  const p = new THREE.Vector3();
-  const upY = new THREE.Vector3(0, 1, 0);
-  const col = new THREE.Color();
-  let n = 0;
-  for (let tries = 0; tries < 20000 && n < count; tries++) {
+  const spots = [];
+  for (let tries = 0; tries < 20000 && spots.length < 900; tries++) {
     const z = rand() * 2 - 1;
     const a = rand() * Math.PI * 2;
     const k = Math.sqrt(1 - z * z);
-    const dir = new THREE.Vector3(k * Math.cos(a), k * Math.sin(a), z);
+    const up = new THREE.Vector3(k * Math.cos(a), k * Math.sin(a), z);
     // Keep the strip in front of the flight path clear so trees never hide the rocket.
     const zw = z * body.radius;
     if (zw > -5 && zw < 30) continue;
-    const h = body.terrainFn.height(dir.x, dir.y, dir.z);
+    const h = body.terrainFn.height(up.x, up.y, up.z);
     if (h < 0 || h > 16) continue;
-    const height = 3 + rand() * 4;
-    const r = body.radius + h - 0.3;
-    q.setFromUnitVectors(upY, dir);
-    p.copy(dir).multiplyScalar(r);
-    s.set(1, height * 0.35, 1);
-    m.compose(p, q, s);
-    tMesh.setMatrixAt(n, m);
-    p.copy(dir).multiplyScalar(r + height * 0.3);
-    s.set(height * 0.32, height, height * 0.32);
-    m.compose(p, q, s);
-    fMesh.setMatrixAt(n, m);
-    col.setHSL(0.27 + rand() * 0.08, 0.45, 0.25 + rand() * 0.12);
-    fMesh.setColorAt(n, col);
-    n++;
+    // Sunk a little so trunks stay planted on slopes.
+    spots.push({ position: up.clone().multiplyScalar(body.radius + h - 0.3), up, size: 3 + rand() * 4 });
   }
-  fMesh.count = tMesh.count = n;
-  group.add(fMesh, tMesh);
+  const forest = createForest(spots, rand);
+  group.add(forest.group);
+  return forest.trees;
 }
 
 /** The little village around the launch pad: pad, wooden tower, cabin and campfire. */
@@ -362,7 +340,7 @@ export function createBodyVisual(body) {
     surfaceFromMesh(body, geo);
     mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), flatShading: true }));
     if (body.id === 'homestead') {
-      trees(body, group);
+      out.trees = trees(body, group);
       const site = launchSite(body, group);
       out.updates.push((time) => site.update(time));
     }
