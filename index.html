@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d1024" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="World Voyager: build a wooden rocket, blast off from your campfire and explore a tiny solar system." />
+    <title>World Voyager</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Rye&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="labels"></div>
+
+    <div id="ui">
+      <!-- Title -->
+      <section id="title-screen" class="screen">
+        <div class="title-card">
+          <h1>World<br />Voyager</h1>
+          <p class="tagline">build a rocket · explore the stars</p>
+          <button id="play-btn" class="btn big go">▶&nbsp; Play</button>
+          <p id="loading" class="small">warming up the campfire…</p>
+        </div>
+      </section>
+
+      <!-- Rocket builder -->
+      <section id="builder-screen" class="screen hidden">
+        <header class="topbar">
+          <button id="journal-btn" class="btn round" aria-label="Sticker book">📖</button>
+          <div id="goal-chip" class="chip"></div>
+          <button id="settings-btn" class="btn round" aria-label="Settings">⚙️</button>
+        </header>
+        <aside id="stats" class="panel">
+          <div class="meter" data-stat="power"><span class="label">💪</span><div class="bar"><i></i></div></div>
+          <div class="meter" data-stat="turn"><span class="label">🌀</span><div class="bar"><i></i></div></div>
+          <div class="meter" data-stat="legs"><span class="label">🦵</span><div class="bar"><i></i></div></div>
+          <p id="problem"></p>
+        </aside>
+        <div id="builder-tools">
+          <button id="random-btn" class="btn round" aria-label="Surprise rocket">🎲</button>
+          <button id="clear-btn" class="btn round" aria-label="Start over">🧹</button>
+        </div>
+        <button id="launch-btn" class="btn big go">🚀 Fly!</button>
+        <div id="trash" class="hidden">🗑️</div>
+        <div id="tray"></div>
+      </section>
+
+      <!-- Flight -->
+      <section id="flight-screen" class="screen hidden">
+        <header class="topbar">
+          <button id="build-btn" class="btn round" aria-label="Back to the workshop">🔧</button>
+          <div id="readout" class="chip">
+            <span id="where"></span>
+            <span id="alt"></span>
+            <span id="spd"></span>
+          </div>
+          <div class="top-right">
+            <button id="rewind-btn" class="btn round" aria-label="Go back in time">↺</button>
+            <button id="warp-btn" class="btn round" aria-label="Speed up time">⏩<small id="warp-label"></small></button>
+            <button id="map-btn" class="btn round" aria-label="Map">🗺️</button>
+          </div>
+        </header>
+        <div id="height-meter"><div class="fill"></div><div class="space-line">✦</div></div>
+        <div id="goal-banner" class="chip"></div>
+        <div id="status-line" class="chip hidden"></div>
+
+        <div id="helpers">
+          <button class="btn helper" data-helper="orbit" aria-label="Orbit helper">🌀<small>Orbit</small></button>
+          <button class="btn helper hold" data-helper="faster" aria-label="Go faster">⏫<small>Faster</small></button>
+          <button class="btn helper hold" data-helper="slower" aria-label="Slow down">⏬<small>Slower</small></button>
+          <button class="btn helper" data-helper="land" aria-label="Land">🛬<small>Land</small></button>
+        </div>
+
+        <div id="steer">
+          <button id="left-btn" class="btn steer" aria-label="Turn left">⟲</button>
+          <button id="right-btn" class="btn steer" aria-label="Turn right">⟳</button>
+        </div>
+        <button id="go-btn" class="btn go-btn" aria-label="Go">GO</button>
+
+        <div id="target-card" class="panel hidden">
+          <img id="target-img" alt="" />
+          <div class="target-info">
+            <b id="target-name"></b>
+            <button id="goto-btn" class="btn go small-go">✨ Take me there!</button>
+          </div>
+          <button id="target-close" class="btn round tiny" aria-label="Close">✕</button>
+        </div>
+
+        <div id="map-tools" class="hidden">
+          <button id="zoom-in" class="btn round" aria-label="Zoom in">➕</button>
+          <button id="zoom-out" class="btn round" aria-label="Zoom out">➖</button>
+          <button id="center-btn" class="btn round" aria-label="Find my rocket">🎯</button>
+        </div>
+
+        <div id="crash-card" class="panel hidden">
+          <h2>Kaboom!</h2>
+          <div class="row">
+            <button id="crash-rewind" class="btn big">↺ Go back</button>
+            <button id="crash-pad" class="btn big">🏡 Launch pad</button>
+            <button id="crash-build" class="btn big">🔧 Build</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sticker book -->
+      <section id="journal-screen" class="screen hidden">
+        <div class="journal panel">
+          <header><h2>Explorer's Sticker Book</h2><button id="journal-close" class="btn round" aria-label="Close">✕</button></header>
+          <div id="journal-worlds"></div>
+          <h3>Stickers</h3>
+          <div id="journal-stickers"></div>
+        </div>
+      </section>
+
+      <div id="settings-card" class="panel hidden">
+        <h2>Settings</h2>
+        <label><input type="checkbox" id="set-music" /> 🎵 Music</label>
+        <label><input type="checkbox" id="set-sfx" /> 🔊 Sounds</label>
+        <label><input type="checkbox" id="set-voice" /> 🗣️ Talking</label>
+        <button id="reset-btn" class="btn">Start a new adventure</button>
+        <button id="settings-close" class="btn go">Done</button>
+      </div>
+
+      <div id="pip" class="hidden">
+        <div class="pip-face"><i></i><i></i></div>
+        <p id="pip-text"></p>
+      </div>
+
+      <div id="sticker-pop" class="hidden">
+        <div class="sticker"><img id="sticker-img" alt="" /><span id="sticker-icon"></span></div>
+        <b id="sticker-name"></b>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

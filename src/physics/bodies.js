@@ -9,7 +9,7 @@ export const BODY_DEFS = [
     blurb: 'Ember is our star. It is a giant ball of glowing hot gas, just like the Sun. Too hot to land on!',
   },
   {
-    id: 'homestead', name: 'Homestead', parent: 'ember', orbitRadius: 12000, phase: 1.2,
+    id: 'homestead', name: 'Homestead', parent: 'ember', orbitRadius: 12000, phase: -0.45,
     radius: 300, gravity: 10, soi: 2400, spaceLine: 70, terrain: 'home', atmosphere: 0x9fd4ff,
     color: 0x6fa045, icon: '🏡', water: true,
     blurb: 'Homestead is home! Trees, oceans and a cosy campfire. It is like our Earth.',
@@ -27,8 +27,8 @@ export const BODY_DEFS = [
     blurb: 'Dusty is a red, rusty planet like Mars. Mars has the biggest volcano in the whole solar system!',
   },
   {
-    id: 'nibble', name: 'Nibble', parent: 'dusty', orbitRadius: 700, phase: 4.0,
-    radius: 30, gravity: 0.8, soi: 110, spaceLine: 15, terrain: 'nibble',
+    id: 'nibble', name: 'Nibble', parent: 'dusty', orbitRadius: 950, phase: 4.0,
+    radius: 30, gravity: 0.9, soi: 170, spaceLine: 15, terrain: 'nibble',
     color: 0x8f7c68, icon: '🥔',
     blurb: 'Nibble is a tiny lumpy moon shaped like a potato, just like Phobos, a moon of Mars.',
   },

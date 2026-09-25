@@ -41,6 +41,13 @@ function arrivalScore(pred, hop, now) {
     const floor = hop.solid ? hop.maxSurface : hop.radius;
     let score = Math.abs(seg.el.rp - want) / hop.radius;
     if (seg.el.rp < floor + hop.spaceLine * 0.3) score += 2 + (floor - seg.el.rp) / hop.radius;
+    // Arriving already past the low point (or far too fast) makes capture hard.
+    if (seg.el.timeToPe === null) score += 3;
+    // Park below any moons so we don't bump into them later.
+    for (const c of hop.children) if (seg.el.rp > c.orbitRadius - c.soi * 1.5) score += 2;
+    // Bumping into a moon (or the ground) before the low point spoils the arrival.
+    else if (seg.end !== 'none' && seg.end !== 'exit' && seg.t0 + seg.el.timeToPe > seg.t1) score += 3;
+    if (seg.el.e > 1.5) score += (seg.el.e - 1.5) * 0.5;
     score += (seg.t0 - now) / 20000;
     return score;
   }
@@ -160,12 +167,14 @@ export class Autopilot {
     // 1. Climb and tip over until the high point of our path is in space.
     while (true) {
       const s = f.state;
+      if (s.body !== body) return false;
       const el = f.elements();
       const alt = f.altitude;
       if (!s.landed && alt > 2 && el.ra >= targetR) break;
       const tilt = s.landed || alt < 4 ? 0 : Math.min(1.35, 1.35 * Math.pow(alt / (targetR - body.radius), 0.6));
       f.targetAngle = f.upAngle + dir * tilt;
-      f.throttle = 1;
+      // Gentle on tiny moons: full power would fling us right out of their pull.
+      f.throttle = Math.min(1, (3.5 * body.mu) / (body.radius * body.radius * f.stats.accel));
       this.warp = 1;
       yield;
     }
@@ -174,6 +183,7 @@ export class Autopilot {
     // 2. Coast up to the high point.
     this.status = 'Coasting to the top';
     while (true) {
+      if (f.state.body !== body) return false;
       const el = f.elements();
       const s = f.state;
       const up = f.upAngle;
@@ -192,7 +202,11 @@ export class Autopilot {
     this.status = 'Going around!';
     this.warp = 1;
     let guard = 0;
-    while (guard++ < 60 * 120) {
+    while (guard++ < 60 * 40) {
+      if (f.state.body !== body) {
+        f.throttle = 0;
+        return false;
+      }
       const el = f.elements();
       const s = f.state;
       const r = f.radius;
@@ -201,7 +215,8 @@ export class Autopilot {
       const vr = s.vx * Math.cos(up) + s.vy * Math.sin(up);
       const pitch = clamp(-vr * 0.08, -0.4, 0.6);
       const ok = this.aim(up + dir * (Math.PI / 2 - pitch));
-      f.throttle = ok ? 1 : 0;
+      const need = Math.abs(Math.sqrt(body.mu / r) - Math.abs(el.h) / r) + Math.abs(vr);
+      f.throttle = ok ? clamp(need / (f.stats.accel * 0.5), 0.05, 1) : 0;
       yield;
     }
     f.throttle = 0;
@@ -271,7 +286,10 @@ export class Autopilot {
       const cur = f.state.body;
       if (!inStableOrbit(f) && cur.kind !== 'star') {
         // Arrived somewhere on a fast pass (or still on the ground)? Settle into orbit first.
-        if (!f.state.landed && f.elements().e >= 1) yield* this.capture(cur);
+        if (!f.state.landed) {
+          const el = f.elements();
+          if (el.e >= 1 || el.ra > cur.soi * 0.9) yield* this.capture(cur);
+        }
         if (f.state.body !== cur) continue;
         if (!inStableOrbit(f)) {
           this.status = 'Getting into orbit';
@@ -364,17 +382,21 @@ export class Autopilot {
     let best = { score: Infinity, tb: 0, dv: 0 };
     let budget = performance.now();
     const nT = 36, nV = 10;
-    for (let i = 0; i < nT; i++) {
-      const tb = tStart + (span * i) / nT;
-      for (let j = 0; j < nV; j++) {
-        const dv = dvGuess * (0.85 + (0.45 * j) / (nV - 1));
-        const score = evalCandidate(tb, dv);
-        if (score < best.score) best = { score, tb, dv };
+    // First a focused search around the expected window; if that misses, look wider.
+    for (const [from, width, dvLo, dvSpan] of [[tStart, span, 0.85, 0.45], [now + lead, Math.max(span, T) * 1.5, 0.6, 1.2]]) {
+      for (let i = 0; i < nT; i++) {
+        const tb = from + (width * i) / nT;
+        for (let j = 0; j < nV; j++) {
+          const dv = dvGuess * (dvLo + (dvSpan * j) / (nV - 1));
+          const score = evalCandidate(tb, dv);
+          if (score < best.score) best = { score, tb, dv };
+        }
+        if (performance.now() - budget > 12) {
+          yield;
+          budget = performance.now();
+        }
       }
-      if (performance.now() - budget > 12) {
-        yield;
-        budget = performance.now();
-      }
+      if (best.score < 1000) break;
     }
     // Refine around the best guess.
     let stepT = span / nT, stepV = (dvGuess * 0.45) / (nV - 1);
@@ -459,6 +481,7 @@ export class Autopilot {
           corrections++;
           const fix = yield* this.planCorrection(dest, score);
           if (fix) yield* this.burnVector(fix);
+          this.status = `Flying to ${dest.name}`;
           lastCheck = -Infinity;
           continue;
         }
@@ -482,7 +505,7 @@ export class Autopilot {
     const pro = Math.atan2(at.vy, at.vx);
     let best = { score: baseScore * 0.8, dir: 0, dv: 0 };
     let budget = performance.now();
-    const mags = [0.3, 0.7, 1.5, 3, 6, 12, 20];
+    const mags = [0.3, 0.7, 1.5, 3, 6, 12, 20, 32];
     for (let i = 0; i < 16; i++) {
       const dir = pro + (i / 16) * Math.PI * 2;
       for (const dv of mags) {
@@ -507,7 +530,8 @@ export class Autopilot {
       yield;
     }
     const dv0 = f.dvUsed;
-    while (f.dvUsed - dv0 < dv) {
+    const body = f.state.body;
+    while (f.dvUsed - dv0 < dv && f.state.body === body) {
       f.throttle = clamp((dv - (f.dvUsed - dv0)) / (f.stats.accel / 60) , 0.05, 1);
       this.aim(angle, 0.1);
       yield;
@@ -521,6 +545,15 @@ export class Autopilot {
     this.say(`We're at ${body.name}!`, { visiting: body });
     const floor = body.solid ? body.maxSurface : body.radius;
     const want = parkingRadius(body);
+
+    // Heading for a moon or a bad height? Nudge the path first.
+    for (let tries = 0; tries < 2 && f.state.body === body && f.elements().e >= 1; tries++) {
+      const score = arrivalScore(predict(f.state, { maxSegments: 2, maxTime: 40000 }), body, f.state.t);
+      if (score < 0.8) break;
+      const fix = yield* this.planCorrection(body, score);
+      if (!fix) break;
+      yield* this.burnVector(fix);
+    }
 
     // Too low? Push sideways to swing wide of the ground.
     let el = f.elements();
@@ -546,6 +579,9 @@ export class Autopilot {
       const burnT = Math.max(0, vPe - Math.sqrt(body.mu / el.rp)) / f.stats.accel;
       const wait = el.timeToPe - burnT / 2;
       if (wait < 0.3 || (el.e < 1 && el.timeToPe > el.period * 0.9)) break;
+      // Already heading out of this world's pull? Brake right now.
+      const vr = (f.state.x * f.state.vx + f.state.y * f.state.vy) / f.radius;
+      if (vr > 0 && el.ra > body.soi * 0.9) break;
       this.aim(this.prograde() + Math.PI);
       this.warp = wait > 5 ? clamp(wait / 3, 1, 1000) : 1;
       yield;
@@ -554,9 +590,12 @@ export class Autopilot {
     this.say('Slow down, rocket!');
     this.warp = 1;
     let guard = 0;
+    let prevE = Infinity;
+    // Brake until the path is round (stop if it starts getting less round again).
     while (guard++ < 60 * 60 && f.state.body === body && !f.state.landed) {
       el = f.elements();
-      if ((el.e < 0.12 && el.ra < body.soi * 0.8) || (el.e < 1 && el.ra < body.soi * 0.6)) break;
+      if (el.e < 0.03 || (el.e < 0.3 && el.e > prevE + 1e-5)) break;
+      prevE = el.e;
       const ok = this.aim(this.prograde() + Math.PI, 0.25);
       f.throttle = ok ? 1 : 0;
       yield;
@@ -567,7 +606,7 @@ export class Autopilot {
     el = f.elements();
     if (f.state.body === body && el.e < 1 && el.rp > want * 1.6) {
       this.status = 'Moving closer';
-      yield* this.coastToApsis('ap');
+      if (el.e > 0.1) yield* this.coastToApsis('ap');
       while (f.state.body === body && f.elements().rp > want) {
         f.throttle = this.aim(this.prograde() + Math.PI, 0.25) ? 1 : 0;
         yield;
