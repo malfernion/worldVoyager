@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toonGradient, glowTexture, woodTexture, toon, withOutline } from './materials.js';
+import { createAmbient } from './ambient.js';
 import { RINGO_AXIS } from '../physics/terrain.js';
 import { mulberry32 } from '../physics/noise.js';
 
@@ -368,6 +369,14 @@ export function createBodyVisual(body) {
   }
   group.add(mesh);
   out.mesh = mesh;
+
+  // Plumes, puffs and dust. The flight scene keeps out.sunDir pointing at the sun (view space).
+  out.sunDir = new THREE.Vector3(1, 0, 0);
+  const ambient = createAmbient(body, out.sunDir);
+  if (ambient) {
+    group.add(...ambient.meshes);
+    out.updates.push(ambient.update);
+  }
 
   if (body.atmosphere) {
     const atm = atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4);

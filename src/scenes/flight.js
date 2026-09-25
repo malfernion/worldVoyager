@@ -624,9 +624,10 @@ export class FlightScene {
     const view = this.camera.matrixWorldInverse;
     const d = new THREE.Vector3();
     for (const v of this.visuals) {
-      if (!v.atmosphere) continue;
+      if (!v.sunDir) continue;
       d.copy(sun).sub(v.group.position).normalize().transformDirection(view);
-      v.atmosphere.material.uniforms.sunDir.value.copy(d);
+      v.sunDir.copy(d);
+      if (v.atmosphere) v.atmosphere.material.uniforms.sunDir.value.copy(d);
     }
   }
 
