@@ -7,7 +7,7 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { Flight } from '../physics/sim.js';
 import { predict, segmentPoints } from '../physics/predict.js';
 import { Autopilot, inStableOrbit } from '../physics/autopilot.js';
-import { pointAt } from '../physics/orbit.js';
+import { pointAt, propagate } from '../physics/orbit.js';
 import { buildRocket } from '../rocket/rocketMesh.js';
 import { rocketStats } from '../rocket/parts.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
@@ -58,6 +58,7 @@ export class FlightScene {
     this.lineGroup = new THREE.Group();
     this.scene.add(this.lineGroup);
     this.segLines = [];
+    this.flybyLines = [];
     this.orbitLines = new Map();
     for (const v of this.visuals) {
       const b = v.body;
@@ -116,6 +117,7 @@ export class FlightScene {
     this.debris.clear();
     this.particles.clear();
     this.camUp.set(0, 1, 0);
+    this.camUpAngle = undefined;
     this.app.audio.setMood('camp');
   }
 
@@ -175,21 +177,52 @@ export class FlightScene {
     this.mapZoom = 1;
   }
 
-  focusMapOn(body) {
+  /** Re-centre the map on a world. With `smooth`, glide there instead of jumping. */
+  focusMapOn(body, smooth = false) {
+    if (!smooth || !this.mapFocus) {
+      this.mapFocus = body;
+      this.pan = { x: 0, y: 0 };
+      this.fitMap();
+      return;
+    }
+    const t = this.flight.state.t;
+    const oldCentre = this.mapFocus.worldPos(t, {});
+    const newCentre = body.worldPos(t, {});
+    const oldDist = this.mapDist * this.mapZoom;
     this.mapFocus = body;
-    this.pan = { x: 0, y: 0 };
+    this.pan = { x: oldCentre.x + this.pan.x - newCentre.x, y: oldCentre.y + this.pan.y - newCentre.y };
     this.fitMap();
+    this.mapDistTarget = this.mapDist;
+    this.mapDist = oldDist;
+    this.mapZoom = 1;
+    this.mapEase = true;
   }
 
-  cycleWarp(dir = 1) {
-    if (this.flight.throttle > 0 && !this.autopilot.active) return;
-    if (this.autopilot.active) this.autopilot.stop();
-    this.warpIndex = (this.warpIndex + dir + WARP_LEVELS.length) % WARP_LEVELS.length;
-    this.app.audio.play(dir > 0 && this.warpIndex > 0 ? 'warp' : 'unwarp');
+  easeMap(dt) {
+    if (!this.mapEase) return;
+    const k = 1 - Math.exp(-dt * 2.5);
+    this.pan.x -= this.pan.x * k;
+    this.pan.y -= this.pan.y * k;
+    this.mapDist += (this.mapDistTarget - this.mapDist) * k;
+    if (Math.hypot(this.pan.x, this.pan.y) < 1 && Math.abs(this.mapDist / this.mapDistTarget - 1) < 0.01) this.mapEase = false;
+  }
+
+  /** Change time speed by a step (+1 / -1), or pass `reset` for normal speed. */
+  setWarp(step, reset = false) {
+    const before = this.warpIndex;
+    this.warpIndex = reset ? 0 : Math.max(0, Math.min(WARP_LEVELS.length - 1, this.warpIndex + step));
+    // Taking the time controls while a helper runs: the helper keeps flying, you keep the clock.
+    if (this.autopilot.active) this.manualWarp = !reset;
+    if (this.warpIndex !== before || reset) this.app.audio.play(this.warpIndex > before ? 'warp' : 'unwarp');
   }
 
   get warp() {
-    return this.autopilot?.warp ?? WARP_LEVELS[this.warpIndex];
+    const ap = this.autopilot;
+    const mine = WARP_LEVELS[this.warpIndex];
+    if (!ap?.active || ap.warp === null) return mine;
+    // Helpers always get normal speed for burns and tricky bits.
+    if (ap.warp <= 1) return 1;
+    return this.manualWarp ? mine : ap.warp;
   }
 
   rewind() {
@@ -219,6 +252,7 @@ export class FlightScene {
     }
     if (mode === 'goto' && !this.target) return;
     this.warpIndex = 0;
+    this.manualWarp = false;
     this.autopilot.start(mode, mode === 'goto' ? this.target : null, { coach });
   }
 
@@ -226,6 +260,7 @@ export class FlightScene {
     if (this.crashed) return;
     if (on) {
       this.warpIndex = 0;
+      this.manualWarp = false;
       this.autopilot.start(mode);
     } else if (this.autopilot.mode === mode) {
       this.autopilot.stop();
@@ -271,7 +306,7 @@ export class FlightScene {
         } else {
           app.pip(`Back in ${d.to.name}'s space.`, { speak: false });
         }
-        if (this.mode === 'map') this.focusMapOn(d.to);
+        if (this.mode === 'map') this.focusMapOn(d.to, true);
         break;
       }
       case 'landed': {
@@ -403,6 +438,7 @@ export class FlightScene {
     this.updateMood();
 
     // Positions.
+    if (this.mode === 'map') this.easeMap(dt);
     const rw = f.worldPos(this.tmp);
     if (this.mode === 'flight') {
       this.origin.x = rw.x;
@@ -512,10 +548,19 @@ export class FlightScene {
     const f = this.flight;
     const s = f.state;
     if (this.mode === 'flight') {
-      const up = Math.atan2(s.y, s.x);
-      const target = new THREE.Vector3(Math.cos(up), Math.sin(up), 0);
-      this.camUp.lerp(target, 1 - Math.exp(-dt * 4)).normalize();
+      // "Down" points at the world we're near. Far out in space we keep the view steady,
+      // and when a new world takes over we turn gently instead of flipping around.
       const alt = Math.max(0, f.altitude);
+      const up = Math.atan2(s.y, s.x);
+      const near = alt < s.body.radius * 2.5 || s.landed;
+      if (this.camUpAngle === undefined) this.camUpAngle = up;
+      if (near) {
+        const diff = Math.atan2(Math.sin(up - this.camUpAngle), Math.cos(up - this.camUpAngle));
+        const closeness = 1 - Math.min(1, alt / (s.body.radius * 2.5));
+        const rate = s.landed || alt < 30 ? 6 : 0.4 + 2.5 * closeness;
+        this.camUpAngle += Math.sign(diff) * Math.min(Math.abs(diff), rate * dt, Math.abs(diff) * (1 - Math.exp(-dt * 4)) + 0.001);
+      }
+      this.camUp.set(Math.cos(this.camUpAngle), Math.sin(this.camUpAngle), 0);
       const auto = THREE.MathUtils.clamp(26 + alt * 0.85, 26, 6000);
       const dist = auto * this.zoom;
       const axis = new THREE.Vector3(Math.cos(s.angle), Math.sin(s.angle), 0);
@@ -620,6 +665,50 @@ export class FlightScene {
       if (seg.end === 'encounter') {
         const p = seg.next.relPos(seg.t1);
         this.showGhost(seg.next, anchors[i].x + p.x, anchors[i].y + p.y);
+      }
+    }
+    // Fly-bys past a moon, also drawn "as seen from the planet": one smooth swing
+    // instead of a path that seems to turn around when the moon takes over.
+    if (rebuild) {
+      let n = 0;
+      segs.forEach((seg, i) => {
+        if (!seg.body.parent || seg.closed || seg.body.parent.kind === 'star' || seg.body.kind === 'star') return;
+        const pts = [];
+        const steps = 120;
+        const tmp = {};
+        for (let k = 0; k <= steps; k++) {
+          const dt = ((seg.t1 - seg.t0) * k) / steps;
+          propagate(seg.body.mu, seg.start.x, seg.start.y, seg.start.vx, seg.start.vy, dt, tmp);
+          const m = seg.body.relPos(seg.t0 + dt);
+          const m0 = seg.body.relPos(seg.t0);
+          pts.push(tmp.x + m.x - m0.x, tmp.y + m.y - m0.y, 0);
+        }
+        let line = this.flybyLines[n];
+        if (!line) {
+          line = this.makeLine(pts, 0xffffff, 2, 0.5);
+          line.material.dashed = true;
+          line.material.dashSize = 12;
+          line.material.gapSize = 8;
+          line.material.worldUnits = false;
+          line.material.needsUpdate = true;
+          this.flybyLines.push(line);
+        } else {
+          line.geometry.dispose();
+          line.geometry = new LineGeometry();
+          line.geometry.setPositions(pts);
+        }
+        line.computeLineDistances();
+        line.userData.seg = i;
+        n++;
+      });
+      for (let k = n; k < this.flybyLines.length; k++) this.flybyLines[k].userData.seg = -1;
+    }
+    for (const line of this.flybyLines) {
+      const i = line.userData.seg;
+      line.visible = map && i >= 0 && i < segs.length && !this.crashed;
+      if (line.visible) {
+        // Anchored where the moon is when we meet it, just like the moon-frame path.
+        line.position.set(anchors[i].x, anchors[i].y, 0);
       }
     }
     for (const [b, g] of this.ghosts) {
@@ -730,6 +819,45 @@ export class FlightScene {
       if (scr) el.firstChild.style.transform = `rotate(${Math.atan2(dx, -dy)}rad)`;
       const d = Math.atan2(Math.sin(ap.cmd.angle - s.angle), Math.cos(ap.cmd.angle - s.angle));
       el.classList.toggle('aligned', Math.abs(d) < 0.3);
+    }
+
+    // Velocity arrow: which way we're moving and how fast. Near the ground it turns
+    // green / yellow / red to say whether we're slow enough to land.
+    const speed = this.flight.speed;
+    if (!this.crashed && !s.landed && speed > 0.3) {
+      const rwp = this.flight.worldPos({});
+      const mid = this.mode === 'map' ? 0 : this.rocket.height / 2;
+      const c = { x: rwp.x - this.origin.x + Math.cos(s.angle) * mid, y: rwp.y - this.origin.y + Math.sin(s.angle) * mid };
+      const el = this.marker('vel', 'vel-arrow', '<div class="spin"><div class="shaft"></div><div class="head"></div></div><b></b>');
+      const scr = this.placeMarker(el, c.x, c.y);
+      if (scr) {
+        const va = Math.atan2(s.vy, s.vx);
+        const centre = new THREE.Vector3(c.x, c.y, 0).project(this.camera);
+        const tip = new THREE.Vector3(c.x + Math.cos(va), c.y + Math.sin(va), 0).project(this.camera);
+        const dx = (tip.x - centre.x) * window.innerWidth, dy = -(tip.y - centre.y) * window.innerHeight;
+        const len = Math.min(130, 26 + 22 * Math.log2(1 + speed));
+        el.firstChild.style.transform = `rotate(${Math.atan2(dx, -dy)}rad)`;
+        el.style.setProperty('--len', `${len}px`);
+        const b = s.body;
+        const alt = this.flight.altitude;
+        const vr = (s.x * s.vx + s.y * s.vy) / Math.hypot(s.x, s.y);
+        const landing = b.solid && alt < Math.max(b.spaceLine * 1.5, 40) && vr < 0;
+        const safe = this.stats.safeSpeed;
+        let zone = 'fly';
+        if (landing) {
+          if (alt < 12) {
+            zone = speed < safe * 0.7 ? 'good' : speed < safe ? 'ok' : 'bad';
+          } else {
+            // Higher up: can the engine still stop us before the ground?
+            const brake = Math.max(0.5, this.stats.accel - this.flight.localGravity);
+            const stop = (speed * speed) / (2 * brake);
+            zone = stop < alt * 0.4 ? 'good' : stop < alt * 0.8 ? 'ok' : 'bad';
+          }
+        }
+        el.dataset.zone = zone;
+        const face = { good: '😀', ok: '😬', bad: '😱' }[zone];
+        el.lastChild.textContent = landing ? `${face} ${Math.round(speed)}` : '';
+      }
     }
 
     // Rocket icon: always in the map; in flight when the rocket is too small to see.

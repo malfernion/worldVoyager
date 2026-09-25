@@ -1144,3 +1144,160 @@ h1 {
 #target-card .small-go {
   width: 100%;
 }
+
+/* ---------- speed, zoom and velocity ---------- */
+
+.speed-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 3px;
+  border-radius: 999px;
+  background: rgba(20, 16, 36, 0.55);
+  position: relative;
+}
+
+.speed-group .btn.round {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+  box-shadow: 0 3px 0 var(--ink);
+}
+
+.speed-group .btn.lit {
+  background: var(--glow);
+}
+
+#warp-label {
+  min-width: 38px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--cream);
+  font-size: 15px;
+}
+
+.speed-group.fast #warp-label {
+  color: var(--glow);
+}
+
+#zoom-box {
+  position: absolute;
+  right: calc(18px + var(--safe-right));
+  top: calc(84px + var(--safe-top));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border-radius: 999px;
+  background: rgba(20, 16, 36, 0.55);
+  font-size: 18px;
+}
+
+#zoom-slider {
+  writing-mode: vertical-lr;
+  height: 24vh;
+  width: 34px;
+  margin: 0;
+  accent-color: var(--orange);
+  touch-action: none;
+}
+
+.vel-arrow {
+  width: 0;
+  height: 0;
+}
+
+.vel-arrow .spin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.vel-arrow .shaft {
+  position: absolute;
+  left: -3px;
+  bottom: 0;
+  width: 6px;
+  height: var(--len, 40px);
+  border-radius: 3px;
+  background: var(--vel, #8fe3ff);
+  opacity: 0.85;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.vel-arrow .head {
+  position: absolute;
+  left: -10px;
+  bottom: calc(var(--len, 40px) - 4px);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 16px solid var(--vel, #8fe3ff);
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.6));
+}
+
+.vel-arrow b {
+  position: absolute;
+  left: 22px;
+  top: 14px;
+  white-space: nowrap;
+  font-size: 20px;
+  color: var(--vel, #8fe3ff);
+  text-shadow: 0 2px 0 var(--ink), 0 0 6px #000;
+}
+
+.vel-arrow[data-zone='good'] {
+  --vel: #7dff9a;
+}
+
+.vel-arrow[data-zone='ok'] {
+  --vel: #ffd166;
+}
+
+.vel-arrow[data-zone='bad'] {
+  --vel: #ff6b6b;
+}
+
+@media (max-width: 640px) {
+  .flight-top {
+    flex-wrap: wrap;
+  }
+
+  .speed-group .btn.round {
+    width: 38px;
+    height: 38px;
+    font-size: 15px;
+  }
+
+  #warp-label {
+    min-width: 30px;
+    font-size: 13px;
+  }
+
+  #flight-screen #readout {
+    order: 10;
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
+  #flight-screen #goal-banner {
+    top: calc(118px + var(--safe-top));
+  }
+
+  #flight-screen ~ #pip,
+  #pip {
+    top: calc(156px + var(--safe-top));
+  }
+
+  #zoom-box {
+    top: calc(170px + var(--safe-top));
+  }
+
+  #zoom-slider {
+    height: 14vh;
+  }
+}

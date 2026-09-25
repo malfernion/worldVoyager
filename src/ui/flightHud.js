@@ -25,15 +25,15 @@ export class FlightHud {
       fn();
     });
     click('map-btn', () => this.scene.toggleMap());
-    click('warp-btn', () => this.scene.cycleWarp(1));
+    click('warp-btn', () => this.scene.setWarp(1));
+    click('slower-btn', () => this.scene.setWarp(-1));
+    click('normal-btn', () => this.scene.setWarp(0, true));
     click('rewind-btn', () => this.scene.rewind());
     click('build-btn', () => this.app.toBuilder());
     click('goto-btn', () => this.scene.helper('goto'));
     click('coach-btn', () => this.scene.helper('goto', { coach: true }));
     click('target-close', () => this.scene.setTarget(null));
-    click('zoom-in', () => (this.scene.mapZoom /= 1.6));
-    click('zoom-out', () => (this.scene.mapZoom *= 1.6));
-    click('center-btn', () => this.scene.focusMapOn(this.scene.flight.state.body));
+    click('center-btn', () => this.scene.focusMapOn(this.scene.flight.state.body, true));
     click('crash-rewind', () => this.scene.rewind());
     click('crash-pad', () => this.scene.resetToPad());
     click('crash-build', () => this.app.toBuilder());
@@ -42,6 +42,38 @@ export class FlightHud {
       if (g) this.app.pip(g.hint, { speak: true });
     });
     this.bindKeys();
+    this.bindZoomSlider();
+  }
+
+  // Zoom slider: logarithmic, left = close up, right = far away. Pinching moves it too.
+  static ZOOM = { flight: [0.35, 40], map: [0.02, 20] };
+
+  zoomRange() {
+    return FlightHud.ZOOM[this.scene.mode === 'map' ? 'map' : 'flight'];
+  }
+
+  bindZoomSlider() {
+    const slider = this.el('zoom-slider');
+    slider.addEventListener('input', () => {
+      const [lo, hi] = this.zoomRange();
+      const v = lo * Math.pow(hi / lo, slider.value / 1000);
+      const s = this.scene;
+      if (s.mode === 'map') {
+        s.mapZoom = v;
+        s.mapEase = false;
+      } else {
+        s.zoom = v;
+      }
+    });
+    slider.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+
+  syncZoomSlider() {
+    const slider = this.el('zoom-slider');
+    if (document.activeElement === slider) return;
+    const [lo, hi] = this.zoomRange();
+    const v = this.scene.mode === 'map' ? this.scene.mapZoom : this.scene.zoom;
+    slider.value = String(Math.round((Math.log(v / lo) / Math.log(hi / lo)) * 1000));
   }
 
   get scene() {
@@ -87,8 +119,9 @@ export class FlightHud {
         e.preventDefault();
         this.scene.toggleMap();
       }
-      if (e.code === 'Period') this.scene.cycleWarp(1);
-      if (e.code === 'Comma') this.scene.cycleWarp(-1);
+      if (e.code === 'Period') this.scene.setWarp(1);
+      if (e.code === 'Comma') this.scene.setWarp(-1);
+      if (e.code === 'Slash') this.scene.setWarp(0, true);
       if (e.code === 'Backspace' || e.code === 'KeyR') this.scene.rewind();
       if (e.code === 'KeyO') this.scene.helper('orbit');
       if (e.code === 'KeyL') this.scene.helper('land');
@@ -122,6 +155,7 @@ export class FlightHud {
         pinch = d;
       } else if (pts.size === 1 && s.mode === 'map') {
         const worldPerPx = (2 * s.camera.position.z * Math.tan((s.camera.fov * Math.PI) / 360)) / window.innerHeight;
+        s.mapEase = false;
         s.pan.x -= (cur.x - prev.x) * worldPerPx;
         s.pan.y += (cur.y - prev.y) * worldPerPx;
       }
@@ -200,8 +234,10 @@ export class FlightHud {
     this.el('alt').textContent = st.landed ? '🛬 landed' : `⬆ ${fmt(alt)}`;
     this.el('spd').textContent = `💨 ${fmt(f.speed)}`;
     const warp = Math.round(s.warp);
-    this.el('warp-label').textContent = warp > 1 ? `×${warp}` : '';
-    this.el('warp-btn').classList.toggle('active', warp > 1);
+    this.el('warp-label').textContent = `×${warp}`;
+    this.el('speed').classList.toggle('fast', warp > 1);
+    this.el('normal-btn').classList.toggle('lit', warp <= 1);
+    this.syncZoomSlider();
     const meter = this.el('height-meter');
     meter.classList.toggle('hidden', b.kind === 'star' || s.mode === 'map');
     meter.querySelector('.fill').style.height = `${Math.min(100, (alt / (b.spaceLine * 1.5)) * 100)}%`;
