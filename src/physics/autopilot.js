@@ -43,6 +43,8 @@ function arrivalScore(pred, hop, now) {
     if (seg.el.rp < floor + hop.spaceLine * 0.3) score += 2 + (floor - seg.el.rp) / hop.radius;
     // Arriving already past the low point (or far too fast) makes capture hard.
     if (seg.el.timeToPe === null) score += 3;
+    // Going around the same way as everything else makes later trips easy.
+    if (hop.children.length && seg.el.dir !== Math.sign(hop.children[0].angularSpeed)) score += 1;
     // Park below any moons so we don't bump into them later.
     for (const c of hop.children) if (seg.el.rp > c.orbitRadius - c.soi * 1.5) score += 2;
     // Bumping into a moon (or the ground) before the low point spoils the arrival.
@@ -64,6 +66,8 @@ export class Autopilot {
     this.status = '';
     this.marker = null; // { body, x, y } planned burn point for the map
     this.listeners = [];
+    this.coach = false;
+    this.cmd = { throttle: 0, angle: null };
   }
 
   on(fn) {
@@ -78,8 +82,14 @@ export class Autopilot {
     return !!this.program;
   }
 
-  start(mode, target = null) {
+  /** True while the helper is actually steering (not just coaching). */
+  get driving() {
+    return !!this.program && !this.coach;
+  }
+
+  start(mode, target = null, { coach = false } = {}) {
     this.stop();
+    this.coach = coach;
     this.mode = mode;
     this.target = target;
     const programs = {
@@ -98,10 +108,12 @@ export class Autopilot {
     this.warp = null;
     this.marker = null;
     this.status = '';
-    if (this.flight) {
+    this.cmd = { throttle: 0, angle: null };
+    if (this.flight && !this.coach) {
       this.flight.throttle = 0;
       this.flight.targetAngle = null;
     }
+    this.coach = false;
   }
 
   update(realDt) {
@@ -121,10 +133,40 @@ export class Autopilot {
 
   // ---- steering helpers -------------------------------------------------
 
+  /** Point at `angle`; true once the rocket is close enough. Coaching is more forgiving. */
   aim(angle, tolerance = 0.3) {
     const f = this.flight;
-    f.targetAngle = angle;
+    this.setAngle(angle);
+    if (this.coach) tolerance = Math.max(tolerance * 1.8, 0.35);
     return Math.abs(wrapPi(angle - f.state.angle)) < tolerance;
+  }
+
+  // In coach mode the helper only suggests; the player does the flying.
+  setThrottle(v) {
+    // Kids either hold GO or they don't.
+    this.cmd.throttle = this.coach ? (v >= 0.1 ? 1 : 0) : v;
+    if (!this.coach) this.flight.throttle = v;
+  }
+
+  setAngle(a) {
+    this.cmd.angle = a;
+    if (!this.coach) this.flight.targetAngle = a;
+  }
+
+  /** Time-warp request, capped so we never zoom straight past a new world or into the ground. */
+  safeWarp(want) {
+    if (want <= 1) return 1;
+    const f = this.flight;
+    if (!this.eventCache || this.eventCache.body !== f.state.body || this.eventCache.age++ > 15) {
+      const seg = predict(f.state, { maxSegments: 1, maxTime: 40000 }).segments[0];
+      this.eventCache = { body: f.state.body, t: seg.end === 'none' ? Infinity : seg.t1, age: 0 };
+    }
+    return clamp(Math.min(want, (this.eventCache.t - f.state.t) / 3), 1, 1000);
+  }
+
+  /** Say one thing when flying for them, another when coaching. */
+  tip(auto, coach, extra) {
+    this.say(this.coach ? coach : auto, extra);
   }
 
   prograde() {
@@ -140,11 +182,11 @@ export class Autopilot {
     while (true) {
       const s = f.state;
       if (s.landed || f.speed < 1) {
-        f.throttle = sign > 0 ? 1 : 0;
-        f.targetAngle = f.upAngle;
+        this.setThrottle(sign > 0 ? 1 : 0);
+        this.setAngle(f.upAngle);
       } else {
         const ok = this.aim(this.prograde() + (sign < 0 ? Math.PI : 0), 0.25);
-        f.throttle = ok ? 1 : 0;
+        this.setThrottle(ok ? 1 : 0);
       }
       yield;
     }
@@ -162,6 +204,8 @@ export class Autopilot {
     let dir = -1;
     if (!f.state.landed && f.speed > 5) dir = f.elements().dir;
     if (!quiet) this.say('Up, up and away! Let\'s go around!');
+    const fromGround = f.state.landed;
+    if (this.coach && fromGround) this.say('First we fly up high. Point up and hold GO!');
     this.status = 'Flying up';
 
     // 1. Climb and tip over until the high point of our path is in space.
@@ -172,13 +216,14 @@ export class Autopilot {
       const alt = f.altitude;
       if (!s.landed && alt > 2 && el.ra >= targetR) break;
       const tilt = s.landed || alt < 4 ? 0 : Math.min(1.35, 1.35 * Math.pow(alt / (targetR - body.radius), 0.6));
-      f.targetAngle = f.upAngle + dir * tilt;
+      this.setAngle(f.upAngle + dir * tilt);
       // Gentle on tiny moons: full power would fling us right out of their pull.
-      f.throttle = Math.min(1, (3.5 * body.mu) / (body.radius * body.radius * f.stats.accel));
+      this.setThrottle(Math.min(1, (3.5 * body.mu) / (body.radius * body.radius * f.stats.accel)));
       this.warp = 1;
       yield;
     }
-    f.throttle = 0;
+    this.setThrottle(0);
+    if (this.coach && fromGround) this.say('Let go! Now we glide up to the top.');
 
     // 2. Coast up to the high point.
     this.status = 'Coasting to the top';
@@ -194,32 +239,34 @@ export class Autopilot {
       const burnT = Math.max(0, Math.sqrt(body.mu / el.ra) - vAp) / f.stats.accel;
       const wait = el.timeToAp - burnT / 2;
       if (wait < 0.3) break;
-      this.warp = wait > 6 ? clamp(wait / 3, 1, 25) : 1;
+      this.warp = this.safeWarp(wait > 6 ? clamp(wait / 3, 1, 25) : 1);
       yield;
     }
 
     // 3. Burn sideways until the path is nice and round.
     this.status = 'Going around!';
+    if (this.coach) this.say(fromGround ? 'Turn sideways to the arrow and hold GO, so we go around!' : 'Follow the arrow and hold GO to make our path nice and round.');
     this.warp = 1;
     let guard = 0;
     while (guard++ < 60 * 40) {
       if (f.state.body !== body) {
-        f.throttle = 0;
+        this.setThrottle(0);
         return false;
       }
       const el = f.elements();
       const s = f.state;
       const r = f.radius;
-      if (el.e < 0.03 || (el.e < 1 && el.rp > r * 0.985)) break;
+      if (el.e < (this.coach ? 0.07 : 0.03) || (el.e < 1 && el.rp > r * (this.coach ? 0.95 : 0.985))) break;
       const up = f.upAngle;
       const vr = s.vx * Math.cos(up) + s.vy * Math.sin(up);
       const pitch = clamp(-vr * 0.08, -0.4, 0.6);
       const ok = this.aim(up + dir * (Math.PI / 2 - pitch));
       const need = Math.abs(Math.sqrt(body.mu / r) - Math.abs(el.h) / r) + Math.abs(vr);
-      f.throttle = ok ? clamp(need / (f.stats.accel * 0.5), 0.05, 1) : 0;
+      this.setThrottle(ok ? clamp(need / (f.stats.accel * 0.5), 0.05, 1) : 0);
       yield;
     }
-    f.throttle = 0;
+    this.setThrottle(0);
+    if (this.coach && quiet) this.say(`Let go! We're going around ${body.name}!`);
     if (!quiet) this.say(`Hooray! We're in orbit around ${body.name}! Round and round we go!`);
     return true;
   }
@@ -267,13 +314,13 @@ export class Autopilot {
       const ang = up + rel;
       const ok = this.aim(ang, alt < 6 ? 0.5 : 0.35);
       const want = Math.hypot(Tx, Ty) / amax;
-      f.throttle = ok ? clamp(want, 0, 1) : 0;
+      this.setThrottle(ok ? clamp(want, 0, 1) : 0);
       // Speed through long, boring falls.
       const timeToGround = alt / Math.max(1, -vr);
-      this.warp = f.throttle === 0 && Math.abs(vt) < 2 && timeToGround > 12 ? clamp(timeToGround / 6, 1, 10) : 1;
+      this.warp = this.safeWarp(this.cmd.throttle === 0 && Math.abs(vt) < 2 && timeToGround > 12 ? clamp(timeToGround / 6, 1, 10) : 1);
       yield;
     }
-    f.throttle = 0;
+    this.setThrottle(0);
     return true;
   }
 
@@ -288,7 +335,7 @@ export class Autopilot {
         // Arrived somewhere on a fast pass (or still on the ground)? Settle into orbit first.
         if (!f.state.landed) {
           const el = f.elements();
-          if (el.e >= 1 || el.ra > cur.soi * 0.9) yield* this.capture(cur);
+          if (el.e >= 1 || el.ra > cur.soi * 0.9) yield* this.capture(cur, false);
         }
         if (f.state.body !== cur) continue;
         if (!inStableOrbit(f)) {
@@ -298,16 +345,22 @@ export class Autopilot {
         }
       }
       if (cur === target) {
-        this.say(`We made it to ${target.name}! Tap the landing button to land!`, { arrived: target });
+        this.tip(`We made it to ${target.name}! Tap the landing button to land!`,
+          `You flew to ${target.name} all by yourself! To land, point up and hold GO to slow down. Or tap the landing button.`, { arrived: target });
         return true;
       }
       const hop = nextHop(cur, target);
+      if (hop.kind === 'down' && f.elements().dir !== Math.sign(hop.body.angularSpeed)) {
+        yield* this.flipOrbit(hop.body);
+        continue;
+      }
       const plan = yield* this.planLeg(hop);
       if (!plan) {
         this.say(`Hmm, I can't find a path to ${hop.body.name} right now. Let's try again in a moment!`);
         return false;
       }
-      yield* this.waitAndBurn(plan);
+      const burned = yield* this.waitAndBurn(plan);
+      if (!burned) continue;
       const arrived = yield* this.coastTo(hop.body);
       if (!arrived && f.state.body === cur) this.say('Oops, we missed! Let me try again.');
     }
@@ -319,7 +372,7 @@ export class Autopilot {
     const f = this.flight;
     this.status = 'Thinking...';
     this.warp = 1;
-    f.throttle = 0;
+    this.setThrottle(0);
     const cur = f.state.body;
     const now = f.state.t;
     const el0 = f.elements();
@@ -367,7 +420,8 @@ export class Autopilot {
       dvGuess = Math.sqrt(vInf * vInf + (2 * cur.mu) / rPark) - vPark;
       window0 = now + lead + T / 2;
     }
-    dvGuess = Math.max(dvGuess, 1);
+    // Signed: negative means brake (drop inward) instead of speeding up.
+    if (Math.abs(dvGuess) < 1) dvGuess = dvGuess < 0 ? -1 : 1;
 
     // Only try burns that are still in the future.
     const tStart = Math.max(now + lead, window0 - span / 2);
@@ -380,7 +434,7 @@ export class Autopilot {
     };
 
     let best = { score: Infinity, tb: 0, dv: 0 };
-    let budget = performance.now();
+    let work = 0; // yield every so often so the game keeps animating while we think
     const nT = 36, nV = 10;
     // First a focused search around the expected window; if that misses, look wider.
     for (const [from, width, dvLo, dvSpan] of [[tStart, span, 0.85, 0.45], [now + lead, Math.max(span, T) * 1.5, 0.6, 1.2]]) {
@@ -391,15 +445,14 @@ export class Autopilot {
           const score = evalCandidate(tb, dv);
           if (score < best.score) best = { score, tb, dv };
         }
-        if (performance.now() - budget > 12) {
+        if (++work % 3 === 0) {
           yield;
-          budget = performance.now();
         }
       }
       if (best.score < 1000) break;
     }
     // Refine around the best guess.
-    let stepT = span / nT, stepV = (dvGuess * 0.45) / (nV - 1);
+    let stepT = span / nT, stepV = (Math.abs(dvGuess) * 0.45) / (nV - 1);
     for (let round = 0; round < 3; round++) {
       stepT /= 2;
       stepV /= 2;
@@ -408,13 +461,12 @@ export class Autopilot {
         for (let b = -2; b <= 2; b++) {
           const tb = centre.tb + a * stepT;
           const dv = centre.dv + b * stepV;
-          if (tb < now + 2 || dv <= 0) continue;
+          if (tb < now + 2 || dv * dvGuess <= 0) continue;
           const score = evalCandidate(tb, dv);
           if (score < best.score) best = { score, tb, dv };
         }
-        if (performance.now() - budget > 12) {
+        if (++work % 3 === 0) {
           yield;
-          budget = performance.now();
         }
       }
     }
@@ -426,36 +478,59 @@ export class Autopilot {
 
   *waitAndBurn(plan) {
     const f = this.flight;
-    const burnT = plan.dv / f.stats.accel;
+    const dir = plan.dv < 0 ? Math.PI : 0;
+    const dvAbs = Math.abs(plan.dv);
+    const burnT = dvAbs / f.stats.accel;
     const start = plan.tb - burnT / 2;
     this.status = 'Waiting for the right moment';
+    if (this.coach) this.say(`See the fire on the map? When we get there, point along the arrow and hold GO!`);
+    const home = f.state.body;
     while (f.state.t < start) {
+      if (f.state.body !== home) return false;
       const wait = start - f.state.t;
-      this.aim(this.prograde());
-      this.warp = wait > 5 ? clamp(wait / 2.5, 1, 1000) : 1;
+      this.aim(this.prograde() + dir);
+      if (this.coach) this.status = `🔥 Burn in ${Math.ceil(wait)}s`;
+      this.warp = this.safeWarp(wait > 5 ? clamp(wait / 2.5, 1, 1000) : 1);
       yield;
     }
     this.status = 'Blast off!';
-    this.say('Now! Full power!');
+    this.tip('Now! Full power!', 'Now! Hold GO!');
     this.warp = 1;
     const dv0 = f.dvUsed;
     const hopBody = plan.hop.body;
     let checked = 0;
     while (true) {
-      const ok = this.aim(this.prograde(), 0.2);
-      f.throttle = ok ? 1 : 0;
+      const ok = this.aim(this.prograde() + dir, 0.2);
+      this.setThrottle(ok ? 1 : 0);
       const used = f.dvUsed - dv0;
-      if (used >= plan.dv * 0.97) {
+      if (this.coach && f.state.t > plan.tb + 20 && used < dvAbs * 0.3) {
+        this.say('Oh! We missed the moment. Let\'s find the next one.');
+        this.marker = null;
+        return false;
+      }
+      if (this.coach) {
+        // Kids let go a moment late, so call "stop" a little early: check where we'd be
+        // after another ~0.3 s of burning.
+        if (used >= dvAbs * 0.5) {
+          const extra = f.stats.accel * 0.2;
+          const a = f.state.angle;
+          const ahead = { ...f.state, vx: f.state.vx + Math.cos(a) * extra, vy: f.state.vy + Math.sin(a) * extra };
+          const pred = predict(ahead, { target: hopBody, maxSegments: 3, maxTime: 40000 });
+          if (arrivalScore(pred, hopBody, f.state.t) < 1000 || used > dvAbs * 1.25) break;
+        }
+      } else if (used >= dvAbs * 0.97) {
         // Close the loop: stop as soon as the prediction reaches our goal.
         if (checked++ % 3 === 0) {
           const pred = predict(f.state, { target: hopBody, maxSegments: 3, maxTime: 40000 });
-          if (arrivalScore(pred, hopBody, f.state.t) < 1000 || used > plan.dv * 1.25) break;
+          if (arrivalScore(pred, hopBody, f.state.t) < 1000 || used > dvAbs * 1.25) break;
         }
       }
       yield;
     }
-    f.throttle = 0;
+    this.setThrottle(0);
+    if (this.coach) this.say(`Let go! We're on our way to ${hopBody.name}!`);
     this.marker = null;
+    return true;
   }
 
   *coastTo(dest) {
@@ -463,6 +538,7 @@ export class Autopilot {
     this.status = `Flying to ${dest.name}`;
     let corrections = 0;
     let lastCheck = -Infinity;
+    let frames = 0;
     let pred = null;
     let lastBody = f.state.body;
     while (f.state.body !== dest) {
@@ -472,12 +548,12 @@ export class Autopilot {
         lastBody = s.body;
         lastCheck = -Infinity;
       }
-      if (performance.now() - lastCheck > 400) {
-        lastCheck = performance.now();
+      if (++frames - lastCheck > 24) {
+        lastCheck = frames;
         pred = predict(s, { target: dest, maxSegments: 3, maxTime: 40000 });
         const score = arrivalScore(pred, dest, s.t);
         const leftHome = !pred.segments[0].closed || s.body.parent === dest || dest.parent === s.body;
-        if (score > 0.8 && corrections < 3 && leftHome) {
+        if (score > 0.8 && corrections < 6 && leftHome) {
           corrections++;
           const fix = yield* this.planCorrection(dest, score);
           if (fix) yield* this.burnVector(fix);
@@ -485,11 +561,11 @@ export class Autopilot {
           lastCheck = -Infinity;
           continue;
         }
-        if (score >= 1000 && corrections >= 3) return false;
+        if (score >= 1000 && corrections >= 6) return false;
       }
       this.aim(this.prograde());
       const next = pred ? pred.segments[0].t1 - s.t : 10;
-      this.warp = next > 4 ? clamp(next / 3, 1, 1000) : 1;
+      this.warp = this.safeWarp(next > 4 ? clamp(next / 3, 1, 1000) : 1);
       yield;
     }
     return true;
@@ -500,11 +576,14 @@ export class Autopilot {
     this.status = 'Fixing our path';
     this.warp = 1;
     const s = f.state;
-    const tb = s.t + 3;
-    const at = propagate(s.body.mu, s.x, s.y, s.vx, s.vy, 3);
+    // Plan the push a little ahead, but sooner if something is about to happen.
+    const first = predict(s, { maxSegments: 1, maxTime: 40000 }).segments[0];
+    const lead = clamp((first.t1 - s.t) * 0.15, 0.3, 3);
+    const tb = s.t + lead;
+    const at = propagate(s.body.mu, s.x, s.y, s.vx, s.vy, lead);
     const pro = Math.atan2(at.vy, at.vx);
     let best = { score: baseScore * 0.8, dir: 0, dv: 0 };
-    let budget = performance.now();
+    let work = 0; // yield every so often so the game keeps animating while we think
     const mags = [0.3, 0.7, 1.5, 3, 6, 12, 20, 32];
     for (let i = 0; i < 16; i++) {
       const dir = pro + (i / 16) * Math.PI * 2;
@@ -513,9 +592,8 @@ export class Autopilot {
         const score = arrivalScore(predict(st, { target: dest, maxSegments: 3, maxTime: 40000 }), dest, tb);
         if (score < best.score) best = { score, dir, dv };
       }
-      if (performance.now() - budget > 12) {
+      if (++work % 3 === 0) {
         yield;
-        budget = performance.now();
       }
     }
     return best.dv > 0 ? { angle: best.dir, dv: best.dv } : null;
@@ -524,25 +602,33 @@ export class Autopilot {
   *burnVector({ angle, dv }) {
     const f = this.flight;
     this.status = 'Little push';
+    // Tiny nudges are too fiddly for small thumbs, so Pip always does these.
+    const wasCoach = this.coach;
+    if (wasCoach) {
+      this.coach = false;
+      this.say('I\'ll do this tiny push for you!');
+    }
     let guard = 0;
     while (!this.aim(angle, 0.1) && guard++ < 400) {
-      f.throttle = 0;
+      this.setThrottle(0);
       yield;
     }
     const dv0 = f.dvUsed;
     const body = f.state.body;
     while (f.dvUsed - dv0 < dv && f.state.body === body) {
-      f.throttle = clamp((dv - (f.dvUsed - dv0)) / (f.stats.accel / 60) , 0.05, 1);
+      this.setThrottle(clamp((dv - (f.dvUsed - dv0)) / (f.stats.accel / 60), 0.05, 1));
       this.aim(angle, 0.1);
       yield;
     }
-    f.throttle = 0;
+    this.setThrottle(0);
+    f.targetAngle = null;
+    this.coach = wasCoach;
   }
 
-  *capture(body) {
+  *capture(body, announce = true) {
     const f = this.flight;
     this.status = `Arriving at ${body.name}`;
-    this.say(`We're at ${body.name}!`, { visiting: body });
+    if (announce) this.say(`We're at ${body.name}!`, { visiting: body });
     const floor = body.solid ? body.maxSurface : body.radius;
     const want = parkingRadius(body);
 
@@ -559,15 +645,23 @@ export class Autopilot {
     let el = f.elements();
     if (el.rp < floor + body.spaceLine * 0.5) {
       this.status = 'Steering away from the ground';
+      // Safety first: Pip steers this bit even when coaching.
+      const wasCoach = this.coach;
+      if (wasCoach) {
+        this.coach = false;
+        this.say('Whoa, too low! I\'ll steer us away from the ground!');
+      }
       while (el.rp < want * 0.95 && f.state.body === body && !f.state.landed) {
         const up = f.upAngle;
         const ok = this.aim(up + el.dir * (Math.PI / 2), 0.25);
-        f.throttle = ok ? 1 : 0;
+        this.setThrottle(ok ? 1 : 0);
         this.warp = 1;
         yield;
         el = f.elements();
       }
-      f.throttle = 0;
+      this.setThrottle(0);
+      f.targetAngle = null;
+      this.coach = wasCoach;
     }
 
     // Wait for the lowest point, then brake.
@@ -583,24 +677,25 @@ export class Autopilot {
       const vr = (f.state.x * f.state.vx + f.state.y * f.state.vy) / f.radius;
       if (vr > 0 && el.ra > body.soi * 0.9) break;
       this.aim(this.prograde() + Math.PI);
-      this.warp = wait > 5 ? clamp(wait / 3, 1, 1000) : 1;
+      this.warp = this.safeWarp(wait > 5 ? clamp(wait / 3, 1, 1000) : 1);
       yield;
     }
     this.status = 'Slowing down';
-    this.say('Slow down, rocket!');
+    this.tip('Slow down, rocket!', 'Point backwards to the arrow and hold GO to slow down, or we\'ll zoom right past!');
     this.warp = 1;
     let guard = 0;
     let prevE = Infinity;
     // Brake until the path is round (stop if it starts getting less round again).
     while (guard++ < 60 * 60 && f.state.body === body && !f.state.landed) {
       el = f.elements();
-      if (el.e < 0.03 || (el.e < 0.3 && el.e > prevE + 1e-5)) break;
+      if (el.e < (this.coach ? 0.08 : 0.03) || (el.e < 0.3 && el.e > prevE + 1e-5)) break;
       prevE = el.e;
       const ok = this.aim(this.prograde() + Math.PI, 0.25);
-      f.throttle = ok ? 1 : 0;
+      this.setThrottle(ok ? 1 : 0);
       yield;
     }
-    f.throttle = 0;
+    this.setThrottle(0);
+    if (this.coach && f.state.body === body) this.say(`Let go! We're going around ${body.name}!`);
 
     // Parked way up high? Drop down to a cosy orbit (lower the low point, then round it off).
     el = f.elements();
@@ -608,18 +703,46 @@ export class Autopilot {
       this.status = 'Moving closer';
       if (el.e > 0.1) yield* this.coastToApsis('ap');
       while (f.state.body === body && f.elements().rp > want) {
-        f.throttle = this.aim(this.prograde() + Math.PI, 0.25) ? 1 : 0;
+        this.setThrottle(this.aim(this.prograde() + Math.PI, 0.25) ? 1 : 0);
         yield;
       }
-      f.throttle = 0;
+      this.setThrottle(0);
       yield* this.coastToApsis('pe');
       while (f.state.body === body && f.elements().e > 0.05) {
-        f.throttle = this.aim(this.prograde() + Math.PI, 0.25) ? 1 : 0;
+        this.setThrottle(this.aim(this.prograde() + Math.PI, 0.25) ? 1 : 0);
         yield;
       }
-      f.throttle = 0;
+      this.setThrottle(0);
     }
     return true;
+  }
+
+  /** Turn a backwards orbit around so we travel the same way as the moons. */
+  *flipOrbit(moon) {
+    const f = this.flight;
+    const body = f.state.body;
+    const wasCoach = this.coach;
+    this.coach = false;
+    this.status = 'Turning around';
+    this.say(`We're going around the wrong way! ${moon.name} goes the other way. I'll turn us around.`);
+    const want = Math.sign(moon.angularSpeed);
+    for (let guard = 0; guard < 60 * 60 && f.state.body === body; guard++) {
+      const s = f.state;
+      const r = f.radius;
+      const vc = Math.sqrt(body.mu / r);
+      // Desired: a round orbit going the moons' way.
+      const tx = (-s.y / r) * want, ty = (s.x / r) * want;
+      const dx = tx * vc - s.vx, dy = ty * vc - s.vy;
+      const err = Math.hypot(dx, dy);
+      if (err < 1.5) break;
+      const ok = this.aim(Math.atan2(dy, dx), 0.2);
+      this.setThrottle(ok ? clamp(err / (f.stats.accel * 0.3), 0.1, 1) : 0);
+      this.warp = 1;
+      yield;
+    }
+    this.setThrottle(0);
+    f.targetAngle = null;
+    this.coach = wasCoach;
   }
 
   *coastToApsis(which) {
@@ -630,7 +753,7 @@ export class Autopilot {
       const wait = which === 'ap' ? el.timeToAp : el.timeToPe;
       if (wait === null || wait < 0.5 || wait > el.period - 1) break;
       this.aim(this.prograde() + Math.PI);
-      this.warp = wait > 5 ? clamp(wait / 3, 1, 1000) : 1;
+      this.warp = this.safeWarp(wait > 5 ? clamp(wait / 3, 1, 1000) : 1);
       yield;
     }
     this.warp = 1;
