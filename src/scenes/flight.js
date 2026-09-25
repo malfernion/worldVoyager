@@ -592,30 +592,41 @@ export class FlightScene {
   }
 
   /**
-   * How to draw a predicted segment. Segments around the world we're in (or its parents)
-   * are drawn around where that world is now. Segments inside a moon we haven't reached yet
-   * are drawn as seen from here: the moon's motion is added in, so the path carries straight
-   * on and meets the ghost of the moon exactly where it will be.
+   * How to draw each predicted segment so the whole path is one unbroken line.
+   * - The first segment is drawn around the world we're in, where it is now.
+   * - Dropping into a moon: drawn as seen from the planet (the moon's motion is added in),
+   *   so the path carries straight on and meets the ghost moon where it will really be.
+   * - Climbing out to a parent: shifted to start exactly where the previous piece ends.
    */
   segmentFrames() {
     const pred = this.prediction;
     const s = this.flight.state;
     if (!pred) return [];
-    return pred.segments.map((seg) => {
-      let b = seg.body;
-      const chain = [];
-      while (b !== s.body && !b.isAncestorOf(s.body)) {
-        chain.push(b);
-        b = b.parent;
+    const frames = [];
+    let prev = null;
+    for (const seg of pred.segments) {
+      let anchor, chain;
+      if (!prev) {
+        const w = seg.body.worldPos(s.t, {});
+        anchor = { x: w.x - this.origin.x, y: w.y - this.origin.y };
+        chain = [];
+      } else if (seg.body.parent === prev.seg.body) {
+        anchor = prev.anchor;
+        chain = [seg.body, ...prev.chain];
+      } else if (prev.chain.length) {
+        anchor = prev.anchor;
+        chain = prev.chain.slice(1);
+      } else {
+        const p = prev.seg.body.relPos(seg.t0);
+        anchor = { x: prev.anchor.x - p.x, y: prev.anchor.y - p.y };
+        chain = [];
       }
-      const w = b.worldPos(s.t, {});
-      const anchor = { x: w.x - this.origin.x, y: w.y - this.origin.y };
       const offset = (t) => {
         let x = 0, y = 0;
         for (const c of chain) {
-          const p = c.relPos(t);
-          x += p.x;
-          y += p.y;
+          const q = c.relPos(t);
+          x += q.x;
+          y += q.y;
         }
         return { x, y };
       };
@@ -624,8 +635,10 @@ export class FlightScene {
         const o = offset(t);
         return { x: anchor.x + o.x + lx, y: anchor.y + o.y + ly };
       };
-      return { seg, anchor, moving: chain.length > 0, offset, at };
-    });
+      prev = { seg, anchor, chain, moving: chain.length > 0, offset, at };
+      frames.push(prev);
+    }
+    return frames;
   }
 
   /** Scene-relative points for a segment (relative to its frame anchor). */
