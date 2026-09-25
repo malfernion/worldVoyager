@@ -69,6 +69,11 @@ export class AudioEngine {
     sfxVerb.gain.value = 0.25;
     this.sfx.connect(sfxVerb).connect(this.reverb);
 
+    // Pip's voice: its own channel, not affected by the music/sound switches.
+    this.voice = ctx.createGain();
+    this.voice.gain.value = 1.0;
+    this.voice.connect(this.master);
+
     this.noise = this.makeNoise(2);
     this.setupEngine();
     this.bar = 0;
@@ -83,7 +88,19 @@ export class AudioEngine {
 
   setMusic(on) {
     this.musicOn = on;
-    if (this.music) this.music.gain.setTargetAtTime(on ? 0.5 : 0, this.ctx.currentTime, 0.3);
+    if (this.music) this.music.gain.setTargetAtTime(on ? (this.ducked ? 0.2 : 0.5) : 0, this.ctx.currentTime, 0.3);
+  }
+
+  voiceOut() {
+    return this.voice;
+  }
+
+  /** Dip the music while Pip is talking. */
+  duck(on) {
+    if (!this.music) return;
+    this.ducked = on;
+    const level = this.musicOn ? (on ? 0.2 : 0.5) : 0;
+    this.music.gain.setTargetAtTime(level, this.ctx.currentTime, on ? 0.08 : 0.6);
   }
 
   setSfx(on) {

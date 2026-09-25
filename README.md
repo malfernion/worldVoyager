@@ -41,3 +41,8 @@ Pushing to `main` runs `.github/workflows/deploy.yml`: tests → build → GitHu
 In the repo settings, set **Pages → Source** to **GitHub Actions**.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the research, design and architecture notes.
+
+## Backlog
+
+Planned work and ideas live in [GitHub Issues](https://github.com/malfernion/worldVoyager/issues),
+labelled `visuals`, `gameplay`, `audio`, `polish` and `devices`.

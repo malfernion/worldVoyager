@@ -5,15 +5,15 @@ const KEY = 'worldVoyager.v1';
 export const GOALS = [
   { id: 'space', icon: '🚀', text: 'Fly up into space!', hint: 'Hold the big GO button to blast off!' },
   { id: 'orbit', icon: '🌀', text: 'Go all the way around Homestead!', hint: 'Once you are high up, tip sideways and hold GO. Or tap the swirly orbit helper!' },
-  { id: 'land-homestead', icon: '🏡', text: 'Come home and land softly', hint: 'Tap the landing helper, or slow down gently before you touch the ground.' },
-  { id: 'visit-pebble', icon: '🌕', text: 'Fly to Pebble, the moon', hint: 'Open the map and tap Pebble. Then tap Take me there!' },
-  { id: 'land-pebble', icon: '🌕', text: 'Land on Pebble', hint: 'Tap the landing helper when you are going around Pebble.' },
-  { id: 'visit-dusty', icon: '🔴', text: 'Visit Dusty, the red planet', hint: 'Open the map and tap Dusty.' },
-  { id: 'land-dusty', icon: '🔴', text: 'Land on Dusty', hint: 'Dusty has a giant volcano. Can you find it?' },
-  { id: 'land-nibble', icon: '🥔', text: 'Land on Nibble, the potato moon', hint: 'Nibble goes around Dusty. It is tiny!' },
-  { id: 'visit-ringo', icon: '🪐', text: 'Fly to Ringo, the ringed giant', hint: 'Ringo is far, far away. Open the map and tap Ringo.' },
-  { id: 'land-sizzle', icon: '🌋', text: 'Land on Sizzle, the volcano moon', hint: 'Sizzle goes around Ringo.' },
-  { id: 'land-frosty', icon: '❄️', text: 'Land on Frosty, the icy moon', hint: 'Frosty goes around Ringo too.' },
+  { id: 'land-homestead', icon: '🏡', text: 'Come home and land softly!', hint: 'Tap the landing helper, or slow down gently before you touch the ground.' },
+  { id: 'visit-pebble', icon: '🌕', text: 'Fly to Pebble, the moon!', hint: 'Open the map and tap Pebble. Then tap Show me how!' },
+  { id: 'land-pebble', icon: '🌕', text: 'Land on Pebble!', hint: 'Tap the landing helper when you are going around Pebble.' },
+  { id: 'visit-dusty', icon: '🔴', text: 'Visit Dusty, the red planet!', hint: 'Open the map and tap Dusty.' },
+  { id: 'land-dusty', icon: '🔴', text: 'Land on Dusty!', hint: 'Dusty has a giant volcano. Can you find it?' },
+  { id: 'land-nibble', icon: '🥔', text: 'Land on Nibble, the potato moon!', hint: 'Nibble goes around Dusty. It is tiny!' },
+  { id: 'visit-ringo', icon: '🪐', text: 'Fly to Ringo, the ringed giant!', hint: 'Ringo is far, far away. Open the map and tap Ringo.' },
+  { id: 'land-sizzle', icon: '🌋', text: 'Land on Sizzle, the volcano moon!', hint: 'Sizzle goes around Ringo.' },
+  { id: 'land-frosty', icon: '❄️', text: 'Land on Frosty, the icy moon!', hint: 'Frosty goes around Ringo too.' },
 ];
 
 export const STICKERS = {

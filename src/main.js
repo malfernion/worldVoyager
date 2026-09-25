@@ -23,7 +23,7 @@ class App {
 
     this.progress = new Progress();
     this.audio = new AudioEngine();
-    this.narrator = new Narrator();
+    this.narrator = new Narrator(this.audio);
     this.applySettings();
 
     this.system = createSystem();
@@ -58,26 +58,13 @@ class App {
     this.audio.setMusic(st.music);
     this.audio.setSfx(st.sfx);
     this.narrator.enabled = st.voice;
-    this.narrator.setPreferred(st.voiceName);
-  }
-
-  /** Fill the voice picker with this device's English voices, best-sounding first. */
-  fillVoices() {
-    const sel = $('set-voice-name');
-    const voices = this.narrator.voices;
-    sel.innerHTML = '';
-    if (!voices.length) {
-      sel.append(new Option('Default voice', ''));
-      return;
-    }
-    voices.forEach((v, i) => sel.append(new Option(i === 0 ? `${v.name} (recommended)` : v.name, v.name)));
-    sel.value = this.narrator.voice?.name || '';
   }
 
   bindMenus() {
     $('play-btn').addEventListener('click', () => {
       this.audio.start();
       this.audio.play('tap');
+      this.narrator.preload();
       this.toBuilder();
       const g = this.progress.currentGoal;
       this.pip(g && g.id === 'space'
@@ -100,7 +87,6 @@ class App {
       $('set-music').checked = st.music;
       $('set-sfx').checked = st.sfx;
       $('set-voice').checked = st.voice;
-      this.fillVoices();
       $('settings-card').classList.remove('hidden');
     };
     for (const [id, key] of [['set-music', 'music'], ['set-sfx', 'sfx'], ['set-voice', 'voice']]) {
@@ -110,19 +96,6 @@ class App {
         this.applySettings();
       });
     }
-    this.narrator.onVoices = () => this.fillVoices();
-    $('set-voice-name').addEventListener('change', (e) => {
-      this.progress.settings.voiceName = e.target.value;
-      this.progress.save();
-      this.applySettings();
-      this.narrator.say('Howdy! I\'m Pip. Let\'s go exploring!');
-    });
-    $('voice-test').addEventListener('click', () => {
-      const was = this.narrator.enabled;
-      this.narrator.enabled = true;
-      this.narrator.say('Howdy! I\'m Pip. Let\'s go exploring!');
-      this.narrator.enabled = was;
-    });
     $('settings-btn').addEventListener('click', openSettings);
     $('flight-settings-btn').addEventListener('click', openSettings);
     $('settings-close').addEventListener('click', () => $('settings-card').classList.add('hidden'));

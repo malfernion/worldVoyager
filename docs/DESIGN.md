@@ -113,9 +113,4 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
 
 ## Ideas for later
 
-- Coach mode for landing (point up, pulse GO) and a "free burn" tutorial for the gravity turn.
-- Collectables on each world (a lost hat on Pebble, a banjo on Frosty) for Outer-Wilds-style
-  curiosity.
-- A comet on an eccentric orbit; geyser plumes on Sizzle; a pale-blue ice giant far out.
-- Parachutes and a thin atmosphere on Homestead for splashdowns.
-- A PWA manifest so it can be installed on a tablet home screen and played offline.
+Tracked as [GitHub Issues](https://github.com/malfernion/worldVoyager/issues).

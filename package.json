@@ -7,7 +7,9 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "test": "vitest run"
+    "test": "vitest run",
+    "voice:lines": "node tools/voice/lines.mjs",
+    "voice:check": "node tools/voice/check.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"
