@@ -1478,3 +1478,22 @@ h1 {
     bottom: calc(18px + var(--safe-bottom));
   }
 }
+
+.voice-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#set-voice-name {
+  flex: 1;
+  min-width: 0;
+  max-width: 260px;
+  font-family: inherit;
+  font-size: 15px;
+  padding: 6px 8px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: #fff8e8;
+  color: var(--ink);
+}
