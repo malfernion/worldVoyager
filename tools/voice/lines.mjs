@@ -83,7 +83,7 @@ for (const b of BODY_DEFS) {
 }
 
 // World-name expansion makes some impossible lines; drop them.
-const MOONS = 'Pebble|Nibble|Sizzle|Frosty|Flip';
+const MOONS = 'Pebble|Nibble|Sizzle|Frosty|Misty|Flip';
 const GAS = 'Ringo|Tumble';
 const DROP = [
   new RegExp(`^(?!${GAS})\\w+ is made of clouds`), // only the gas giants

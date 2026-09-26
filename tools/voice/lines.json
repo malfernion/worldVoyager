@@ -16,6 +16,10 @@
   "text": "A little lander, hiding in the shade!"
  },
  {
+  "key": "a little probe with a parachute",
+  "text": "A little probe with a parachute!"
+ },
+ {
   "key": "a little robot called philae landed on it",
   "text": "A little robot called Philae landed on it!"
  },
@@ -26,6 +30,10 @@
  {
   "key": "a real lander called philae landed on a comet",
   "text": "A real lander called Philae landed on a comet."
+ },
+ {
+  "key": "a real probe called huygens landed on titan",
+  "text": "A real probe called Huygens landed on Titan."
  },
  {
   "key": "a real rover called opportunity explored mars",
@@ -106,6 +114,10 @@
  {
   "key": "back in homesteads space",
   "text": "Back in Homestead's space."
+ },
+ {
+  "key": "back in mistys space",
+  "text": "Back in Misty's space."
  },
  {
   "key": "back in nibbles space",
@@ -428,6 +440,10 @@
   "text": "Hello, Flurry!"
  },
  {
+  "key": "hello misty",
+  "text": "Hello Misty!"
+ },
+ {
   "key": "hello mossy",
   "text": "Hello, Mossy!"
  },
@@ -458,6 +474,10 @@
  {
   "key": "hmm i cant find a path to homestead right now",
   "text": "Hmm, I can't find a path to Homestead right now."
+ },
+ {
+  "key": "hmm i cant find a path to misty right now",
+  "text": "Hmm, I can't find a path to Misty right now."
  },
  {
   "key": "hmm i cant find a path to nibble right now",
@@ -620,6 +640,14 @@
   "text": "It is tipped over on its side."
  },
  {
+  "key": "it is wrapped in a thick orange haze",
+  "text": "It is wrapped in a thick orange haze."
+ },
+ {
+  "key": "it saw pebbles made of ice",
+  "text": "It saw pebbles made of ice!"
+ },
+ {
   "key": "it took three years",
   "text": "It took three years!"
  },
@@ -696,6 +724,10 @@
   "text": "Let's fly to Homestead!"
  },
  {
+  "key": "lets fly to misty",
+  "text": "Let's fly to Misty!"
+ },
+ {
   "key": "lets fly to nibble",
   "text": "Let's fly to Nibble!"
  },
@@ -742,6 +774,10 @@
  {
   "key": "lets go for a drive on homestead",
   "text": "Let's go for a drive on Homestead!"
+ },
+ {
+  "key": "lets go for a drive on misty",
+  "text": "Let's go for a drive on Misty!"
  },
  {
   "key": "lets go for a drive on nibble",
@@ -798,6 +834,14 @@
  {
   "key": "lets land on homestead together",
   "text": "Let's land on Homestead together!"
+ },
+ {
+  "key": "lets land on misty",
+  "text": "Let's land on Misty."
+ },
+ {
+  "key": "lets land on misty together",
+  "text": "Let's land on Misty together!"
  },
  {
   "key": "lets land on nibble",
@@ -894,6 +938,18 @@
  {
   "key": "mars has the biggest volcano in the whole solar system",
   "text": "Mars has the biggest volcano in the whole solar system!"
+ },
+ {
+  "key": "misty",
+  "text": "Misty!"
+ },
+ {
+  "key": "misty goes the other way",
+  "text": "Misty goes the other way."
+ },
+ {
+  "key": "misty is like titan a moon of saturn",
+  "text": "Misty is like Titan, a moon of Saturn."
  },
  {
   "key": "mossy was having a nap on pebble",
@@ -1010,6 +1066,10 @@
  {
   "key": "one garage is plenty",
   "text": "One garage is plenty!"
+ },
+ {
+  "key": "oops a lake",
+  "text": "Oops, a lake!"
  },
  {
   "key": "oops lava",
@@ -1196,6 +1256,10 @@
   "text": "Something bounced on Ducky and hid in the shade."
  },
  {
+  "key": "something floated down on a parachute near a lake on misty",
+  "text": "Something floated down on a parachute, near a lake on Misty."
+ },
+ {
   "key": "something is sleeping in the dust on dusty",
   "text": "Something is sleeping in the dust on Dusty."
  },
@@ -1284,6 +1348,10 @@
   "text": "That is close enough to Ember!"
  },
  {
+  "key": "that lake is made of methane",
+  "text": "That lake is made of methane."
+ },
+ {
   "key": "that means you are falling around the planet so fast you keep missing the ground",
   "text": "That means you are falling around the planet so fast you keep missing the ground!"
  },
@@ -1326,6 +1394,10 @@
  {
   "key": "thats me",
   "text": "That's me!"
+ },
+ {
+  "key": "thats misty",
+  "text": "That's Misty!"
  },
  {
   "key": "thats nibble",
@@ -1418,6 +1490,10 @@
  {
   "key": "this is the best campfire song ever",
   "text": "This is the best campfire song ever!"
+ },
+ {
+  "key": "titan has lakes and rain but theyre made of methane not water",
+  "text": "Titan has lakes and rain, but they're made of methane, not water!"
  },
  {
   "key": "toasty loves to watch the warm lava",
@@ -1544,6 +1620,10 @@
   "text": "We made it to Homestead!"
  },
  {
+  "key": "we made it to misty",
+  "text": "We made it to Misty!"
+ },
+ {
   "key": "we made it to nibble",
   "text": "We made it to Nibble!"
  },
@@ -1592,6 +1672,10 @@
   "text": "Welcome to Homestead!"
  },
  {
+  "key": "welcome to misty",
+  "text": "Welcome to Misty!"
+ },
+ {
   "key": "welcome to nibble",
   "text": "Welcome to Nibble!"
  },
@@ -1632,6 +1716,10 @@
   "text": "We're already going around Homestead!"
  },
  {
+  "key": "were already going around misty",
+  "text": "We're already going around Misty!"
+ },
+ {
   "key": "were already going around nibble",
   "text": "We're already going around Nibble!"
  },
@@ -1670,6 +1758,10 @@
  {
   "key": "were at homestead",
   "text": "We're at Homestead!"
+ },
+ {
+  "key": "were at misty",
+  "text": "We're at Misty!"
  },
  {
   "key": "were at nibble",
@@ -1714,6 +1806,10 @@
  {
   "key": "were going around homestead",
   "text": "We're going around Homestead!"
+ },
+ {
+  "key": "were going around misty",
+  "text": "We're going around Misty!"
  },
  {
   "key": "were going around nibble",
@@ -1764,6 +1860,10 @@
   "text": "We're in orbit around Homestead!"
  },
  {
+  "key": "were in orbit around misty",
+  "text": "We're in orbit around Misty!"
+ },
+ {
   "key": "were in orbit around nibble",
   "text": "We're in orbit around Nibble!"
  },
@@ -1802,6 +1902,10 @@
  {
   "key": "were on our way to homestead",
   "text": "We're on our way to Homestead!"
+ },
+ {
+  "key": "were on our way to misty",
+  "text": "We're on our way to Misty!"
  },
  {
   "key": "were on our way to nibble",
@@ -1912,6 +2016,10 @@
   "text": "You flew to Homestead all by yourself!"
  },
  {
+  "key": "you flew to misty all by yourself",
+  "text": "You flew to Misty all by yourself!"
+ },
+ {
   "key": "you flew to nibble all by yourself",
   "text": "You flew to Nibble all by yourself!"
  },
@@ -1958,6 +2066,10 @@
  {
   "key": "you landed on homestead",
   "text": "You landed on Homestead!"
+ },
+ {
+  "key": "you landed on misty",
+  "text": "You landed on Misty!"
  },
  {
   "key": "you landed on nibble",
