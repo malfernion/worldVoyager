@@ -161,7 +161,7 @@ const builders = {
   },
 };
 
-/** Returns { group, wheels: [{ spin, steer }], radius, jets, pip, flag }. */
+/** Returns { group, wheels: [{ spin, steer, x, z }], radius, jets, pip, flag }. */
 export function buildBuggy(kind, paint) {
   const def = BUGGIES[kind] || BUGGIES.rover;
   const color = hexOf(paint);
@@ -174,7 +174,7 @@ export function buildBuggy(kind, paint) {
       const spin = wheel(def.wheel, b.width, z > 0 ? CREAM : color);
       steer.add(spin);
       b.g.add(steer);
-      wheels.push({ spin, steer: z > 0 ? steer : null });
+      wheels.push({ spin, steer: z > 0 ? steer : null, x, z });
     }
   }
   const group = new THREE.Group();

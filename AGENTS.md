@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -82,7 +82,10 @@ src/physics/           Pure, headless, unit-tested; no three.js here
   autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner (+ comet windows and homing)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets),
                        WorldLap: have we driven all the way round the world? (#29)
-src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), trees, rocks (moon boulders),
+  dust.js              Buggy dust (#26): a fixed pool of particles in typed arrays (tyre dust, landing thumps, the Hopper's
+                       jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js
+src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
+                       buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
@@ -136,7 +139,10 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
 - **Phones first.** Watch draw calls and triangle counts (instancing, shared materials,
   no per-frame allocation in hot paths). Trees and rocks are one InstancedMesh (+ ink) per
   shape; the buggy finds nearby ones through a grid built once per world (`ObstacleGrid`),
-  never by looping over all of them each step.
+  never by looping over all of them each step. Every buggy particle effect (tyre dust, jumps,
+  jets, landing, fizz) goes into the one fixed `DustPool` (#26, `src/physics/dust.js`): no
+  per-particle objects or materials, two draw calls. Add new buggy effects there, not as
+  sprites in the flight scene's `Particles`.
 - **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
   multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range

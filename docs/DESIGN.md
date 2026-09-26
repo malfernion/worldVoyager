@@ -338,6 +338,41 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
     about one.
   - In narrow portrait the compass chip (with the ring and the ✨) is wide, so while driving the
     zoom slider sits a little lower.
+- **Buggy dust** (#26; the sim in `src/physics/dust.js`, drawn by `src/world/dust.js`). Tyres
+  throw up dust the colour of the ground under each wheel, and it falls with the world's real
+  gravity, so it tells you where you are without a word.
+  - **Where it comes from.** Every wheel whose tyre is on the ground (not hanging over a dip)
+    throws dust at `dustRate(speed, slip, push)`: nothing below a crawl (1.2 m/s), more the
+    faster it rolls, and much more when sliding sideways (Frosty's ice, a hard turn) or
+    speeding up or braking hard (the forward acceleration, smoothed so bumps don't count).
+    Rolling flings it backwards; braking sprays it a little forwards; sliding throws it out to
+    the side. Landing makes a ring-shaped thump of dust for every buggy, bigger the harder it
+    comes down (with a soft `thump` sound and a little shake above 3 m/s).
+  - **What colour.** `dustColor()` asks `terrain.js` for the same colour the ground mesh is
+    painted with (no reading pixels), a little paler as fine dust is, and paler still on dark
+    ground so it reads. Grass throws up some earth too. Homestead's seas splash blue-white
+    instead. Each wheel samples again once it has moved half a metre, and each grain varies a
+    little. The billboards are lit by the sun like the ambient puffs, so dust dims at night.
+  - **How it falls.** Each grain feels mu / r² towards the middle, so it hangs in slow, clean
+    arcs on Pebble (2 m/s²) and Nibble (0.9) and drops at once on Homestead (10). Airless worlds
+    have no drag, so they're true ballistic arcs and small, sharp grains; where there's air
+    (Homestead, Dusty) the dust is slowed, grows into soft puffs and fades within about a
+    second. A grain never goes into the ground: it's checked against `terrain.js` heights
+    (every flying grain near the ground, plus a few others round robin, at most 160 a frame),
+    and one that lands stops on the surface and fades out.
+  - **The Hopper.** A hop bursts a ring of dust out along the ground and flashes both jets
+    (the nozzles point down); holding jump while it rises flickers the jets, and close to the
+    ground the blast blows dust out from underneath. The Nibble super hop's burst is bigger,
+    with a jet blast backwards, and the orbit jets (holding jump) and brake jets (reverse)
+    puff flames and a little grey smoke, lifting dust when they fire low over the ground.
+    Ducky's fizz and bumping a rock use the same pool.
+  - **Cheap.** One fixed pool (384 particles, typed arrays, a free-list: nothing allocated per
+    frame, and when it's full new grains are simply skipped) for every buggy effect, drawn as
+    two instanced billboard meshes (lit dust, additive flames) in the world's group: two draw
+    calls however much dust there is, and only the live grains are uploaded. Typical driving
+    keeps 30-150 alive; the sim costs a few hundredths of a millisecond a frame on a laptop.
+    (Falling leaves and the whoosh-home sparkles still use the flight scene's sprite
+    particles: they're rare.)
 
 ## Discoveries (#15)
 

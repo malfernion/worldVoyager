@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { Buggy, ObstacleGrid, vec } from '../physics/buggy.js';
 import { BUGGIES, DEFAULT_BUGGY, garageOf } from '../rocket/parts.js';
 import { buildBuggy } from '../rocket/buggyMesh.js';
+import { DustPool, BuggyDust } from '../physics/dust.js';
+import { createDustMesh } from '../world/dust.js';
 import { clamp, DRIVE_ZOOM } from '../ui/zoom.js';
 import { buggyFinds, discoveryTargets, nearestTarget, sunDirection } from '../physics/discoveries.js';
 import { buggyMeets, friendTargets } from '../physics/friends.js';
@@ -32,6 +34,10 @@ export class DriveMode {
     this.nearest = null;
     this.seekWait = 0;
     this.toSun = { x: 1, y: 0, z: 0 };
+    // Tyre dust, jump bursts and jets (#26): one pool for every buggy effect, drawn in the world's group.
+    this.dustPool = new DustPool();
+    this.dustMesh = null;
+    this.dust = null;
   }
 
   canDeploy() {
@@ -102,6 +108,7 @@ export class DriveMode {
     this.roundShown = false;
     this.mesh = buildBuggy(choice.kind, choice.paint);
     fs.scene.add(this.mesh.group);
+    this.attachDust(body);
     this.active = true;
     this.phase = 'out';
     this.anim = 0;
@@ -115,6 +122,23 @@ export class DriveMode {
     fs.app.audio.play('snap');
     const first = fs.app.progress.earn('drive');
     if (!first) fs.app.pip(`Let's go for a drive on ${body.name}!`, { speak: true });
+  }
+
+  /** Dust for this buggy, drawn in its world's group (so it moves with the world). */
+  attachDust(body) {
+    this.dustPool.setWorld(body);
+    this.dustPool.clear();
+    this.dust = new BuggyDust(this.dustPool, this.buggy, this.mesh.wheels.map((w) => [w.x, w.z]), this.mesh.jets);
+    const v = this.fs.visuals.find((x) => x.body === body);
+    if (!v) return;
+    this.dustMesh ??= createDustMesh(this.dustPool, v.sunDir, body.radius);
+    this.dustMesh.attach(v.group, v.sunDir, body.radius);
+  }
+
+  dropDust() {
+    this.dustPool.clear();
+    this.dustMesh?.update();
+    this.dust = null;
   }
 
   /** This world's trees or rocks as a lookup grid for the buggy (built once per world). */
@@ -156,6 +180,7 @@ export class DriveMode {
 
   finish() {
     const fs = this.fs;
+    this.dropDust();
     if (this.mesh) fs.scene.remove(this.mesh.group);
     this.mesh = null;
     this.active = false;
@@ -167,6 +192,7 @@ export class DriveMode {
   /** Abandon driving instantly (e.g. going back to the workshop). */
   cancel() {
     if (!this.active) return;
+    this.dropDust();
     if (this.mesh) this.fs.scene.remove(this.mesh.group);
     this.mesh = null;
     this.active = false;
@@ -209,6 +235,7 @@ export class DriveMode {
       pos = b.p;
       this.effects(dt, input);
     }
+    this.dustPool.step(dt);
 
     const w = s.body.worldPos(s.t, {});
     this.world = { x: w.x + pos[0], y: w.y + pos[1], z: pos[2] };
@@ -223,6 +250,7 @@ export class DriveMode {
     const fs = this.fs;
     const b = this.buggy;
     const dt = this.lastDt || 0;
+    this.dustMesh?.update();
     const g = this.mesh.group;
     g.position.set(this.world.x - fs.origin.x, this.world.y - fs.origin.y, this.pos[2]);
     g.scale.setScalar(this.scale);
@@ -246,26 +274,16 @@ export class DriveMode {
   effects(dt, input) {
     const b = this.buggy;
     const fs = this.fs;
-    const body = b.body;
-    const back = vec.sub(b.p, vec.mul(b.f, 1.3));
-    if (b.grounded && b.speed > 2.5 && Math.random() < dt * (b.inWater ? 18 : 7)) {
-      const side = vec.cross(b.n, b.f);
-      const sp = 1 + Math.random() * 2;
-      const pos = vec.add(back, vec.mul(side, (Math.random() - 0.5) * 2));
-      const vel = vec.add(vec.mul(b.n, sp), vec.mul(b.f, -sp));
-      fs.particles.spawn('puff', body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], {
-        size: b.inWater ? 0.8 : 0.6, grow: 1.1, life: 0.8, drag: 2.5,
-        color: b.inWater ? 0xcfefff : body.id === 'homestead' ? 0xd9ccb0 : body.color,
-      });
+    // Tyre dust and landing thumps (#26), then the jump's burst (a super hop's is bigger).
+    this.dust.update(dt, input);
+    if (this.dust.landing > 3) {
+      fs.app.audio.play('thump');
+      this.shake = Math.max(this.shake, Math.min(0.25, this.dust.landing * 0.02));
     }
     if (b.jumped) {
       b.jumped = false;
       fs.app.audio.play('boing');
-      for (let i = 0; i < 12; i++) {
-        const pos = vec.sub(b.p, vec.mul(b.n, 0.5));
-        const vel = vec.mul(vec.norm(vec.add(vec.mul(b.n, -1), [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5])), 4);
-        fs.particles.spawn(i % 2 ? 'spark' : 'puff', body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], { size: 0.9, grow: 1.2, life: 0.8, drag: 2.5 });
-      }
+      this.dust.takeOff(b.superHop);
     }
     this.bumpEffects(dt);
     this.orbitEffects(dt);
@@ -305,13 +323,7 @@ export class DriveMode {
         });
       }
     } else {
-      const at = vec.sub(b.p, vec.mul(b.up, b.kind.ride * 0.6)); // a puff of dust by the wheels
-      for (let i = 0; i < 6; i++) {
-        const vel = vec.add(vec.mul(b.up, 1 + Math.random()), [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5]);
-        fs.particles.spawn('puff', b.body, at[0], at[1], at[2], vel[0], vel[1], vel[2], {
-          size: 0.6, grow: 1.2, life: 0.7, drag: 2.5, color: b.body.color,
-        });
-      }
+      this.dust.ring(8, 1.2, 1, 0.6); // a puff of dust by the wheels
     }
   }
 
@@ -338,10 +350,10 @@ export class DriveMode {
     if (b.puffed) {
       b.puffed = false;
       app.audio.play('whoosh');
-      for (let i = 0; i < 6; i++) this.jetPuff(-1, 3 + Math.random() * 3);
+      for (let i = 0; i < 8; i++) this.dust.jet(-1, 3 + Math.random() * 3);
     }
-    if (b.jets && Math.random() < dt * 20) this.jetPuff(-1, 3 + Math.random() * 2);
-    if (b.braking && Math.random() < dt * 25) this.jetPuff(1, 3);
+    if (b.jets && Math.random() < dt * 30) this.dust.jet(-1, 3 + Math.random() * 2);
+    if (b.braking && Math.random() < dt * 30) this.dust.jet(1, 3);
     if (b.orbiting && !this.halfway && b.lap > Math.PI && !app.progress.has('orbit-nibble')) {
       this.halfway = true;
       app.pip('Halfway round! Keep going!', { speak: true, stale: 5 });
@@ -390,15 +402,7 @@ export class DriveMode {
           this.fs.app.pip('Whee! Gas from the comet is pushing us up!', { speak: true, stale: 5 });
         }
       }
-      if (Math.random() < dt * 30 * b.fizz) {
-        const up = b.up;
-        const j = () => (Math.random() - 0.5) * 1.5;
-        const pos = vec.add(b.p, vec.add(vec.mul(up, -b.kind.ride - 0.3), [j(), j(), j()]));
-        const vel = vec.add(vec.mul(up, 2 + Math.random() * 2), [j(), j(), j()]);
-        this.fs.particles.spawn('puff', b.body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], {
-          size: 0.7, grow: 1.6, life: 1.1, drag: 1.2, color: 0xeef6ff,
-        });
-      }
+      if (Math.random() < dt * 30 * b.fizz) this.dust.fizz();
     } else if (b.grounded) {
       this.fizzing = false;
     }
@@ -450,20 +454,6 @@ export class DriveMode {
     this.sparkle();
     this.fs.discover();
     app.progress.earn(id);
-  }
-
-  /** A puff of flame from the Hopper's jets, blowing backwards (dir -1) or forwards (+1). */
-  jetPuff(dir, speed) {
-    const b = this.buggy;
-    const up = b.up;
-    const side = vec.cross(up, b.f);
-    const x = Math.random() < 0.5 ? -0.55 : 0.55;
-    const pos = vec.add(vec.add(b.p, vec.mul(side, x)), vec.add(vec.mul(up, -0.3), vec.mul(b.f, dir > 0 ? 1.2 : -1.2)));
-    const jitter = [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5];
-    const vel = vec.add(vec.add(b.v, vec.mul(b.f, dir * speed)), jitter);
-    this.fs.particles.spawn('puff', b.body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], {
-      size: 0.5, grow: 1.4, life: 0.6, drag: 1.5, color: Math.random() < 0.5 ? 0xffb347 : 0xffe08a,
-    });
   }
 
   /** Chase distance: the player's multiplier on this buggy's usual distance, clamped absolutely. */

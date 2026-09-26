@@ -57,8 +57,10 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   in the way: back up and steer around them (or hop over the small ones). Keep driving one
   way and you'll go all the way round the world: a ring by the compass fills as you go, Pip
   cheers at halfway, and the first time you get the 🌍 Round the World sticker (each world
-  you've driven round gets a 🌍 in the sticker book). (Psst: on tiny Nibble, drive the Hopper
-  really fast, then jump and hold it…)
+  you've driven round gets a 🌍 in the sticker book). Your tyres kick up dust the colour of
+  the ground, and it floats down slowly on little moons and falls fast at home; the Hopper's
+  jets puff when it jumps. (Psst: on tiny Nibble, drive the Hopper really fast, then jump and
+  hold it…)
 - **Keyboard:** ←/→ or A/D turn, Space/↑/W fire (hold **Shift** too for a gentle tenth of the
   thrust, for careful burns), M map, time speed `+`/`-` (or `]`/`[`, `.`/`,`), `0` or `/` normal speed, `1`–`7` pick a
   speed (1 normal … 7 fastest; hover the time buttons to see the keys),
@@ -103,7 +105,7 @@ fact again, or a ❓ one for a hint from Pip. Tap a friend in the 🎵 Band to h
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coach-mode flights, buggy, discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coach-mode flights, buggy (+ its dust), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

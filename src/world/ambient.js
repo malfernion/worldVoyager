@@ -69,8 +69,8 @@ const FRAG = /* glsl */ `
 
 const quad = new THREE.PlaneGeometry(1, 1);
 
-/** One draw call for up to `count` soft billboards living in the planet's frame. */
-function billboards(count, map, sunDir, radius, { additive = false, lit = true } = {}) {
+/** One draw call for up to `count` soft billboards living in the planet's frame (also the buggy dust's). */
+export function billboards(count, map, sunDir, radius, { additive = false, lit = true } = {}) {
   const geo = new THREE.InstancedBufferGeometry();
   geo.index = quad.index;
   geo.setAttribute('position', quad.attributes.position);

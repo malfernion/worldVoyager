@@ -705,6 +705,11 @@ export class AudioEngine {
         this.play('bonk');
         this.noiseBurst(0.4, 3200, { vol: 0.08, q: 0.7, delay: 0.05 });
         break;
+      case 'thump': // a buggy landing hard (#26): a soft, dusty crunch
+        this.tone(95, 0.18, { vol: 0.22, slide: 0.6 });
+        this.noiseBurst(0.22, 420, { vol: 0.14, type: 'lowpass' });
+        this.noiseBurst(0.12, 2400, { vol: 0.03, q: 0.8, delay: 0.02 });
+        break;
       case 'whoosh':
         this.noiseBurst(0.5, 700, { vol: 0.25, q: 0.6 });
         break;
