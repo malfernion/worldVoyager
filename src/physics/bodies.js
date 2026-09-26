@@ -213,6 +213,36 @@ export class Body {
     return this.liquid.level - this.terrainFn.height(x, y, z);
   }
 
+  /**
+   * How close point p ([x, y, z] in this world's frame) is to its liquid (#44), for the lapping
+   * waves: 1 over it, fading to 0 at `reach` metres from its shore (looked for on three rings of
+   * eight spots round p along the ground, so a few terrain lookups, not a search).
+   */
+  nearLiquid(p, reach = 30) {
+    if (!this.liquid) return 0;
+    const r = Math.hypot(p[0], p[1], p[2]) || 1;
+    const u = [p[0] / r, p[1] / r, p[2] / r];
+    if (this.liquidDepth(u[0], u[1], u[2]) > 0) return 1;
+    // Two directions along the ground at p.
+    const a = Math.abs(u[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const e1 = [u[1] * a[2] - u[2] * a[1], u[2] * a[0] - u[0] * a[2], u[0] * a[1] - u[1] * a[0]];
+    const l1 = Math.hypot(e1[0], e1[1], e1[2]);
+    e1[0] /= l1; e1[1] /= l1; e1[2] /= l1;
+    const e2 = [u[1] * e1[2] - u[2] * e1[1], u[2] * e1[0] - u[0] * e1[2], u[0] * e1[1] - u[1] * e1[0]];
+    for (let ring = 1; ring <= 3; ring++) {
+      const ang = (reach * ring) / 3 / this.radius;
+      const c = Math.cos(ang), sn = Math.sin(ang);
+      for (let k = 0; k < 8; k++) {
+        const ca = Math.cos((k * Math.PI) / 4) * sn, sa = Math.sin((k * Math.PI) / 4) * sn;
+        const x = u[0] * c + e1[0] * ca + e2[0] * sa;
+        const y = u[1] * c + e1[1] * ca + e2[1] * sa;
+        const z = u[2] * c + e1[2] * ca + e2[2] * sa;
+        if (this.liquidDepth(x, y, z) > 0) return 1 - (ring - 1) / 3;
+      }
+    }
+    return 0;
+  }
+
   /** Can a rocket land here: dry, with a few metres of dry ground either side? */
   landableAt(angle) {
     if (!this.liquid) return true;

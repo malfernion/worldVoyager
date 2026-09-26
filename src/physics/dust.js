@@ -277,7 +277,7 @@ export class BuggyDust {
     this.cols = wheels.map(() => ({ r: 1, g: 1, b: 1, water: false, fresh: false }));
     this.under = { r: 1, g: 1, b: 1, water: false };
     this.opts = { size: 0.5, grow: undefined, life: undefined, alpha: 0.9, grav: 1, drag: 0, kind: DUST_KIND, spin: 0, float: FLOAT_NONE };
-    this.spray = { float: FLOAT_SPRAY };
+    this.spray = { float: FLOAT_SPRAY, alpha: 0.75 };
     this.bubbleOpts = { grav: -0.3, drag: 2.5, life: 2.4, grow: 1.4, alpha: 0.75, float: FLOAT_BUBBLE };
     this.wasIn = buggy.inWater;
     this.splashed = 0; // how fast we just crossed a sea's surface (m/s), for the scene's sound
@@ -372,7 +372,7 @@ export class BuggyDust {
       const sp = (0.8 + rn()) * (1 + speed * 0.25);
       const up = 2 + rn() * 2.5 + speed * 0.3;
       if (this.emit(cx + ox, cy + oy, cz + oz, ox * sp + U[0] * up + b.v[0] * 0.3, oy * sp + U[1] * up + b.v[1] * 0.3, oz * sp + U[2] * up + b.v[2] * 0.3,
-        col.r, col.g, col.b, (0.45 + rn() * 0.3) * this.scale, this.spray) < 0) break;
+        col.r, col.g, col.b, (0.3 + rn() * 0.25) * this.scale, this.spray) < 0) break;
     }
   }
 
@@ -397,7 +397,7 @@ export class BuggyDust {
       const out = 0.8 + rn() * 0.8 + speed * 0.2, up = 1 + rn() * 1.2 + speed * 0.1;
       this.emit(b.p[0] * k + ox, b.p[1] * k + oy, b.p[2] * k + oz,
         R[0] * side * out + U[0] * up + F[0] * vf * 0.4, R[1] * side * out + U[1] * up + F[1] * vf * 0.4, R[2] * side * out + U[2] * up + F[2] * vf * 0.4,
-        col.r, col.g, col.b, (0.35 + rn() * 0.25) * this.scale, this.spray);
+        col.r, col.g, col.b, (0.25 + rn() * 0.2) * this.scale, this.spray);
     }
   }
 

@@ -159,7 +159,10 @@ class App {
     this.screen = name;
     for (const s of ['title', 'builder', 'flight']) $(`${s}-screen`).classList.toggle('hidden', s !== name);
     $('journal-screen').classList.add('hidden');
-    if (name !== 'flight') this.flightScene.clearMarkers();
+    if (name !== 'flight') {
+      this.flightScene.clearMarkers();
+      this.flightScene.dryOff?.();
+    }
     this.updateGoalChip();
   }
 

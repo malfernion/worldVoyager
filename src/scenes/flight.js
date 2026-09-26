@@ -22,6 +22,7 @@ import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimit
 import { GOALS, STARTER_END } from '../progress.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
+const FOG_OFF = 1e9;
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
 const CONFETTI = [0xff6b6b, 0xffd166, 0x06d6a0, 0x4cc9f0, 0xf78c6b, 0xc77dff];
 // Longest (real seconds) a new coached action waits for Pip to stop talking (#36).
@@ -39,6 +40,12 @@ export class FlightScene {
     this.visuals = app.visuals;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0d1024);
+    this.spaceColour = this.scene.background.clone();
+    // Under a sea (#44) the view fogs over. The fog is always there (so no material ever needs
+    // rebuilding when we dive), just pushed out of sight until then.
+    this.scene.fog = new THREE.Fog(0x2d7fa8, FOG_OFF, FOG_OFF * 2);
+    this.underwater = false;
+    this.lapWait = 0;
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.3, 3e6);
     this.origin = { x: 0, y: 0 };
     this.mode = 'flight';
@@ -859,7 +866,62 @@ export class FlightScene {
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
     this.updateMarkers();
+    this.updateUnderwater(dt);
     this.app.audio.setEngine(this.crashed ? 0 : f.throttle);
+  }
+
+  /** Into or out of a sea (#44): fog, tint, stars and muffling. `look`: the liquid's LOOKS entry. */
+  setUnderwater(under, look) {
+    this.underwater = under;
+    const fog = this.scene.fog;
+    if (under) {
+      fog.color.set(look.fog);
+      fog.near = 1.5;
+      fog.far = look.fogFar;
+      this.scene.background.copy(fog.color);
+    } else {
+      fog.near = FOG_OFF;
+      fog.far = FOG_OFF * 2;
+      this.scene.background.copy(this.spaceColour);
+    }
+    this.sky.visible = !under;
+    document.getElementById('underwater')?.classList.toggle('on', under);
+    this.app.audio.setUnderwater(under);
+  }
+
+  /** Leaving the flight screen: out of any sea, and no more lapping. */
+  dryOff() {
+    if (this.underwater) this.setUnderwater(false);
+    this.app.audio.setLapping(0);
+  }
+
+  /**
+   * The camera under a sea (#44): blue fog and tint, the stars hidden, the music and sounds
+   * muffled. And, near a sea, the gentle lapping of the waves (checked a few times a second).
+   */
+  updateUnderwater(dt) {
+    const s = this.flight.state;
+    const body = this.drive.active ? this.drive.buggy.body : s.body;
+    const v = body.liquid && this.mode !== 'map' ? this.visuals.find((x) => x.body === body) : null;
+    let under = false;
+    if (v?.liquid) {
+      // The camera and the world's middle are both in scene coordinates (floating origin).
+      const c = this.camera.position, g = v.group.position;
+      const x = c.x - g.x, y = c.y - g.y, z = c.z - g.z;
+      const r = Math.hypot(x, y, z);
+      under = r < body.liquidR && body.liquidDepth(x / r, y / r, z / r) > 0;
+    }
+    if (under !== this.underwater) this.setUnderwater(under, v?.liquid.look);
+    // Lapping waves: by the sea (driving, or the rocket low over it or standing near it).
+    this.lapWait -= dt;
+    if (this.lapWait > 0) return;
+    this.lapWait = 0.4;
+    let near = 0;
+    if (body.liquid && this.app.screen === 'flight' && !this.crashed) {
+      if (this.drive.active) near = under ? 0.3 : body.nearLiquid(this.drive.buggy.p);
+      else if (s.body === body && (s.landed || this.flight.altitude < 30)) near = body.nearLiquid([s.x, s.y, 0]) * (s.landed ? 1 : 0.6);
+    }
+    this.app.audio.setLapping(near);
   }
 
   /**
@@ -1138,6 +1200,7 @@ export class FlightScene {
     this.updateAtmospheres();
     this.updateMarkers();
     this.updateMood();
+    this.updateUnderwater(dt);
     this.checkBand(dt, this.drive.buggy?.body === this.system.home);
   }
 

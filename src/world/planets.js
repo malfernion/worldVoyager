@@ -8,6 +8,7 @@ import { createAmbient } from './ambient.js';
 import { createForest } from './trees.js';
 import { createRocks } from './rocks.js';
 import { createLandmarks } from './landmarks.js';
+import { createLiquid } from './liquid.js';
 import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS, OBSERVATORY } from '../physics/terrain.js';
 import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
@@ -40,9 +41,12 @@ function terrainGeometry(body) {
   return geo;
 }
 
-/** Replace the physics surface table with the mesh's exact slice through z = 0. */
-function surfaceFromMesh(body, geo) {
-  const N = body.surface.length - 1;
+/**
+ * The mesh's exact slice through z = 0: for each of the physics tables' N + 1 angles, the
+ * distance out to the outermost triangle there (0 where the mesh doesn't reach, e.g. a liquid
+ * mesh away from its seas).
+ */
+function sliceZ0(geo, N) {
   const table = new Float32Array(N + 1);
   const p = geo.attributes.position.array;
   const idx = geo.index.array;
@@ -75,9 +79,23 @@ function surfaceFromMesh(body, geo) {
       if (r > table[k]) table[k] = r;
     }
   }
-  for (let i = 0; i < N; i++) if (table[i] > 0) body.surface[i] = table[i];
-  body.surface[N] = body.surface[0];
-  body.updateSurfaceBounds();
+  table[N] = table[0];
+  return table;
+}
+
+/**
+ * Replace the physics surface tables with the meshes' exact slices through z = 0: the ground
+ * from the terrain mesh (the seabed under a sea), and the liquid's surface from its own mesh
+ * (#44). The rocket's surface is then the higher of the two (Body.combineSurface).
+ */
+function surfaceFromMesh(body, geo, liquidGeo = null) {
+  const N = body.surface.length - 1;
+  const ground = sliceZ0(geo, N);
+  for (let i = 0; i <= N; i++) if (ground[i] > 0) body.ground[i] = ground[i];
+  if (liquidGeo) body.liquidTop.set(sliceZ0(liquidGeo, N));
+  body.ground[N] = body.ground[0];
+  body.liquidTop[N] = body.liquidTop[0];
+  body.combineSurface();
 }
 
 function atmosphere(radius, color, strength = 1.2) {
@@ -386,7 +404,10 @@ export function createBodyVisual(body) {
     return out;
   }
 
+  // Plumes, puffs, dust and the sea's shader. The flight scene keeps out.sunDir pointing at the sun (view space).
+  out.sunDir = new THREE.Vector3(1, 0, 0);
   let mesh;
+  let liquid = null;
   if (body.gas) {
     const geo = new THREE.SphereGeometry(body.radius, 128, 80);
     const pos = geo.attributes.position;
@@ -404,8 +425,15 @@ export function createBodyVisual(body) {
     if (body.rings) group.add(rings(body));
   } else {
     const geo = terrainGeometry(body);
-    surfaceFromMesh(body, geo);
+    // A sea (#44): its own mesh at the liquid's level, sliced for the rocket's surface too.
+    liquid = createLiquid(body, DETAIL[body.id] ?? 24, out.sunDir);
+    surfaceFromMesh(body, geo, liquid?.mesh.geometry);
     mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), flatShading: true }));
+    if (liquid) {
+      group.add(liquid.mesh);
+      out.liquid = liquid;
+      out.updates.push(liquid.update);
+    }
     if (body.id === 'homestead') {
       out.trees = trees(body, group);
       const site = launchSite(body, group);
@@ -420,8 +448,6 @@ export function createBodyVisual(body) {
   group.add(mesh);
   out.mesh = mesh;
 
-  // Plumes, puffs and dust. The flight scene keeps out.sunDir pointing at the sun (view space).
-  out.sunDir = new THREE.Vector3(1, 0, 0);
   // The comet's tails need to know where the sun is in the world (placeBodies keeps it fresh).
   if (body.comet) out.env = { toSun: new THREE.Vector3(1, 0, 0), dist: Infinity, back: new THREE.Vector3(1, 0, 0), scale: 1 };
   const ambient = createAmbient(body, out.sunDir, out.env);

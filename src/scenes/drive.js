@@ -28,6 +28,7 @@ export class DriveMode {
     this.visUp = new THREE.Vector3(0, 1, 0);
     this.steerVis = 0;
     this.wide = 1; // camera pull-back while orbiting Nibble
+    this.dive = 0; // 0..1: how far the camera has followed the buggy under a sea (#44)
     this.world = { x: 0, y: 0 };
     this.shake = 0; // camera wobble after a bump
     this.bonkWait = 0;
@@ -312,6 +313,8 @@ export class DriveMode {
     const fs = this.fs;
     // Tyre dust and landing thumps (#26), then the jump's burst (a super hop's is bigger).
     this.dust.update(dt, input);
+    // Into or out of a sea (#44): a splash (the spray and bow wave are in the dust pool).
+    if (this.dust.splashed) fs.app.audio.play('splash');
     if (this.dust.landing > 3) {
       fs.app.audio.play('thump');
       this.shake = Math.max(this.shake, Math.min(0.25, this.dust.landing * 0.02));
@@ -517,11 +520,16 @@ export class DriveMode {
     const buggyPos = this.mesh ? this.mesh.group.position.clone() : new THREE.Vector3();
     const target = buggyPos.clone().addScaledVector(this.camUp, 1.2);
     const offset = f.clone().multiplyScalar(-dist).addScaledVector(this.camUp, dist * 0.42);
-    // Keep the camera above the hills.
+    // Keep the camera above the hills. With the buggy deep in a sea (#44), dive in after it
+    // (looking down through deep water it would be lost); it comes back up as the buggy does.
     const local = vec.add(b.p, [offset.x, offset.y, offset.z + 1.2]);
     const minR = b.groundRadius(vec.norm(local)) + 1.5;
     const r = vec.len(local);
-    if (r < minR) offset.add(V(vec.mul(vec.norm(local), minR - r)));
+    const dive = b.depth > 1.2 && b.body.liquid ? b.body.liquidR - 0.6 : Infinity;
+    this.dive += ((dive < Infinity ? 1 : 0) - this.dive) * k(3);
+    if (this.dive > 0.01 && dive < Infinity && r > dive) offset.add(V(vec.mul(vec.norm(local), (dive - r) * this.dive)));
+    const r2 = vec.len(vec.add(b.p, [offset.x, offset.y, offset.z + 1.2]));
+    if (r2 < minR) offset.add(V(vec.mul(vec.norm(local), minR - r2)));
     camera.up.copy(this.camUp);
     camera.position.copy(target).add(offset);
     if (this.shake > 0.01) {

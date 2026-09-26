@@ -46,6 +46,20 @@ body {
   display: block;
 }
 
+/* The camera under a sea (#44): a blue tint over the view (the fog is in the scene). */
+#underwater {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+  background: linear-gradient(to bottom, rgba(90, 190, 230, 0.28), rgba(20, 70, 130, 0.42));
+}
+
+#underwater.on {
+  opacity: 1;
+}
+
 #labels {
   position: fixed;
   inset: 0;
