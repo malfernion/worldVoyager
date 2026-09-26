@@ -70,6 +70,9 @@ export const STICKERS = {
   'visit-ringo': { icon: '🪐', name: 'Ring Ranger', say: 'Wow, look at those rings! They are made of ice and rock.' },
   'land-sizzle': { icon: '🌋', name: 'Hot Feet' },
   'land-frosty': { icon: '❄️', name: 'Ice Skater' },
+  // Misty (#46), Ringo's hazy moon with methane lakes: stickers only (#36).
+  'visit-misty': { icon: '🌫️', name: 'Haze Explorer', say: 'Hello Misty! It is wrapped in a thick orange haze.' },
+  'land-misty': { icon: '🏞️', name: 'Lake Spotter' },
   'visit-tumble': { icon: '🔵', name: 'Far Flyer', say: 'You flew all the way to Tumble! It is tipped over on its side.' },
   'visit-flip': { icon: '🔄', name: 'Wrong Way Round', say: 'Flip goes around Tumble backwards, so we did too!' },
   'land-flip': { icon: '⛲', name: 'Geyser Jumper' },
@@ -133,6 +136,11 @@ export const STICKERS = {
     icon: '🐙', name: 'Ocean Spotter', world: 'frosty',
     say: 'Look, a glow deep in the crack! There is an ocean under the ice. Europa\'s hidden ocean has more water than all of Earth\'s oceans put together. Could something live down there?',
     hint: 'I heard a strange hum on Frosty. Park by a deep crack when it is dark!',
+  },
+  'find-huygens': {
+    icon: '🪂', name: 'Probe Finder', world: 'misty',
+    say: 'A little probe with a parachute! A real probe called Huygens landed on Titan. It saw pebbles made of ice!',
+    hint: 'Something floated down on a parachute, near a lake on Misty. Can you find it?',
   },
   'find-flare': {
     icon: '🌞', name: 'Flare Watcher', world: 'ember',

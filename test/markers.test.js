@@ -155,7 +155,7 @@ describe('autopilot buttons explain themselves once (#36)', () => {
 
 describe('world labels on the map don\'t pile up (#33)', () => {
   const sys = createSystem();
-  const { homestead, pebble, ember, ringo, sizzle, frosty, ducky } = sys.byId;
+  const { homestead, pebble, ember, ringo, sizzle, frosty, misty, ducky } = sys.byId;
   // A label about 90 × 44 px (icon-only 36 × 34), anchored at its top centre.
   const label = (id, x, y, rank) => ({ id, rank, x, y, w: 90, h: 44, mw: 36, mh: 34 });
 
@@ -202,6 +202,15 @@ describe('world labels on the map don\'t pile up (#33)', () => {
     expect(how.get('sizzle')).toBe('full');
     expect(how.get('ringo')).toBe('hidden');
     expect(how.get('frosty')).toBe('hidden');
+    // Misty (#46), Ringo's outer moon, picked: it wins over Ringo and its neighbours.
+    const outer = declutterLabels([
+      label('ringo', 100, 100, labelRank(ringo, { target: misty })),
+      label('sizzle', 104, 102, labelRank(sizzle, { target: misty })),
+      label('frosty', 98, 106, labelRank(frosty, { target: misty })),
+      label('misty', 102, 98, labelRank(misty, { target: misty })),
+    ]);
+    expect(outer.get('misty')).toBe('full');
+    expect([outer.get('ringo'), outer.get('sizzle'), outer.get('frosty')]).toEqual(['hidden', 'hidden', 'hidden']);
   });
 
   it('shown labels never overlap', () => {

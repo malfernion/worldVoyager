@@ -112,7 +112,7 @@ describe('driving round the world (#29)', () => {
 
   it('every world with ground to drive on can be driven round', () => {
     const worlds = sys.bodies.filter((b) => b.solid && b.kind !== 'star').map((b) => b.id);
-    expect(worlds).toEqual(expect.arrayContaining(['homestead', 'pebble', 'dusty', 'nibble', 'sizzle', 'frosty', 'flip', 'ducky']));
+    expect(worlds).toEqual(expect.arrayContaining(['homestead', 'pebble', 'dusty', 'nibble', 'sizzle', 'frosty', 'misty', 'flip', 'ducky']));
     for (const world of worlds) expect(drive(world, 'rover', 400, () => ({ throttle: 1, steer: 0 })).at, world).toBeGreaterThan(0);
   });
 

@@ -7,7 +7,7 @@ import { SpeechQueue } from '../src/ui/speechQueue.js';
 import { sentencesOf, keyOf } from '../src/ui/speech.js';
 
 const STARTER = ['space', 'orbit', 'land-homestead', 'visit-pebble', 'land-pebble', 'home-again'];
-const LATER = ['visit-dusty', 'land-dusty', 'land-nibble', 'visit-ringo', 'land-sizzle', 'land-frosty', 'visit-tumble', 'visit-flip', 'land-flip', 'visit-ducky', 'land-ducky'];
+const LATER = ['visit-dusty', 'land-dusty', 'land-nibble', 'visit-ringo', 'land-sizzle', 'land-frosty', 'visit-misty', 'land-misty', 'visit-tumble', 'visit-flip', 'land-flip', 'visit-ducky', 'land-ducky'];
 
 let store;
 beforeEach(() => {

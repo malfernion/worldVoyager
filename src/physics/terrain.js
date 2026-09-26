@@ -358,6 +358,67 @@ function makeFrosty() {
   };
 }
 
+// Misty's methane lakes (#46), carved like Sizzle's lava (makePools) under one level. Like
+// Titan's: most of them round the poles (here z = ±1, so the north ones face the camera from
+// orbit), a big sea made of two long basins in the north and Ontario-style lakes in the south;
+// and two cross the flight plane, so a rocket can come down in one and the helpers have
+// something to avoid. Gentler banks than lava (the buggy drives in and out of these). Clear of
+// Huygens (a discovery, #15, on the pebbly ground by the flight plane's big lake), and of the
+// strip where the rocket lands most of the time. test/misty.test.js checks all of this.
+export const MISTY_LAKES = {
+  level: -5, // below all of Misty's natural ground (its lowest dip is about -3.1 m)
+  radius: 160, // Misty's (bodies.js; a test checks they match)
+  pools: [
+    { a: dirOf(2.55, 0.0), r: 14, deep: 2.6, bank: 0.22 }, // across the flight plane: Huygens is on its shore
+    { a: dirOf(5.3, 0.1), b: dirOf(5.45, 0.02), r: 8, deep: 2.2, bank: 0.22 }, // a narrow one across the plane, on the camera's side
+    { a: dirOf(0.2, 0.86), b: dirOf(1.4, 0.9), r: 22, deep: 3, bank: 0.2 }, // the big northern sea (Kraken Mare)...
+    { a: dirOf(1.9, 0.8), b: dirOf(2.4, 0.72), r: 16, deep: 2.8, bank: 0.2 }, // ...and its southern arm
+    { a: dirOf(3.3, 0.86), r: 19, deep: 2.8, bank: 0.2 }, // a round northern sea (Ligeia Mare)
+    { a: dirOf(4.6, 0.93), r: 12, deep: 2.4, bank: 0.2 }, // a small one right by the pole (Punga Mare)
+    { a: dirOf(5.6, 0.7), r: 9, deep: 2.2, bank: 0.22 }, // little lakes further south
+    { a: dirOf(4.1, 0.66), r: 8, deep: 2.2, bank: 0.22 },
+    { a: dirOf(3.8, -0.82), b: dirOf(3.55, -0.86), r: 14, deep: 2.5, bank: 0.2 }, // the south's long lake (Ontario Lacus)
+    { a: dirOf(0.9, -0.88), r: 10, deep: 2.2, bank: 0.22 },
+  ].map((p, i) => ({ ...p, seed: i * 4.3 + 1 })),
+};
+
+function makeMisty() {
+  const { fbm, noise } = makeNoise(131);
+  const pools = makePools(MISTY_LAKES.pools, MISTY_LAKES.radius, MISTY_LAKES.level, 137);
+  // Titan's dunes: long parallel ridges running east-west in a belt round the middle, bending a
+  // little where the noise pushes them (about 16 m apart, sharp crests).
+  const dune = (x, y, z) => {
+    const belt = 1 - smooth(0.3, 0.55, Math.abs(z));
+    if (belt <= 0) return 0;
+    const u = z * 31 + noise(x * 2.2 + 3, y * 2.2, z * 2.2) * 2.4;
+    const s = 1 - Math.abs(Math.sin(u));
+    return s * s * belt;
+  };
+  return {
+    liquid: { kind: 'methane', level: MISTY_LAKES.level },
+    pools,
+    height(x, y, z) {
+      const h = fbm(x * 2.4, y * 2.4, z * 2.4, 4) * 5 + dune(x, y, z) * 1.6;
+      return pools.carve(x, y, z, h);
+    },
+    color(x, y, z, h) {
+      // Tan-orange plains, brighter uplands (like Titan's Xanadu), dark brown dune fields.
+      const n = fbm(x * 5 + 2, y * 5, z * 5, 3);
+      let c = mix(rgb(0x9a6a3c), rgb(0x86592f), n + 0.5);
+      c = mix(c, rgb(0xc49a62), smooth(0.9, 2.2, h) * 0.8);
+      const d = dune(x, y, z);
+      c = mix(c, rgb(0x3f2a1c), (1 - smooth(0.25, 0.55, Math.abs(z))) * (0.55 + 0.35 * d));
+      // Round the lakes: dark wet shores, then a pale rim of dried-up lake bed.
+      const s = pools.shoreDist(x, y, z);
+      if (s < 10) {
+        c = mix(c, rgb(0xb89c78), (1 - smooth(3, 10, s)) * smooth(0.5, 3, s) * 0.7);
+        c = mix(c, rgb(0x2a1e16), 1 - smooth(0, 2.5, s));
+      }
+      return c;
+    },
+  };
+}
+
 // Gas giants' clouds are banded around a tilted spin axis so both map and flight views show stripes.
 export const RINGO_AXIS = (() => {
   const t = 0.6;
@@ -531,6 +592,7 @@ export function makeTerrain(kind) {
     case 'nibble': return makeNibble();
     case 'sizzle': return makeSizzle();
     case 'frosty': return makeFrosty();
+    case 'misty': return makeMisty();
     case 'ringo': return makeRingo();
     case 'tumble': return makeTumble();
     case 'flip': return makeFlip();

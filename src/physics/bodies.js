@@ -52,6 +52,15 @@ export const BODY_DEFS = [
     blurb: 'Frosty is an icy moon like Europa, a moon of Jupiter. Under Europa\'s ice there is a huge hidden ocean!',
   },
   {
+    // Ringo's big outer moon (#46), like Titan round Saturn: a thick orange haze (only the look:
+    // `haze` makes the atmosphere thicker and fogs the view near the ground), dark dunes and
+    // lakes of liquid methane (terrain.js MISTY_LAKES). Well clear of Frosty's SOI.
+    id: 'misty', name: 'Misty', parent: 'ringo', orbitRadius: 6200, phase: 5.2,
+    radius: 160, gravity: 2.6, soi: 700, spaceLine: 35, terrain: 'misty', atmosphere: 0xffa53f, haze: 0xd98a3a,
+    color: 0xd9953f, icon: '🌫️',
+    blurb: 'Misty is like Titan, a moon of Saturn. Titan has lakes and rain, but they\'re made of methane, not water!',
+  },
+  {
     // The longest trip. Tipped on its side like Uranus: only the look (mesh, bands, rings);
     // the flight stays in the z = 0 plane.
     id: 'tumble', name: 'Tumble', parent: 'ember', orbitRadius: 56000, phase: 2.9,

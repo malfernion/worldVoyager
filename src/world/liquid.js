@@ -2,7 +2,7 @@
 // shader for gentle waves, colour by depth (from a baked per-vertex attribute: the ground's
 // height under each vertex, never worked out per frame) and foam along the shore. What the
 // liquid is (its level, and what kind) is in src/physics/terrain.js; how each kind looks is in
-// LOOKS below, so a new kind (#46 methane) is one more entry here. Lava (#45) has its own small
+// LOOKS below, so a new kind (Misty's methane, #46) is one more entry here. Lava (#45) has its own small
 // shader (lavaMaterial): no waves, no foam, not see-through; a glowing, slowly shifting crust.
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -11,12 +11,24 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
  * How each kind of liquid looks. shallow / deep: colours by the shore and far out (deep at
  * `depth` metres); foam: the shoreline's colour; alpha: see-through in the shallows, nearly
  * solid far out; waves: how high the waves bob (m) and how fast; glow: how much it shines by
- * itself (0: lit by the sun only; lava will glow); fog: the colour when the camera is under it.
+ * itself (0: lit by the sun only; lava glows); fog: the colour when the camera is under it (and
+ * `tint`, the class of the #underwater overlay's colour, style.css); ripple: how much the
+ * ripples tilt the light (default 0.06); glint: the sun's sparkle on them (default 0.55);
+ * foamK: how much foam at the shore (default 0.85); sky / skyK: the sky colour it reflects at
+ * a slant, and how much (default none).
  */
 export const LOOKS = {
   water: {
     shallow: 0x4cc4d6, deep: 0x1f5fa8, depth: 5, foam: 0xf4fbff,
     alpha: [0.5, 0.88], waves: 0.07, speed: 1, glow: 0, fog: 0x2d7fa8, fogFar: 36,
+  },
+  // Methane (#46, Misty's lakes): dark and glassy, nearly still (tiny slow waves, faint ripples,
+  // hardly a glint, no foam), mirroring the orange haze at a slant; a little see-through at
+  // the edge. Underneath, a dark amber murk.
+  methane: {
+    shallow: 0x5a3c1e, deep: 0x140d08, depth: 2, foam: 0x5a3c1e, foamK: 0,
+    alpha: [0.6, 0.94], waves: 0.02, speed: 0.35, glow: 0, fog: 0x3b2410, fogFar: 14, tint: 'amber', shore: 1,
+    ripple: 0.025, glint: 0.25, sky: 0xe09a4a, skyK: 0.45,
   },
   // Lava (#45): glows by itself (the sun doesn't light it, so it shines at night too): molten
   // orange-red with plates of dark crust drifting slowly, bright yellow cracks between them and
@@ -97,6 +109,11 @@ function waterMaterial(look) {
         deepAt: { value: look.depth },
         waveHeight: { value: look.waves },
         glow: { value: look.glow },
+        ripple: { value: look.ripple ?? 0.06 },
+        glint: { value: look.glint ?? 0.55 },
+        foamK: { value: look.foamK ?? 0.85 },
+        sky: { value: new THREE.Color(look.sky ?? 0) },
+        skyK: { value: look.skyK ?? 0 },
       },
     ]),
     vertexShader: /* glsl */ `
@@ -136,6 +153,11 @@ function waterMaterial(look) {
       uniform vec2 alphaRange;
       uniform float deepAt;
       uniform float glow;
+      uniform float ripple;
+      uniform float glint;
+      uniform float foamK;
+      uniform vec3 sky;
+      uniform float skyK;
       uniform vec3 sunDir;
       varying float vDepth;
       varying vec3 vN;
@@ -147,7 +169,7 @@ function waterMaterial(look) {
         float r1 = sin(vObj.x * 0.9 + vObj.y * 0.4 + time * 1.7);
         float r2 = sin(vObj.y * 0.7 - vObj.z * 0.8 - time * 1.3);
         float r3 = sin(vObj.z * 1.3 + vObj.x * 0.5 + time * 2.1);
-        vec3 N = normalize(vN + 0.06 * vec3(r1, r2, r3));
+        vec3 N = normalize(vN + ripple * vec3(r1, r2, r3));
         if (!gl_FrontFacing) N = -N;
         float d = max(vDepth, 0.0);
         vec3 col = mix(shallow, deep, smoothstep(0.0, deepAt, d));
@@ -158,13 +180,17 @@ function waterMaterial(look) {
         // A glint of sunlight on the ripples.
         vec3 V = normalize(-vP);
         float spec = pow(max(dot(reflect(-sunDir, N), V), 0.0), 40.0);
-        col += vec3(1.0, 0.97, 0.9) * step(0.55, spec) * 0.55 * (1.0 - glow);
+        col += vec3(1.0, 0.97, 0.9) * step(0.55, spec) * glint * (1.0 - glow);
+        // The sky it mirrors, most at a slant (Misty's haze, #46).
+        float fres = pow(1.0 - abs(dot(N, V)), 3.0);
+        col = mix(col, sky * day, fres * skyK);
         // Foam along the shore, wobbling in and out.
         float edge = 0.07 + 0.04 * sin(time * 1.4 + vObj.x * 0.5 + vObj.z * 0.4);
         float f = 1.0 - smoothstep(edge, edge + 0.08, vDepth);
-        col = mix(col, foam * day, f * 0.85);
+        f *= foamK;
+        col = mix(col, foam * day, f);
         float a = mix(alphaRange.x, alphaRange.y, smoothstep(0.3, deepAt, d));
-        a = max(a, f * 0.9);
+        a = max(a, f * 1.06);
         // Seen from underneath: a bright, see-through ceiling.
         if (!gl_FrontFacing) { col = mix(col, shallow, 0.5) * 1.1; a = 0.55; }
         gl_FragColor = vec4(col, a);

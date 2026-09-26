@@ -49,6 +49,9 @@ export const DISCOVERIES = [
   { id: 'find-ring-gap', world: 'ringo', find: 'gap' },
   { id: 'find-plume', world: 'sizzle', find: 'near', spots: [BIG_VENT], reach: 9 },
   { id: 'find-ocean', world: 'frosty', find: 'night', spots: FROSTY_GLOWS, reach: 6 },
+  // Huygens (#46): on the pebbly ground by the big lake that crosses Misty's flight plane, just
+  // behind the plane (clear of the rocket's strip), about 12 m from the shore.
+  { id: 'find-huygens', world: 'misty', find: 'near', spots: [dirOf(2.64, -0.12)], reach: 6 },
   { id: 'find-flare', world: 'ember', find: 'flare' },
   { id: 'find-streak', world: 'flip', find: 'near', spots: FLIP_STREAKS, reach: 8 },
   { id: 'find-philae', world: 'ducky', find: 'near', spots: [dirOf(1.8, -0.5)], reach: 6 },

@@ -523,6 +523,7 @@ export class Autopilot {
     this.goPower = 1;
     // (Plain strings, so the voice scanner finds them.)
     if (f.state.body.liquid.kind === 'lava') this.say('Oops, lava! I\'ll fly us over to solid ground.', CUE);
+    else if (f.state.body.liquid.kind === 'methane') this.say('Oops, a lake! I\'ll fly us over to dry land.', CUE);
     else this.say('Oops, water! I\'ll fly us over to dry land.', CUE);
     this.warp = 1;
     for (let guard = 0; guard < 60 * 60 && !f.state.landed && !f.state.crashed; guard++) {

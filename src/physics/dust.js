@@ -69,7 +69,8 @@ export function dustColor(body, x, y, z, out) {
   // (Lava is never driven into, #45: by it, the dust is its dark rock.)
   out.water = !!body.liquid && body.liquid.kind !== 'lava' && body.liquidDepth(x, y, z) > 0;
   if (out.water) {
-    out.r = 0.86; out.g = 0.95; out.b = 1;
+    // (Misty's methane, #46, sprays a pale amber.)
+    if (body.liquid.kind === 'methane') { out.r = 0.96; out.g = 0.84; out.b = 0.62; } else { out.r = 0.86; out.g = 0.95; out.b = 1; }
     return out;
   }
   const c = t ? t.color(x, y, z, h) : [0.8, 0.8, 0.8];

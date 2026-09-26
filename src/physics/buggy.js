@@ -38,6 +38,11 @@ export const WATER = {
   deep: 1.4, // metres of water over the wheels' bottom that counts as all under
 };
 
+// Misty's methane lakes (#46) are driven through like water, but liquid methane is less than
+// half as heavy as water, so it holds the buggy up less, and drags a little less.
+export const METHANE = { ...WATER, lift: 0.2, drag: 0.5 };
+const SOAK = { water: WATER, methane: METHANE };
+
 // Lava (#45): too hot to drive into. Its shore is a soft wall: coming towards it the buggy is
 // braked more and more (at most `touch` + `brake` m/s towards it for each metre it still has
 // to go, from `slow` metres out), until at `edge` metres from the shore any push towards the lava is
@@ -351,6 +356,7 @@ export class Buggy {
     this.vents = body.comet ? DUCKY_JETS : null; // gas jets that push us around
     this.fizz = 0; // how hard a jet pushed us in the last step (0..1), for the puffs
     this.lava = body.liquid?.kind === 'lava'; // a wall, not a sea (#45)
+    this.sea = SOAK[body.liquid?.kind] ?? WATER; // how its sea (or lake) holds us up and slows us
     this.sizzled = 0; // hardest bump into the lava's edge since the scene last looked (m/s)
   }
 
@@ -387,7 +393,7 @@ export class Buggy {
     }
     this.depth = body.liquidR - r;
     const overWheels = this.depth + this.kind.ride; // above the bottom of the wheels
-    this.wet = Math.max(0, Math.min(1, overWheels / WATER.deep));
+    this.wet = Math.max(0, Math.min(1, overWheels / this.sea.deep));
     this.inWater = overWheels > 0.05;
   }
 
@@ -458,8 +464,9 @@ export class Buggy {
     // Gravity always pulls toward the middle of the world (a little less under water: it holds us up).
     this.soak(r, u);
     const w = this.wet;
-    this.v = add(this.v, mul(u, -g * (1 - WATER.lift * w) * h));
-    if (w > 0) this.v = mul(this.v, Math.exp(-WATER.drag * w * h));
+    const sea = this.sea;
+    this.v = add(this.v, mul(u, -g * (1 - sea.lift * w) * h));
+    if (w > 0) this.v = mul(this.v, Math.exp(-sea.drag * w * h));
 
     const ground = this.groundRadius(u) + k.ride;
     // Just after a super hop we're still touching the ground; don't let the tyres grab us back.
@@ -501,15 +508,15 @@ export class Buggy {
       let vf = dot(this.v, fg);
       let vs = dot(this.v, sg);
 
-      let cap = this.topSpeed * (1 - (1 - WATER.cap) * w);
+      let cap = this.topSpeed * (1 - (1 - sea.cap) * w);
       const slope = 1 - dot(n, u);
-      const accel = k.accel * (1 + (k.climb || 0) * Math.min(1, slope * 6)) * (1 - (1 - WATER.accel) * w);
+      const accel = k.accel * (1 + (k.climb || 0) * Math.min(1, slope * 6)) * (1 - (1 - sea.accel) * w);
       if (input.throttle) {
         const target = input.throttle > 0 ? cap : -cap * 0.5;
         const want = target - vf;
         vf += Math.sign(want) * Math.min(Math.abs(want), accel * h);
       } else {
-        vf *= Math.exp(-(this.inWater ? WATER.stop : 0.5) * h); // gently roll to a stop
+        vf *= Math.exp(-(this.inWater ? sea.stop : 0.5) * h); // gently roll to a stop
       }
       if (Math.abs(vf) > cap) vf = Math.sign(vf) * cap;
       // Tyres stop sideways sliding (ice is slippery!).
