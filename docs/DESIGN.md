@@ -102,6 +102,32 @@ borrow the vibe, not the content: all names, worlds and music are original.
    planets and Ducky, Ember, then moons) each is shown in full if it fits, else as just its
    icon, else hidden until you zoom in.
 
+6. **Fast travel to a moment on the path** (#27). On the map, tapping the path drops a ⏰
+   there, and time zooms along at once until the rocket gets there; then the game pauses
+   ("We're here! Take your time.") until any tap, turn or GO. Dropping it *is* starting it: one
+   tap, one thing happens, so a child doesn't have to learn a second step (tap the ⏰ to go)
+   before anything moves. Tapping the ⏰ takes it away, and its line (said the first time it's
+   dropped, while the map glides it into view) says so: "Tap it to stop." A later tap on the path
+   moves it. Steering, GO, the time buttons, rewind and crashing all stop the trip too: the
+   child took over.
+   - *Where it may go:* anywhere on the drawn path from a moment ahead of the rocket to its end,
+     but not in the last 3 s before a crash. The tap is hit-tested on screen (within 28 px, and a
+     finger that moved more than 10 px was panning, not tapping) against the path sampled in
+     time, then refined along the true curve. Where the path crosses itself, the nearer bit wins,
+     then the sooner. On a round orbit, a tap by the rocket means once round.
+   - *How fast:* the biggest warp level that still leaves 0.3 s of real time to go, so it
+     steps down 1000, 300, 100… as the ⏰ comes near, and the last frame steps exactly onto the
+     moment (a test checks it lands within 0.1 ms of game time). The usual slow-down before a
+     new world or the ground still applies.
+   - *When the path changes:* the ⏰ keeps its time, so it slides along with the path. If the
+     path no longer gets there (a crash now comes first, or we've landed), it goes and time
+     drops to normal, so we never warp into the ground.
+   - *Helpers:* they run the clock themselves, so while one is flying (or coaching), tapping the
+     path does nothing, and starting one takes the ⏰ away. Simplest, and it keeps "who's in
+     charge of time" clear.
+   - The pause is the same one Pip uses to explain a marker (`FlightScene.pause`), just without
+     the time limit.
+
 ## Structure
 
 ```

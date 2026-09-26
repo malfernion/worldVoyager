@@ -1288,8 +1288,16 @@
   "text": "Swirly winds dance across Dusty."
  },
  {
+  "key": "take your time",
+  "text": "Take your time."
+ },
+ {
   "key": "tap it to pick your buggy",
   "text": "Tap it to pick your buggy."
+ },
+ {
+  "key": "tap it to stop",
+  "text": "Tap it to stop."
  },
  {
   "key": "tap or drag parts then press fly",
@@ -1394,6 +1402,10 @@
  {
   "key": "thats tumble",
   "text": "That's Tumble!"
+ },
+ {
+  "key": "the clock makes time go fast until we get there",
+  "text": "The clock makes time go fast until we get there!"
  },
  {
   "key": "the fire shows where well fire the engine",
@@ -1774,6 +1786,10 @@
  {
   "key": "were going around tumble",
   "text": "We're going around Tumble!"
+ },
+ {
+  "key": "were here",
+  "text": "We're here!"
  },
  {
   "key": "were in orbit around ducky",

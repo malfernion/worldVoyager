@@ -1,4 +1,4 @@
-// Screen markers (#33): the icons over the view (▲ ▼ 💥 ✨ 🎯 🔥, the rocket arrow, the pins
+// Screen markers (#33): the icons over the view (▲ ▼ 💥 ✨ 🎯 🔥 ⏰, the rocket arrow, the pins
 // while driving). Each kind explains itself: the first time one shows, Pip pauses the game when
 // nothing urgent is happening and says one short line while it glows; tapping one says it again.
 // Also keeps the map's world labels from piling on top of each other. Pure: no DOM, no three.js.
@@ -15,10 +15,12 @@ export const MARKER_LINES = {
   home: 'That\'s our rocket! Tap the house to drive back.',
   secret: 'Psst! Follow the sparkles to find a secret!',
   friend: 'Listen! Can you hear music? Follow the notes!',
+  clock: 'The clock makes time go fast until we get there! Tap it to stop.',
 };
 
 // Kinds explained with a pause the first time they show, in this order if several show at once.
 // The pins while driving aren't: Pip's compass hints already cover them (tap still explains).
+// Nor is the fast travel ⏰ (#27): the child drops it, so Pip explains it then, the first time.
 export const FIRST_SIGHT = ['rocket', 'high', 'low', 'impact', 'meet', 'near', 'burn'];
 
 export const SETTLE = 1; // real seconds a marker must have been on screen (not a flicker)

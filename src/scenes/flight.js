@@ -16,6 +16,7 @@ import { DriveMode } from './drive.js';
 import { landingFinds, ringGapCrossed, flareSeen, sunDirection } from '../physics/discoveries.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, labelRank, declutterLabels } from '../ui/markers.js';
+import { TAP_RADIUS, clockAllowed, clockOnPath, clockWindow, pickOnPath, travelWarp, arrived } from '../ui/fastTravel.js';
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
@@ -52,6 +53,7 @@ export class FlightScene {
     this.camUp = new THREE.Vector3(0, 1, 0);
     this.tmp = {};
     this.tmp2 = {};
+    this.tmp3 = {};
     this.discoverUntil = 0;
 
     for (const v of this.visuals) this.scene.add(v.group);
@@ -96,14 +98,17 @@ export class FlightScene {
     this.kindAt = {}; // where each kind is: scene x, y and screen sx, sy
     this.panGlide = null;
     this.highlight = null;
-    this.explaining = null;
+    // The game's one pause: while Pip explains a marker ({ why: 'explain', kind, t }), or after
+    // fast travel got to its ⏰ ({ why: 'arrived', t }). Only the sim and helpers stop.
+    this.pause = null;
     this.lastExplain = -Infinity;
+    this.clock = null; // fast travel (#27): { t } while travelling to a ⏰ on the path
     this.calm = { screen: '', mode: '', crashed: false, speaking: false, throttle: 0, steering: false, sinceLast: 0, helper: null };
     this.calmHelper = { mode: null, coach: false, throttle: 0, aiming: false, tricky: false };
     // Any tap carries on from the pause (the line itself still finishes), and leaves the map be.
     window.addEventListener('pointerdown', () => {
       this.panGlide = null;
-      if (this.explaining) this.endExplain();
+      if (this.pause) this.endPause();
     }, true);
   }
 
@@ -149,7 +154,8 @@ export class FlightScene {
     this.particles.clear();
     this.camUp.set(0, 1, 0);
     this.camUpAngle = undefined;
-    this.explaining = null;
+    this.pause = null;
+    this.clock = null;
     this.app.audio.setMood('camp');
   }
 
@@ -174,6 +180,7 @@ export class FlightScene {
     this.debris.clear();
     this.rocketHolder.visible = true;
     this.snapshots = [];
+    this.clock = null;
     this.warpIndex = 0;
     this.mode = 'flight';
     this.app.hud.hideCrash();
@@ -274,6 +281,8 @@ export class FlightScene {
 
   /** Change time speed by a step (+1 / -1), or pass `reset` for normal speed. */
   setWarp(step, reset = false) {
+    // The time buttons take the clock back from fast travel (#27), from the speed it was at.
+    this.clearClock(false);
     const before = this.warpIndex;
     this.warpIndex = reset ? 0 : Math.max(0, Math.min(WARP_LEVELS.length - 1, this.warpIndex + step));
     // Taking the time controls while a helper runs: the helper keeps flying, you keep the clock.
@@ -300,6 +309,7 @@ export class FlightScene {
     const snap = this.snapshots[this.snapshots.length - 1 - back];
     this.snapshots.length = this.snapshots.length - back;
     this.autopilot.stop();
+    this.clearClock();
     this.flight.restore(snap);
     this.crashed = false;
     this.debris.clear();
@@ -354,6 +364,8 @@ export class FlightScene {
       return;
     }
     if (mode === 'goto' && !this.target) return;
+    // Helpers run the clock themselves: no fast travel alongside one (#27).
+    this.clearClock();
     this.warpIndex = 0;
     this.manualWarp = false;
     ap.start(mode, mode === 'goto' ? this.target : null, { coach });
@@ -362,6 +374,7 @@ export class FlightScene {
   holdHelper(mode, on) {
     if (this.crashed) return;
     if (on) {
+      this.clearClock();
       this.warpIndex = 0;
       this.manualWarp = false;
       this.autopilot.start(mode);
@@ -443,6 +456,7 @@ export class FlightScene {
       }
       case 'crash': {
         this.crashed = true;
+        this.clearClock();
         this.warpIndex = 0;
         app.audio.play('crash');
         const s = this.flight.state;
@@ -574,7 +588,6 @@ export class FlightScene {
     this.time += dt;
     this.lastDt = dt;
     const f = this.flight;
-    const ap = this.autopilot;
     const s = f.state;
 
     if (this.mode === 'drive' || this.drive.active) {
@@ -582,61 +595,12 @@ export class FlightScene {
       return;
     }
 
-    // Manual controls take over from the helpers (a coach just talks, so you keep flying).
-    const manualTurn = (this.input.left ? 1 : 0) - (this.input.right ? 1 : 0);
-    const manual = manualTurn !== 0 || this.input.go;
-    // Pausing to explain a marker (#33): steering or GO carries on at once.
-    if (this.explaining && (manual || this.crashed)) this.endExplain();
-    this.updateExplain(dt, manual);
-    const paused = !!this.explaining;
-    if (manual && ap.driving && !ap.coachSession) ap.stop();
-    // After a coached touchdown, a GO still held from the last pulse mustn't hop us back up.
-    if (!this.input.go) this.goLatched = false;
-    if (!ap.driving) {
-      f.turn = manualTurn;
-      f.targetAngle = null;
-      f.throttle = this.input.go && !this.goLatched && !this.crashed ? goThrottle(ap.goPower, this.input.fine) : 0;
-      if (f.throttle > 0) this.warpIndex = 0;
-    } else {
-      f.turn = 0;
-    }
+    // The first sight of a marker may pause to explain it (#33); steering or GO ends it (fly).
+    const steering = this.input.left || this.input.right || this.input.go;
+    this.updateExplain(dt, steering);
+    this.fly(dt);
 
-    let warp = f.throttle > 0 && !ap.driving ? 1 : this.warp;
-    // Slow down time before something important happens (a new world, or the ground).
-    if (this.prediction && warp > 1 && !s.landed) {
-      const seg = this.prediction.segments[0];
-      if (seg && seg.end !== 'none' && seg.t0 <= s.t) {
-        const left = seg.t1 - s.t;
-        const cap = Math.max(1, left / 2.5);
-        if (cap < warp) {
-          warp = cap;
-          if (!ap.active) this.warpIndex = Math.max(0, WARP_LEVELS.findLastIndex((w) => w <= cap));
-        }
-      }
-    }
-    if (!this.crashed && !paused) {
-      ap.update(dt);
-      f.step(dt, warp);
-    }
-
-    // Rewind history.
-    if (!paused) this.snapTimer += dt;
-    if (this.snapTimer > 0.5 && !this.crashed) {
-      this.snapTimer = 0;
-      this.snapshots.push(f.snapshot());
-      if (this.snapshots.length > 90) this.snapshots.shift();
-    }
-
-    // Predicted path.
-    this.predTimer -= dt;
-    if (!s.landed && !this.crashed && !paused && (this.predTimer <= 0 || f.throttle > 0)) {
-      this.predTimer = 0.2;
-      this.prediction = predict(s, { target: this.target, maxSegments: 4, maxTime: 40000 });
-    } else if (s.landed) {
-      this.prediction = null;
-    }
-
-    if (!paused) this.checkGoals();
+    if (!this.pause) this.checkGoals();
     this.updateMood();
 
     // Positions.
@@ -665,6 +629,78 @@ export class FlightScene {
   }
 
   /**
+   * The flight's part of a frame (headless: no three.js here): controls, time warp (and fast
+   * travel), the helper, the sim, rewind history and the predicted path.
+   */
+  fly(dt) {
+    const f = this.flight;
+    const ap = this.autopilot;
+    const s = f.state;
+    // Manual controls take over from the helpers (a coach just talks, so you keep flying).
+    const manualTurn = (this.input.left ? 1 : 0) - (this.input.right ? 1 : 0);
+    const manual = manualTurn !== 0 || this.input.go;
+    // Steering or GO ends a pause at once, and takes over from fast travel (#27).
+    if (this.pause && (manual || this.crashed)) this.endPause();
+    if (manual) this.clearClock();
+    const paused = !!this.pause;
+    if (manual && ap.driving && !ap.coachSession) ap.stop();
+    // After a coached touchdown, a GO still held from the last pulse mustn't hop us back up.
+    if (!this.input.go) this.goLatched = false;
+    if (!ap.driving) {
+      f.turn = manualTurn;
+      f.targetAngle = null;
+      f.throttle = this.input.go && !this.goLatched && !this.crashed ? goThrottle(ap.goPower, this.input.fine) : 0;
+      if (f.throttle > 0) this.warpIndex = 0;
+    } else {
+      f.turn = 0;
+    }
+
+    let warp = f.throttle > 0 && !ap.driving ? 1 : this.warp;
+    // Fast travel (#27): as fast as the ⏰ allows, stepping down as it comes closer.
+    if (this.clock && !paused) {
+      const tw = travelWarp(this.clock.t - s.t, dt, WARP_LEVELS);
+      this.warpIndex = tw.index;
+      warp = tw.warp;
+    }
+    // Slow down time before something important happens (a new world, or the ground).
+    if (this.prediction && warp > 1 && !s.landed) {
+      const seg = this.prediction.segments[0];
+      if (seg && seg.end !== 'none' && seg.t0 <= s.t) {
+        const left = seg.t1 - s.t;
+        const cap = Math.max(1, left / 2.5);
+        if (cap < warp) {
+          warp = cap;
+          if (!ap.active) this.warpIndex = Math.max(0, WARP_LEVELS.findLastIndex((w) => w <= cap));
+        }
+      }
+    }
+    if (!this.crashed && !paused) {
+      ap.update(dt);
+      f.step(dt, warp);
+      if (this.clock && arrived(this.clock.t - s.t)) this.arrive();
+    }
+
+    // Rewind history.
+    if (!paused) this.snapTimer += dt;
+    if (this.snapTimer > 0.5 && !this.crashed) {
+      this.snapTimer = 0;
+      this.snapshots.push(f.snapshot());
+      if (this.snapshots.length > 90) this.snapshots.shift();
+    }
+
+    // Predicted path.
+    this.predTimer -= dt;
+    if (!s.landed && !this.crashed && !paused && (this.predTimer <= 0 || f.throttle > 0)) {
+      this.predTimer = 0.2;
+      this.prediction = predict(s, { target: this.target, maxSegments: 4, maxTime: 40000 });
+    } else if (s.landed) {
+      this.prediction = null;
+    }
+    // The path changed under the ⏰ (a crash now comes first, or we landed): stop there.
+    if (this.clock && !clockOnPath(this.prediction?.segments, this.clock.t, s.t)) this.clearClock();
+  }
+
+  /**
    * First sight of a marker (#33): once one kind has been on screen for a moment and nothing
    * urgent is going on (the pure rules are in src/ui/markers.js), pause and let Pip explain it.
    * Each kind only once (saved); the pause ends when Pip has said it, on any tap, or after
@@ -672,10 +708,11 @@ export class FlightScene {
    */
   updateExplain(dt, steering) {
     for (const kind of FIRST_SIGHT) this.kindTime[kind] = this.kindsShown.has(kind) ? (this.kindTime[kind] || 0) + dt : 0;
-    const ex = this.explaining;
+    const ex = this.pause;
     if (ex) {
       ex.t += dt;
-      if (ex.t > MAX_PAUSE) this.endExplain();
+      // An explanation never pauses for long; after fast travel we wait for the child (#27).
+      if (ex.why === 'explain' && ex.t > MAX_PAUSE) this.endPause();
       return;
     }
     const app = this.app;
@@ -712,12 +749,12 @@ export class FlightScene {
     const said = app.pip(line, { speak: true, key: 'marker', onStart: () => (this.highlight = kind) });
     if (!said) return;
     if (pause) {
-      this.explaining = { kind, t: 0 };
+      this.pause = { why: 'explain', kind, t: 0 };
       this.showKind(kind);
     }
     app.afterPip(() => {
       if (this.highlight === kind) this.highlight = null;
-      if (this.explaining?.kind === kind) this.endExplain();
+      if (this.pause?.why === 'explain' && this.pause.kind === kind) this.endPause();
     });
   }
 
@@ -745,9 +782,99 @@ export class FlightScene {
     if (g.t > 2.5 || this.mode !== 'map') this.panGlide = null;
   }
 
-  endExplain() {
-    this.explaining = null;
+  endPause() {
+    this.pause = null;
     this.lastExplain = this.time;
+  }
+
+  // ---- fast travel (#27) ---------------------------------------------------
+
+  /**
+   * A tap on the map that wasn't a pan (from the HUD's gestures). On the path, and with no
+   * helper flying: drop the ⏰ there and travel to it at once (a later tap moves it).
+   * Returns whether it did.
+   */
+  tapMap(sx, sy) {
+    const s = this.flight.state;
+    const c = { mode: this.mode, crashed: this.crashed, landed: s.landed, helper: this.autopilot.active };
+    if (!clockAllowed(c) || !this.prediction) return false;
+    const win = clockWindow(this.prediction.segments, s.t);
+    if (!win) return false;
+    const frames = this.segmentFrames();
+    const paths = frames.map((f) => {
+      const { t0, t1 } = f.seg;
+      const pts = [];
+      const a = Math.max(t0, win[0]), b = Math.min(t1, win[1]);
+      if (b <= a) return pts;
+      const n = 400;
+      for (let k = 0; k <= n; k++) {
+        const t = a + ((b - a) * k) / n;
+        const q = this.screenAt(frames, t);
+        pts.push(q && { x: q.x, y: q.y, t });
+      }
+      return pts;
+    });
+    const hit = pickOnPath(paths, sx, sy, TAP_RADIUS, (t) => (t >= win[0] && t <= win[1] ? this.screenAt(frames, t) : null));
+    if (!hit) return false;
+    this.setClock(hit.t);
+    return true;
+  }
+
+  /** Where the path is at game time t, in scene coordinates (null if it isn't drawn there). */
+  pathAt(frames, t) {
+    const f = frames.find((fr) => t >= fr.seg.t0 && t <= fr.seg.t1);
+    if (!f) return null;
+    const { seg } = f;
+    const p = propagate(seg.body.mu, seg.start.x, seg.start.y, seg.start.vx, seg.start.vy, t - seg.t0, this.tmp3);
+    return f.at(p.x, p.y, t);
+  }
+
+  /** The path at game time t on screen, in px (null if it's off screen). */
+  screenAt(frames, t) {
+    const q = this.pathAt(frames, t);
+    if (!q) return null;
+    const v = new THREE.Vector3(q.x, q.y, 0).project(this.camera);
+    if (v.z > 1) return null;
+    return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight };
+  }
+
+  /** Put the ⏰ at game time t and set off: time speeds up until we get there. */
+  setClock(t) {
+    this.clock = { t };
+    this.manualWarp = false;
+    this.app.audio.play('warp');
+    // The first time, Pip says what it does (and that tapping it stops it), with the map
+    // gliding the ⏰ out from under her bubble.
+    if (this.app.progress.explained('clock')) return;
+    this.explain('clock');
+    const frames = this.segmentFrames();
+    const q = this.pathAt(frames, t), scr = this.screenAt(frames, t);
+    if (q && scr) {
+      this.kindAt.clock = { x: q.x, y: q.y, sx: scr.x, sy: scr.y };
+      this.showKind('clock');
+    }
+  }
+
+  /** Stop travelling and take the ⏰ away (back to normal speed, unless `resetWarp` is false). */
+  clearClock(resetWarp = true) {
+    if (!this.clock) return;
+    this.clock = null;
+    if (resetWarp) this.warpIndex = 0;
+  }
+
+  /** Tapping the ⏰ takes it away. */
+  tapClock() {
+    this.clearClock();
+    this.app.audio.play('unwarp');
+  }
+
+  /** We got to the ⏰: pause, so the child can do what they came for. Any tap, turn or GO carries on. */
+  arrive() {
+    this.clock = null;
+    this.warpIndex = 0;
+    this.pause = { why: 'arrived', t: 0 };
+    this.app.audio.play('unwarp');
+    this.app.pip('We\'re here! Take your time.', { speak: true, key: 'clock' });
   }
 
   /** Buggy time: the rocket waits on the pad while we drive around. */
@@ -1124,14 +1251,16 @@ export class FlightScene {
    * A marker that explains itself (#33): tap it and Pip says what it is; it glows while Pip
    * does. Placed like placeMarker; notes that its kind is on screen.
    */
-  kindMarker(key, className, html, kind, x, y, z = 0) {
+  kindMarker(key, className, html, kind, x, y, z = 0, onTap = null) {
     const el = this.marker(key, `${className} tap`, html);
     el.dataset.kind = kind;
     if (!el.onclick) {
       el.onclick = (e) => {
         e.stopPropagation();
         this.app.audio.play('tap');
-        this.explain(el.dataset.kind);
+        // Most markers explain themselves; the ⏰ goes away (its line says so, #27).
+        if (onTap) onTap();
+        else this.explain(el.dataset.kind);
       };
     }
     el.classList.toggle('explain', this.highlight === kind);
@@ -1194,7 +1323,8 @@ export class FlightScene {
         if (h === 'hidden') it.el.style.display = 'none';
       }
       const segs = this.prediction?.segments || [];
-      this.segmentFrames().forEach((f, i) => {
+      const frames = this.segmentFrames();
+      frames.forEach((f, i) => {
         const { seg } = f;
         const el = seg.el;
         const span = seg.t1 - seg.t0;
@@ -1236,6 +1366,9 @@ export class FlightScene {
         const w = m.body.worldPos(s.t, {});
         this.kindMarker('burn', 'event burn', '<span>🔥</span>', 'burn', w.x - this.origin.x + m.x, w.y - this.origin.y + m.y);
       }
+      // Fast travel's ⏰ (#27), where the path will be at its time.
+      const q = this.clock && this.pathAt(frames, this.clock.t);
+      if (q) this.kindMarker('clock', 'event clock', '<span>⏰</span>', 'clock', q.x, q.y, 0, () => this.tapClock());
     }
     // Coach arrow: which way to point.
     const ap = this.autopilot;

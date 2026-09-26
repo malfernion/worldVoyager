@@ -1,5 +1,6 @@
 // Buttons, readouts and touch gestures for flying.
 import { sliderToDist, distToSlider } from './zoom.js';
+import { TAP_MOVE } from './fastTravel.js';
 
 const fmt = (n) => (n >= 10000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`);
 
@@ -131,13 +132,15 @@ export class FlightHud {
     window.addEventListener('blur', () => (this.scene.input.fine = false));
   }
 
-  /** Pinch / wheel zoom and map panning on the 3D view. */
+  /** Pinch / wheel zoom, map panning, and taps on the map's path (fast travel, #27). */
   bindGestures(canvas) {
     const pts = new Map();
     let pinch = null;
+    let tap = null; // one finger down that hasn't moved much (yet): a tap, not a pan
     canvas.addEventListener('pointerdown', (e) => {
       if (this.app.screen !== 'flight') return;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      tap = pts.size === 1 ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null;
       if (pts.size === 2) {
         const [a, b] = [...pts.values()];
         pinch = Math.hypot(a.x - b.x, a.y - b.y);
@@ -148,6 +151,7 @@ export class FlightHud {
       const prev = pts.get(e.pointerId);
       const cur = { x: e.clientX, y: e.clientY };
       pts.set(e.pointerId, cur);
+      if (tap && Math.hypot(cur.x - tap.x, cur.y - tap.y) > TAP_MOVE) tap = null;
       const s = this.scene;
       if (pts.size === 2 && pinch) {
         const [a, b] = [...pts.values()];
@@ -164,6 +168,9 @@ export class FlightHud {
     const end = (e) => {
       pts.delete(e.pointerId);
       if (pts.size < 2) pinch = null;
+      if (tap?.id !== e.pointerId) return;
+      tap = null;
+      if (e.type === 'pointerup' && this.app.screen === 'flight' && this.scene.mode === 'map') this.scene.tapMap(e.clientX, e.clientY);
     };
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
@@ -316,9 +323,10 @@ export class FlightHud {
     this.el('alt').textContent = st.landed ? '🛬 landed' : `⬆ ${fmt(alt)}`;
     this.el('spd').textContent = `💨 ${fmt(f.speed)}`;
     const warp = Math.round(s.warp);
-    // ⏸ while Pip pauses to explain a marker (#33).
-    this.el('warp-label').textContent = s.explaining ? '⏸' : `×${warp}`;
+    // ⏸ while paused (Pip explaining a marker, #33, or fast travel got there, #27); a ⏰ while travelling.
+    this.el('warp-label').textContent = s.pause ? '⏸' : `×${warp}`;
     this.el('speed').classList.toggle('fast', warp > 1);
+    this.el('speed').classList.toggle('travel', !!s.clock);
     this.el('normal-btn').classList.toggle('lit', warp <= 1);
     this.syncZoomSlider();
     const meter = this.el('height-meter');

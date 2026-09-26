@@ -41,6 +41,13 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   it carries on when Pip's done, or as soon as you tap anything. Tap any of them (or the 🚀 and
   ✨ / 🎵 pins while driving) to hear it again. When worlds crowd together on the map, a
   moon's label shrinks to its icon or hides until you zoom in.
+- **⏰ Fast travel:** on the map, tap your path somewhere ahead and a ⏰ drops there. Time
+  zooms along (as fast as is safe, slowing down as you get close) until the rocket gets to
+  it, then the game pauses (⏸) so you can take your time: Pip says "We're here! Take your
+  time." Any tap, turn or GO carries on. Tap the path again to move the ⏰; tap the ⏰ to take
+  it away. Turning, GO or the time buttons also stop the trip (you're in charge again), and so
+  does a helper: while one is flying, tapping the path does nothing. If the path changes so
+  it would crash before the ⏰, the ⏰ goes and time slows down.
 - **Go somewhere:** open the map, tap a world, then the trip button: **🧭 Let's go!** with the
   coach on (you fly there and land, Pip tells you how) or **🤖 Take me there!** with it off
   (Pip flies, you watch). Tap it again (✋ Stop) to stop.

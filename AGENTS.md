@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -90,6 +90,7 @@ src/scenes/            builder.js (workshop), flight.js (flight + map views), dr
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
                        markers.js (pure: what each screen marker means, when it's safe to pause and explain one, label decluttering; #33),
+                       fastTravel.js (pure: tapping the map's path for a ⏰, where it may go, the travel warp that lands on it; #27),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
 src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
 src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): playback audio session, tap-to-resume,
@@ -185,6 +186,17 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   helper stepping; it ends when the line has been said (`afterPip`), on any tap, or after
   `MAX_PAUSE`. Explained kinds are saved in `progress.markers`. Adding a marker kind? Add its
   line (and record it), and decide whether it belongs in `FIRST_SIGHT`.
+- **The game has one pause** (`FlightScene.pause`): `{ why: 'explain' }` for a marker (#33) or
+  `{ why: 'arrived' }` when fast travel gets to its ⏰ (#27). It only stops the sim, the helper
+  and prediction (`fly()`); any tap, steering or GO ends it. Don't add another pause flag.
+- **Fast travel is the child's clock, never a helper's** (#27, `src/ui/fastTravel.js`). A ⏰ is
+  just a game time on the path (`FlightScene.clock`); dropping it starts the trip, and it's
+  gone when we get there, when it's tapped, on steering / GO / the time buttons / rewind / a
+  crash, when a helper starts, and when the path no longer reaches it (`clockOnPath`: a crash
+  now comes first, or we landed). Taps on the path are ignored while a helper is on
+  (`clockAllowed`). The travel warp (`travelWarp`) steps down the warp levels as it gets close
+  and the last frame steps exactly onto the time; the usual slow-down before a new world or the
+  ground still applies on top.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).
@@ -192,7 +204,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
 ## Verifying your work
 
 - **Physics, autopilot and coach:** headless vitest missions in `test/physics.test.js`.
-  `test/coachSwitch.test.js` flips the 🧭 switch in each context (idle, a helper or trip in
+  `test/fastTravel.test.js` taps the path of a real orbit through `FlightScene.tapMap`, travels
+  with `fly()` and checks it pauses right on the ⏰'s time. `test/coachSwitch.test.js` flips the 🧭 switch in each context (idle, a helper or trip in
   each mode, the first-launch nudge) through the real `FlightScene` methods and a speech queue
   on a fake clock, and checks what Pip says and who ends up flying.
   `kidFlies()` simulates a late-reacting child (binary GO, 8-frame lag) following the coach
@@ -208,7 +221,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   document.getElementById('play-btn').click(); document.getElementById('launch-btn').click();
   app.flightScene.helper('orbit'); step(60 * 15);
   ```
-  Useful: `app.flightScene.toggleMap()`, `.focusMapOn(app.system.byId.sizzle)`,
+  Useful: `app.flightScene.toggleMap()`, `.tapMap(x, y)` (a tap on the map; `.screenAt(.segmentFrames(), t)`
+  says where the path is at time t), `.focusMapOn(app.system.byId.sizzle)`,
   `.setTarget(body)`, `.setCoaching(true)` (the 🧭 switch), `.helper('goto', { coach: true })`, `.drive.deploy()`,
   `app.newAdventure()`. Watch the console for shader errors.
 - **HUD layout (#22):** at each screen size run `app.hud.layoutProblems()` in the console; it

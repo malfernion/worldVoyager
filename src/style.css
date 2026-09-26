@@ -756,6 +756,25 @@ h1 {
   }
 }
 
+/* Fast travel's ⏰ (#27): it rings (wiggles) while time zooms towards it. */
+.event.clock {
+  font-size: 30px;
+}
+
+.event.clock > span {
+  display: inline-block;
+  animation: ring 0.25s infinite alternate ease-in-out;
+}
+
+@keyframes ring {
+  from {
+    rotate: -14deg;
+  }
+  to {
+    rotate: 14deg;
+  }
+}
+
 .rocket-marker {
   translate: -50% -50%;
 }
@@ -1403,6 +1422,19 @@ h1 {
   color: var(--glow);
 }
 
+/* Fast travel (#27): a ringing ⏰ tucked under the time buttons while we zoom to it (outside the
+   row, so the row never gets wider and wraps on narrow phones). */
+.speed-group.travel::after {
+  content: '⏰';
+  position: absolute;
+  right: -4px;
+  bottom: -14px;
+  font-size: 18px;
+  filter: drop-shadow(0 0 3px #000);
+  animation: ring 0.25s infinite alternate ease-in-out;
+  pointer-events: none;
+}
+
 #zoom-box {
   position: absolute;
   right: calc(18px + var(--safe-right));
@@ -1490,9 +1522,10 @@ h1 {
     font-size: 15px;
   }
 
+  /* 12 px: at 13 px "×1000" (fast travel's top speed, #27) wrapped the top bar on a 375 px phone. */
   #warp-label {
     min-width: 30px;
-    font-size: 13px;
+    font-size: 12px;
   }
 
   #flight-screen #readout {
