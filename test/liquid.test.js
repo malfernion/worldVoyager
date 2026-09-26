@@ -33,10 +33,11 @@ function deepest(body) {
 const DEEP = deepest(home);
 
 describe('the liquid layer (#44)', () => {
-  it('Homestead has water; the other worlds have no liquid yet', () => {
+  it('Homestead has water, Sizzle has lava (#45); the other worlds have no liquid', () => {
     expect(home.liquid).toEqual({ kind: 'water', level: -1.5 });
     expect(home.liquidR).toBe(home.radius - 1.5);
-    for (const b of sys.bodies) if (b !== home) expect(b.liquid).toBe(null);
+    expect(sys.byId.sizzle.liquid.kind).toBe('lava');
+    for (const b of sys.bodies) if (b !== home && b.id !== 'sizzle') expect(b.liquid).toBe(null);
   });
 
   it('the seabed is gentle by the shore and deeper further out', () => {

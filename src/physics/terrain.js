@@ -70,6 +70,66 @@ export const OBSERVATORY = dirOf(1.13, -0.095);
  */
 export const seabedDepth = (d) => 0.6 * d + 0.08 * d * d;
 
+// Pools (#45): a world whose liquid sits in pools (Sizzle's lava; lakes later, #46) keeps the
+// same one-level model. Its level is set below all its natural ground, and each pool is a
+// basin carved down through that level, so the liquid fills only the hollows. A pool is a
+// round blob (`a` its middle) or a flow (a line from `a` to `b`), `r` metres from the middle
+// line to the shore (wobbled by noise so it isn't a perfect circle). In it the floor is a
+// bowl `deep` metres below the level in the middle; outside, a bank rises from the shore at
+// `bank` (metres up per metre out) until it meets the natural ground.
+export function makePools(defs, radius, level, seed) {
+  const { noise } = makeNoise(seed);
+  const list = defs.map((d) => {
+    const a = d.a, b = d.b ?? d.a;
+    const ab = [b.x - a.x, b.y - a.y, b.z - a.z];
+    const ab2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+    const len = Math.sqrt(ab2) * radius;
+    // Nothing further than this from the middle line is ever carved (the bank meets the
+    // highest ground within that).
+    const reach = (d.r * 1.25 + 40 / d.bank) / radius;
+    // A quick test: angle from the pool's middle point.
+    const m = [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2];
+    const ml = Math.hypot(m[0], m[1], m[2]);
+    return { ...d, a, b, ab, ab2, len, mid: { x: m[0] / ml, y: m[1] / ml, z: m[2] / ml }, cos: Math.cos(reach + len / 2 / radius) };
+  });
+  // Distance (m, along the ground, near enough) from p to a pool's middle line, and its shore's
+  // distance from that line there.
+  const measure = (p, x, y, z) => {
+    let t = 0;
+    if (p.ab2 > 0) t = Math.max(0, Math.min(1, ((x - p.a.x) * p.ab[0] + (y - p.a.y) * p.ab[1] + (z - p.a.z) * p.ab[2]) / p.ab2));
+    const qx = p.a.x + p.ab[0] * t, qy = p.a.y + p.ab[1] * t, qz = p.a.z + p.ab[2] * t;
+    const d = Math.hypot(x - qx, y - qy, z - qz) * radius;
+    const shore = p.r * (1 + 0.2 * noise(x * 7 + p.seed, y * 7, z * 7));
+    return { d, shore };
+  };
+  return {
+    list,
+    level,
+    /** The ground at (x, y, z) with the pools carved into it: `h` is the natural height there. */
+    carve(x, y, z, h) {
+      for (const p of list) {
+        if (x * p.mid.x + y * p.mid.y + z * p.mid.z < p.cos) continue;
+        const { d, shore } = measure(p, x, y, z);
+        if (d > shore + (h - level) / p.bank) continue;
+        const s = d / shore;
+        const bowl = s < 1 ? level - p.deep * (1 - s * s) : level + (d - shore) * p.bank;
+        if (bowl < h) h = bowl;
+      }
+      return h;
+    },
+    /** How far (m) the nearest pool's shore is from (x, y, z): negative in a pool, Infinity far away. */
+    shoreDist(x, y, z) {
+      let best = Infinity;
+      for (const p of list) {
+        if (x * p.mid.x + y * p.mid.y + z * p.mid.z < p.cos) continue;
+        const { d, shore } = measure(p, x, y, z);
+        best = Math.min(best, d - shore);
+      }
+      return best;
+    },
+  };
+}
+
 function makeHome() {
   const { fbm, noise } = makeNoise(11);
   const sea = -1.5;
@@ -188,17 +248,40 @@ function makeNibble() {
 // Sizzle's volcano vents. Exported so the plumes rise from exactly these spots.
 export const SIZZLE_VENTS = randomDirs(8, 7);
 
+// Sizzle's lava (#45): pools and short flows at the feet of the volcanoes, below one lava level
+// (see makePools). Placed by hand: clear of the vents' plumes (the biggest is a discovery,
+// #15), Toasty's camp (#16, one pool is in view of it) and the great circle through the
+// poles and the flight plane at x = 0 (where the buggy tests drive round), and only two cross the flight
+// plane, so most of the rocket's ground is solid. Several are on the camera's side (z > 0),
+// so they glow on the world's face from orbit. test/lava.test.js checks all of this.
+export const SIZZLE_LAVA = {
+  level: -4, // below all of Sizzle's natural ground (its lowest dip is about -2.7 m)
+  radius: 110, // Sizzle's (bodies.js; a test checks they match)
+  pools: [
+    { a: dirOf(0.02, -0.04), r: 10, deep: 2.5, bank: 0.35 }, // at the west foot of the flight plane's volcano, across the plane
+    { a: dirOf(1.93, 0.04), b: dirOf(2.08, -0.08), r: 7.5, deep: 2.2, bank: 0.35 }, // a flow in the lowland between two volcanoes, across the plane
+    { a: dirOf(1.04, 0.38), r: 9, deep: 2.5, bank: 0.35 }, // in view of Toasty's camp
+    { a: dirOf(1.12, 0.64), b: dirOf(1.3, 0.72), r: 7, deep: 2, bank: 0.35 }, // a flow north of it
+    { a: dirOf(2.72, 0.56), b: dirOf(2.52, 0.68), r: 8, deep: 2.2, bank: 0.35 }, // below the biggest volcano
+    { a: dirOf(3.45, -0.45), r: 11, deep: 2.5, bank: 0.35 }, // round the back
+    { a: dirOf(4.95, 0.3), r: 10, deep: 2.5, bank: 0.35 }, // the far side
+  ].map((p, i) => ({ ...p, seed: i * 3.7 })),
+};
+
 function makeSizzle() {
   const { fbm, noise } = makeNoise(53);
   const vents = SIZZLE_VENTS;
+  const pools = makePools(SIZZLE_LAVA.pools, SIZZLE_LAVA.radius, SIZZLE_LAVA.level, 59);
   return {
+    liquid: { kind: 'lava', level: SIZZLE_LAVA.level },
+    pools,
     height(x, y, z) {
       let h = fbm(x * 2.8, y * 2.8, z * 2.8, 4) * 5;
       for (const v of vents) {
         const d = Math.acos(Math.min(1, x * v.x + y * v.y + z * v.z));
         if (d < 0.3) h += (1 - smooth(0, 0.3, d)) * 12 - (1 - smooth(0.02, 0.06, d)) * 5;
       }
-      return h;
+      return pools.carve(x, y, z, h);
     },
     color(x, y, z, h) {
       const n = fbm(x * 5, y * 5, z * 5, 4);
@@ -208,6 +291,12 @@ function makeSizzle() {
         const d = Math.acos(Math.min(1, x * v.x + y * v.y + z * v.z));
         c = mix(c, rgb(0x3d2a1f), 1 - smooth(0.05, 0.16, d));
         c = mix(c, rgb(0xff5a1f), 1 - smooth(0.0, 0.05, d));
+      }
+      // Round the lava: dark cooled rock on the banks, scorched orange just beyond.
+      const s = pools.shoreDist(x, y, z);
+      if (s < 12) {
+        c = mix(c, rgb(0xb4552a), 1 - smooth(4, 12, s));
+        c = mix(c, rgb(0x3a2419), 1 - smooth(1, 5, s));
       }
       return c;
     },
