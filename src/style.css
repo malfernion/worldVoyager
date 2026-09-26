@@ -73,6 +73,55 @@ body {
   display: none !important;
 }
 
+/* ---------- the page never zooms (#39) ----------
+   iPads ignore user-scalable=no, so every layer says no page pinch / double-tap zoom itself
+   (touch-action isn't inherited). Only the two scrollers pan: the tray (pan-x) and the sticker
+   book (pan-y); neither allows pinch-zoom. Taps on labels and ticks can't double-tap zoom either. */
+#ui,
+#labels,
+#scene,
+.screen,
+.chip,
+.panel:not(.journal) {
+  touch-action: none;
+}
+
+label,
+input[type='checkbox'] {
+  touch-action: manipulation;
+}
+
+/* Only when the page got zoomed in anyway (src/ui/pageZoom.js): #ui is fitted into the visible
+   part, and this big button in the middle tries the zoom reset again. */
+#ui.page-zoomed {
+  transform-origin: 0 0;
+}
+
+#unzoom-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 124px;
+  height: 124px;
+  margin: -62px 0 0 -62px;
+  font-size: 60px;
+  background: var(--glow);
+  pointer-events: auto;
+  z-index: 60;
+  animation: unzoom-pulse 1.2s ease-in-out infinite;
+}
+
+#unzoom-btn small {
+  bottom: -14px;
+  font-size: 24px;
+}
+
+@keyframes unzoom-pulse {
+  50% {
+    box-shadow: 0 5px 0 var(--ink), 0 0 0 16px rgba(255, 220, 120, 0.35);
+  }
+}
+
 /* ---------- buttons ---------- */
 
 .btn {

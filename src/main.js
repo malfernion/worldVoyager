@@ -7,6 +7,7 @@ import { planetThumb } from './world/thumbs.js';
 import { FlightScene } from './scenes/flight.js';
 import { BuilderScene } from './scenes/builder.js';
 import { FlightHud } from './ui/flightHud.js';
+import { PageZoom } from './ui/pageZoom.js';
 import { Narrator } from './ui/narrator.js';
 import { SpeechQueue } from './ui/speechQueue.js';
 import { AudioEngine } from './audio/audio.js';
@@ -44,6 +45,13 @@ class App {
     this.builder = new BuilderScene(this);
     this.hud = new FlightHud(this);
     this.hud.bindGestures(this.canvas);
+    // The page must never stay zoomed in (#39): iPads ignore user-scalable=no.
+    this.pageZoom = new PageZoom({
+      layer: $('ui'),
+      button: $('unzoom-btn'),
+      onRescue: (on) => on && this.pip('Tap the big button to zoom back out!', { speak: true, pri: 'cue', key: 'zoom' }),
+    });
+    this.pageZoom.listen();
     this.progress.on((id) => this.onSticker(id));
 
     this.canvas.addEventListener('pointerdown', (e) => {
