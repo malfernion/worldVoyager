@@ -1639,8 +1639,15 @@ export class FlightScene {
       const v = p.clone().project(this.camera);
       const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
       if (onScreen) this.kindMarker('home-pin', 'home-pin', '<span>🚀</span>', 'home', p.x, p.y, p.z);
-      // Direction to the rocket for the HUD compass (flipped if it's behind us).
-      const sx = v.z > 1 ? -v.x : v.x, sy = v.z > 1 ? -v.y : v.y;
+      // Direction to the rocket for the HUD compass (flipped if it's behind us). Close by but
+      // beside or behind it, the compass leads round to the front of the garage door (#37).
+      const aim = this.drive.homeAim(foot);
+      let c = v;
+      if (aim !== foot) {
+        const la = Math.hypot(...aim), lift = 2 / la;
+        c = new THREE.Vector3(w.x + aim[0] * (1 + lift) - this.origin.x, w.y + aim[1] * (1 + lift) - this.origin.y, aim[2] * (1 + lift)).project(this.camera);
+      }
+      const sx = c.z > 1 ? -c.x : c.x, sy = c.z > 1 ? -c.y : c.y;
       this.homeCompass = { angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight), visible: onScreen };
       this.secretCompass = this.compassTo(this.drive.nearest, w);
     } else {

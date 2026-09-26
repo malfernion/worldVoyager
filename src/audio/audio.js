@@ -684,6 +684,9 @@ export class AudioEngine {
         this.drum(now + 0.6, 'low', 0.8, this.sfx);
         [79, 83, 86, 91].forEach((m, i) => this.lead(m, now + 0.6 + i * 0.12, 0.3, 'whistle', 0.8, this.sfx));
         break;
+      case 'garage': // driving in through the garage door (#37): a quick happy strum up
+        [67, 72, 76, 79].forEach((m, i) => this.pluck(m, now + i * 0.06, 0.6, 'banjo', this.sfx));
+        break;
       case 'beep': // the old rover's sleepy beep-boop
         this.tone(988, 0.16, { vol: 0.12, type: 'square', delay: 0.5 });
         this.tone(659, 0.3, { vol: 0.12, type: 'square', slide: 0.8, delay: 0.72 });

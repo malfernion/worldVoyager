@@ -138,6 +138,83 @@ export class WorldLap {
   }
 }
 
+// Driving back into the rocket (#37). The rocket is solid all round (an obstacle at its foot,
+// see DriveMode.deploy), but a box in front of its open garage door takes the buggy in:
+// the box covers the lowered ramp (its end is about 2.5 m out, where the buggy would bonk)
+// and a generous apron beyond it. The buggy must be on the ground (not hopping or orbiting),
+// facing the door (so passing by, or bumping the rocket's side or back, never counts) and not
+// driving away; any speed, even stopped, is fine for small drivers.
+export const GARAGE = {
+  near: 0.5, // the box starts this far in front of the rocket's middle (m)...
+  far: 6.5, // ...and reaches this far out (the buggy rolls out to 6 m)
+  side: 3, // and this far to either side (the door is 1.3 m wide)
+  facing: 0.5, // facing the door within 60°: cos of the angle between forward and "into the door"
+  away: 0.5, // backing out of it faster than this (m/s) doesn't count
+  ground: 0.5, // wheels at most this high above the ground (m)
+  lead: 7, // close by but not in front, the compass leads round to this far in front of the door
+  close: 30, // "close by" (m)
+};
+
+/**
+ * Where p is in front of the garage: `along` (metres out from the rocket through the door; < 0
+ * behind it) and `side` (metres to the side), measured flat along the ground at the rocket.
+ * foot: the rocket's foot; door: the unit direction the door faces (square to the foot's up).
+ */
+export function garageSpot(p, foot, door) {
+  const u = norm(foot);
+  let d = sub(p, foot);
+  d = sub(d, mul(u, dot(d, u)));
+  const along = dot(d, door);
+  return { along, side: len(sub(d, mul(door, along))) };
+}
+
+/** Is p in the box in front of the garage door (position only)? */
+export function inGarageZone(p, foot, door) {
+  const { along, side } = garageSpot(p, foot, door);
+  return along >= GARAGE.near && along <= GARAGE.far && side <= GARAGE.side;
+}
+
+/**
+ * Should this buggy drive into the garage? b: { p, v, f, altitude, orbiting } (a Buggy fits).
+ * Pure: whether it has left the box since rolling out is the `Garage` below.
+ */
+export function atGarage(b, foot, door) {
+  if (b.orbiting || b.altitude > GARAGE.ground) return false;
+  if (!inGarageZone(b.p, foot, door)) return false;
+  return -dot(b.f, door) >= GARAGE.facing && dot(b.v, door) <= GARAGE.away;
+}
+
+/**
+ * The garage of one parked rocket. The buggy rolls out right in front of the door, so it only
+ * counts once the buggy has been outside the box: `update(buggy)` is true on the step it
+ * drives in.
+ */
+export class Garage {
+  constructor(foot, door) {
+    this.foot = foot;
+    this.door = door;
+    this.armed = false;
+  }
+
+  update(b) {
+    if (!this.armed) {
+      this.armed = !inGarageZone(b.p, this.foot, this.door);
+      return false;
+    }
+    return atGarage(b, this.foot, this.door);
+  }
+}
+
+/**
+ * Where the compass home points: the rocket, but close by and not in front of the door it
+ * points at a spot out in front, so it leads round to the door rather than into the back.
+ */
+export function homeAim(p, foot, door) {
+  const { along } = garageSpot(p, foot, door);
+  if (along >= GARAGE.near || len(sub(p, foot)) > GARAGE.close) return foot;
+  return add(foot, mul(door, GARAGE.lead));
+}
+
 // Trees and rocks: bucketed into a coarse 3D grid once per world, so each substep only looks
 // at the few cells around the buggy instead of ~900 trees.
 export class ObstacleGrid {

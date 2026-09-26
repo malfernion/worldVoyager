@@ -1,7 +1,7 @@
 // Buggy mode: roll out of the garage, drive anywhere on the globe with a chase camera,
 // then head home to the rocket. The rocket stays parked on its flight plane the whole time.
 import * as THREE from 'three';
-import { Buggy, ObstacleGrid, vec } from '../physics/buggy.js';
+import { Buggy, ObstacleGrid, Garage, homeAim, vec } from '../physics/buggy.js';
 import { BUGGIES, DEFAULT_BUGGY, garageOf } from '../rocket/parts.js';
 import { buildBuggy } from '../rocket/buggyMesh.js';
 import { DustPool, BuggyDust } from '../physics/dust.js';
@@ -14,6 +14,9 @@ import { DISCOVERY_IDS, FRIEND_IDS } from '../progress.js';
 const LEAVES = [0x5d8c3a, 0x7aa84a, 0x3f6b2e, 0xd08a3a];
 
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+
+// The garage door faces +z in the rocket's frame (towards the flight camera).
+const DOOR_DIR = [0, 0, 1];
 
 export class DriveMode {
   constructor(flightScene) {
@@ -111,8 +114,10 @@ export class DriveMode {
     this.buggy = new Buggy(body, this.kind);
     const foot = this.rocketFoot();
     // Roll out in front of the garage door (it faces the camera, +z).
-    this.buggy.spawn(vec.add(foot, [0, 0, 6]), [0, 0, 1]);
+    this.buggy.spawn(vec.add(foot, vec.mul(DOOR_DIR, 6)), DOOR_DIR);
+    // The rocket is solid all round (bonk!); only driving at its open door takes us in (#37).
     this.buggy.obstacles = [{ p: foot, r: 1.5, top: fs.rocket.height + 0.5 }];
+    this.garage = new Garage(foot, DOOR_DIR);
     this.buggy.grid = this.obstacleGrid(body);
     this.nearest = null;
     this.targets.length = 0;
@@ -166,7 +171,21 @@ export class DriveMode {
     return v.obstacleGrid;
   }
 
-  /** Back to the rocket: drive in if close, otherwise whoosh back with sparkles. */
+  /** Where the home compass points (#37): the rocket, or round to the front of its door. */
+  homeAim(foot = this.rocketFoot()) {
+    return homeAim(this.buggy.p, foot, DOOR_DIR);
+  }
+
+  /** Driven in through the garage door (#37): the same roll-in as 🏠 from close by. */
+  driveIn() {
+    this.fs.app.audio.play('garage');
+    this.phase = 'in';
+    this.anim = 0;
+    this.from = this.buggy.p.slice();
+    this.far = false;
+  }
+
+  /** Back to the rocket (🏠): drive in if close, otherwise whoosh back with sparkles. */
   goHome() {
     if (!this.active || this.phase !== 'drive') return;
     const fs = this.fs;
@@ -248,6 +267,8 @@ export class DriveMode {
       });
       pos = b.p;
       this.effects(dt, input);
+      // Driving up the ramp or up to the open door takes us in (#37).
+      if (this.garage?.update(b)) this.driveIn();
     }
     this.dustPool.step(dt);
 

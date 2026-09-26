@@ -331,6 +331,24 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
     crests) and you pass over. The scene plays a soft "bonk" (plus a leafy rustle for trees),
     a gentle camera wobble, and leaves fluttering down or a puff of dust, at most every half
     second; the first bump each session Pip says "Bonk! Back up and steer around it."
+- **Driving back in** (#37, `GARAGE`, `atGarage()` and `Garage` in `buggy.js`). The rocket is
+  solid all round: a circle collider at its foot (radius 1.5 plus the buggy's `reach`, so the
+  buggy stops about 2.5 m from the middle, where the lowered ramp ends), bonking like a tree,
+  and only a super hop clears it. The garage door (it faces +z, towards the flight camera)
+  stays open with its ramp down the whole time the buggy is out, and a box in front of it
+  takes the buggy in: from 0.5 to 6.5 m out from the rocket's middle and 3 m to either side
+  (the door is 1.3 m wide), measured flat along the ground at the rocket. It counts when the
+  buggy is in the box, on the ground (wheels within 0.5 m, not orbiting), facing the door
+  within 60° and not backing away from it faster than 0.5 m/s; any speed, even stopped, is
+  fine. So a child only has to get roughly in front and point at it, while bumping the side or
+  back (facing sideways, or outside the box) just bonks, and so does driving across the front
+  or hopping over the ramp. The buggy rolls out 6 m in front of the door, inside the box, so
+  `Garage` only arms once it has been outside the box. Then it's the same 1 s roll-in as 🏠
+  from close by, with a quick banjo strum (`garage`) and the door's snap; no new Pip line, the
+  sound and the door closing say it. 🏠 still works from anywhere (driving in from close by,
+  the sparkly whoosh from further). Close by (within 30 m) but beside or behind the rocket, the
+  home compass points at a spot 7 m in front of the door instead (`homeAim()`), so it leads
+  round to the front rather than into the back.
 - **Never orbit.** Top speed is capped at 70% of the world's orbit speed, and airborne
   speed at 75% of local circular speed, so every jump comes back down.
 - **Ducky's gas jets** (#13, `JETS` in `buggy.js`). Driving over one of the comet's vents,

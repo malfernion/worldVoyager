@@ -77,9 +77,10 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   it would crash before the ⏰, the ⏰ goes and time slows down.
 - **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
   its colour). After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
-  compass points back to your rocket, and 🏠 takes you home. Bonk! Trees and moon rocks are
-  in the way: back up and steer around them (or hop over the small ones). Keep driving one
-  way and you'll go all the way round the world: a ring by the compass fills as you go, Pip
+  compass points back to your rocket (close by, round to the front of its garage door). To go
+  home, drive back up the ramp through the open garage door, or tap 🏠 from anywhere. Bonk!
+  Trees, moon rocks and the rocket's sides are in the way: back up and steer around them (or
+  hop over the small ones). Keep driving one way and you'll go all the way round the world: a ring by the compass fills as you go, Pip
   cheers at halfway, and the first time you get the 🌍 Round the World sticker (each world
   you've driven round gets a 🌍 in the sticker book). Your tyres kick up dust the colour of
   the ground, and it floats down slowly on little moons and falls fast at home; the Hopper's
@@ -134,7 +135,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

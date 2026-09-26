@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -84,7 +84,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
   autopilot.js         Helper programs (orbit, land, goto), each run as the autopilot or coached, + transfer planner (+ comet windows and homing);
                        `landRefusal()` (why 🛬 can't land here)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets),
-                       WorldLap: have we driven all the way round the world? (#29)
+                       WorldLap: have we driven all the way round the world? (#29), driving back in through the garage door
+                       (#37: `GARAGE`, `atGarage()`, `Garage`, and `homeAim()` for the compass)
   dust.js              Buggy dust (#26): a fixed pool of particles in typed arrays (tyre dust, landing thumps, the Hopper's
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js
 src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
@@ -109,7 +110,8 @@ src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): play
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
 tools/voice/           Recording pipeline for Pip's voice (see below)
 test/                  vitest suites; missions.js has the shared headless flights (autopilot, pretend kid, trips, tours);
-                       roundWorld.test.js drives real buggies round (and not round) the worlds (#29)
+                       roundWorld.test.js drives real buggies round (and not round) the worlds (#29);
+                       garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
 ```
 
@@ -189,6 +191,13 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   chain lines with `setTimeout` (that's what cut lines off). To do something after Pip's
   current lines (the next sticker), use `app.afterPip(fn)`. Give each new line a priority on
   purpose (see "Pip's voice").
+- **The buggy goes home through the garage door or 🏠** (#37). The rocket is a solid obstacle
+  all round (bonk); only the box in front of its open door takes the buggy in (`atGarage()`:
+  on the ground, not orbiting, facing the door, not backing away), and only after the buggy
+  has left that box since rolling out (`Garage`). The door and ramp stay open while the buggy
+  is out. 🏠 stays as the shortcut from anywhere. `test/garage.test.js` drives real buggies at
+  the door, the side and the back; keep it green if you touch buggy speeds, the rocket's
+  collider or where the buggy rolls out.
 - **Driving round the world counts net angle, never distance** (#29, `WorldLap` in `buggy.js`).
   It's the angle swept round three axes set where the lap starts, each dropped near its poles, and
   a lap must also cross that axis's equator and be at least `ROUND.far` of the way round in
