@@ -66,26 +66,36 @@ export class DriveMode {
   }
 
   setDoor(open) {
+    this.doorMoving = true;
     this.fs.rocket.group.traverse((o) => {
       if (o.userData.door) o.userData.doorTarget = open ? 1.35 : 0;
       if (o.userData.ramp) o.userData.rampTarget = open ? 1 : 0;
     });
   }
 
+  /** Glide the door and ramp towards open or shut. Only while they're moving (it runs every frame). */
   animateDoor(dt) {
+    if (!this.doorMoving) return;
     const k = 1 - Math.exp(-dt * 6);
+    let moving = false;
     this.fs.rocket.group.traverse((o) => {
       if (o.userData.door) {
         const t = o.userData.doorTarget ?? 0;
         o.position.y += (t - o.position.y) * k;
+        if (Math.abs(t - o.position.y) > 1e-3) moving = true;
+        else o.position.y = t;
       }
       if (o.userData.ramp) {
         const t = o.userData.rampTarget ?? 0;
-        o.userData.rampOpen = (o.userData.rampOpen ?? 0) + (t - (o.userData.rampOpen ?? 0)) * k;
-        o.visible = o.userData.rampOpen > 0.02;
-        o.rotation.x = -Math.PI / 2 + o.userData.rampOpen * (Math.PI / 2 - 0.35);
+        let r = (o.userData.rampOpen ?? 0) + (t - (o.userData.rampOpen ?? 0)) * k;
+        if (Math.abs(t - r) > 1e-3) moving = true;
+        else r = t;
+        o.userData.rampOpen = r;
+        o.visible = r > 0.02;
+        o.rotation.x = -Math.PI / 2 + r * (Math.PI / 2 - 0.35);
       }
     });
+    this.doorMoving = moving;
   }
 
   deploy() {
@@ -195,6 +205,7 @@ export class DriveMode {
   /** Abandon driving instantly (e.g. going back to the workshop). */
   cancel() {
     if (!this.active) return;
+    this.setDoor(false);
     this.dropDust();
     if (this.mesh) this.fs.scene.remove(this.mesh.group);
     this.mesh = null;

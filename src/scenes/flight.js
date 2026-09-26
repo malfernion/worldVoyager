@@ -806,6 +806,8 @@ export class FlightScene {
       this.updateDriving(dt);
       return;
     }
+    // The garage door keeps moving after the buggy is back (it closes behind it, #38).
+    this.drive.animateDoor(dt);
 
     // The first sight of a marker may pause to explain it (#33); steering or GO ends it (fly).
     const steering = this.input.left || this.input.right || this.input.go;
