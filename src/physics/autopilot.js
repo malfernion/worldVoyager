@@ -513,15 +513,17 @@ export class Autopilot {
   }
 
   /**
-   * Coached, but the spot below is water (#44): Pip flies us over to dry land (like the tiny
-   * pushes), staying up high, then hands back for the HOLD / LET GO down.
+   * Coached, but the spot below is water (#44) or lava (#45): Pip flies us over to dry land
+   * (like the tiny pushes), staying up high, then hands back for the HOLD / LET GO down.
    */
   *glideToLand(site) {
     const f = this.flight;
     const wasCoach = this.coach;
     this.coach = false;
     this.goPower = 1;
-    this.say('Oops, water! I\'ll fly us over to dry land.', CUE);
+    // (Plain strings, so the voice scanner finds them.)
+    if (f.state.body.liquid.kind === 'lava') this.say('Oops, lava! I\'ll fly us over to solid ground.', CUE);
+    else this.say('Oops, water! I\'ll fly us over to dry land.', CUE);
     this.warp = 1;
     for (let guard = 0; guard < 60 * 60 && !f.state.landed && !f.state.crashed; guard++) {
       const d = this.descent();

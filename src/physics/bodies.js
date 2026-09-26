@@ -214,6 +214,15 @@ export class Body {
   }
 
   /**
+   * How far (m) the shore of the nearest pool is from unit direction (x, y, z) (#45): negative
+   * in a pool, Infinity where the world's liquid isn't in pools (terrain.js makePools).
+   */
+  shoreDist(x, y, z) {
+    const pools = this.terrainFn?.pools;
+    return pools ? pools.shoreDist(x, y, z) : Infinity;
+  }
+
+  /**
    * How close point p ([x, y, z] in this world's frame) is to its liquid (#44), for the lapping
    * waves: 1 over it, fading to 0 at `reach` metres from its shore (looked for on three rings of
    * eight spots round p along the ground, so a few terrain lookups, not a search).

@@ -38,6 +38,26 @@ export const WATER = {
   deep: 1.4, // metres of water over the wheels' bottom that counts as all under
 };
 
+// Lava (#45): too hot to drive into. Its shore is a soft wall: coming towards it the buggy is
+// braked more and more (at most `touch` + `brake` m/s towards it for each metre it still has
+// to go, from `slow` metres out), until at `edge` metres from the shore any push towards the lava is
+// taken away and it's nudged back out at `nudge`, sliding along the shore if it came in at an
+// angle. A hop or jet may fly over a flow, but one that comes down over the lava lands on a
+// cushion of steam at its surface and is popped back towards the nearest shore (`kick` out,
+// plus a metre a second for each metre of lava under it, and `pop` up), again and again
+// until it's on the shore: never in the lava, and never stuck. Distances from the shore come
+// from the world's pools (terrain.js makePools, Body.shoreDist).
+export const LAVA = {
+  edge: 2, // the wall, metres from the shore (the buggy's nose stops about a metre short)
+  slow: 9, // braking starts this far out (m)
+  brake: 2, // m/s allowed towards the lava per metre to go...
+  touch: 0.6, // ...plus this, so it does touch the wall (and gets nudged back)
+  low: 1.2, // after a hop or jet, the wall only holds this close to the ground (m)
+  nudge: 0.8, // m/s back out
+  kick: 3, // m/s out from the steam cushion...
+  pop: 2.4, // ...and up
+};
+
 // The Nibble orbit secret: going fast, a jump on Nibble is a super hop that leaps forward
 // at nearly orbit speed; then holding jump (or tapping it) fires the jets, which steer
 // gently towards a round, low orbit until we're falling all the way round.
@@ -330,6 +350,8 @@ export class Buggy {
     this.bumpedInto = null;
     this.vents = body.comet ? DUCKY_JETS : null; // gas jets that push us around
     this.fizz = 0; // how hard a jet pushed us in the last step (0..1), for the puffs
+    this.lava = body.liquid?.kind === 'lava'; // a wall, not a sea (#45)
+    this.sizzled = 0; // hardest bump into the lava's edge since the scene last looked (m/s)
   }
 
   /** Top speed on this world: the buggy's own limit, but always well below orbit speed. */
@@ -356,7 +378,8 @@ export class Buggy {
   /** How deep in the liquid we are at radius r in direction u: sets depth, wet and inWater. */
   soak(r, u) {
     const body = this.body;
-    if (!body.liquid || !this.isWater(u)) {
+    // Nobody wades into lava (#45): the buggy never gets in, it's a wall (lavaEdge).
+    if (!body.liquid || this.lava || !this.isWater(u)) {
       this.depth = -Infinity;
       this.wet = 0;
       this.inWater = false;
@@ -584,6 +607,8 @@ export class Buggy {
       if (sp > airCap) this.v = mul(this.v, airCap / sp);
     }
 
+    if (this.lava) this.lavaEdge(u, r, h, input);
+
     const before = u;
     this.p = add(this.p, mul(this.v, h));
     if (this.orbiting) {
@@ -592,10 +617,11 @@ export class Buggy {
       if (lapBefore < 2 * Math.PI && this.lap >= 2 * Math.PI) this.orbited = true;
     }
 
-    // Don't sink into the ground.
+    // Don't sink into the ground (nor into lava, #45: its steam cushion holds us up).
     r = len(this.p);
     u = mul(this.p, 1 / r);
-    const floor = this.groundRadius(u) + k.ride;
+    let floor = this.groundRadius(u) + k.ride;
+    if (this.lava && this.isWater(u)) floor = Math.max(floor, body.liquidR + k.ride);
     if (r < floor) {
       this.p = mul(u, floor);
       const vr = dot(this.v, u);
@@ -605,6 +631,65 @@ export class Buggy {
     // Bump around obstacles: the parked rocket, trees and rocks.
     for (const o of this.obstacles) this.bump(o, u, h);
     if (this.grid) for (const o of this.grid.near(this.p)) this.bump(o, u, h);
+  }
+
+  /**
+   * Which way is out of the lava from direction u, along the ground (#45): the way the shore
+   * gets further away. Right on a pool's middle line, back the way we came.
+   */
+  shoreOut(u) {
+    const body = this.body;
+    const e1 = norm(sub(this.f, mul(u, dot(this.f, u))));
+    const e2 = cross(u, e1);
+    const d = 0.5 / body.radius;
+    const at = (a, k) => {
+      const q = norm(add(u, mul(a, k)));
+      return body.shoreDist(q[0], q[1], q[2]);
+    };
+    const g = add(mul(e1, at(e1, d) - at(e1, -d)), mul(e2, at(e2, d) - at(e2, -d)));
+    if (len(g) > 1e-3) return norm(g);
+    const vt = sub(this.v, mul(u, dot(this.v, u)));
+    return len(vt) > 0.1 ? norm(vt) : mul(e1, -1);
+  }
+
+  /** The lava's edge (#45, LAVA): brakes, a soft wall on the shore, and a steam cushion over it. */
+  lavaEdge(u, r, h, input) {
+    const body = this.body;
+    const s = body.shoreDist(u[0], u[1], u[2]);
+    if (s > LAVA.slow) return;
+    const k = this.kind;
+    if (this.isWater(u)) {
+      // Over the lava (only a hop or jet gets here): at its surface, pop back to the shore.
+      if (r > body.liquidR + k.ride + 0.08) return;
+      const o = this.shoreOut(u);
+      const out = LAVA.kick + body.liquidDepth(u[0], u[1], u[2]);
+      const vo = dot(this.v, o), vr = dot(this.v, u);
+      this.v = add(this.v, add(mul(o, Math.max(0, out - vo)), mul(u, Math.max(0, LAVA.pop - vr))));
+      this.flying = true;
+      this.sizzled = Math.max(this.sizzled, out);
+      return;
+    }
+    // A hop or jet may fly over a flow; rolling off a bump, we still can't go in.
+    if (this.flying && r - (this.groundRadius(u) + k.ride) > LAVA.low) return;
+    const o = this.shoreOut(u);
+    // Held up by the wall, steering still turns us (on its own it only works when rolling, and
+    // the nudges back would turn it the other way), so GO and steering always gets us away.
+    if (input.steer && s < LAVA.edge + 0.5) this.f = rotate(this.f, u, input.steer * k.turn * h);
+    const vin = -dot(this.v, o); // towards the lava
+    const wall = s < LAVA.edge;
+    const most = wall ? -LAVA.nudge : LAVA.touch + (s - LAVA.edge) * LAVA.brake;
+    if (vin <= most) return;
+    this.v = add(this.v, mul(o, vin - most));
+    if (!wall) return;
+    // At the wall. Came in at an angle: turn to slide along the shore (like a bump, softer).
+    const fin = dot(this.f, o);
+    const along = sub(this.f, mul(o, fin));
+    const side = len(along);
+    if (fin < 0 && side > 1e-3) {
+      const turn = Math.min(Math.acos(Math.min(1, side)), h * 2 * Math.min(1, side / 0.3));
+      this.f = norm(rotate(this.f, norm(cross(this.f, along)), turn));
+    }
+    this.sizzled = Math.max(this.sizzled, vin + LAVA.nudge);
   }
 
   /** Friendly bump: push out of the obstacle, bounce a little and slide off at an angle. */
