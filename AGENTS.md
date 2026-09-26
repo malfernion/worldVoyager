@@ -383,6 +383,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - Headless Chromium (Playwright, SwiftShader WebGL) is too slow for the animation loop: call
   `app.renderer.setAnimationLoop(null)` and step frames yourself before taking screenshots. It
   can't decode the `.m4a` clips either, so `[pip] no recording for:` warnings there are expected.
+- **A centred chip (`left: 50%` + `translateX(-50%)`) shrink-wraps to half the screen** and wraps
+  onto a second line, so the goal banner covered the status chip on phones (#36). Give such
+  chips `width: max-content` (with their `max-width`).
 - Line2 / LineMaterial widths are in pixels; update `resolution` on resize (flight.js does).
 - **Leaving a world's SOI, patched conics keep the speed at the SOI edge**, not the speed
   "at infinity". Tumble is big with a small SOI, so a burn sized for the speed at infinity left

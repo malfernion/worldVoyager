@@ -1227,12 +1227,23 @@ h1 {
     height: 48px;
   }
 
+  /* Its two choices (#36) side by side, so the card is no taller than with one and keeps
+     clear of Pip's bubble while she says what they are. */
   #target-card .target-info {
-    gap: 4px;
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 4px 6px;
   }
 
-  #target-card .small-go {
-    padding: 8px 10px;
+  #target-card .target-info b {
+    grid-column: 1 / -1;
+  }
+
+  /* (More specific than the plain width: 100% further down, which would win otherwise.) */
+  #target-card .target-info .small-go {
+    width: auto;
+    padding: 8px;
+    font-size: 14px;
   }
 
   #crash-card {
