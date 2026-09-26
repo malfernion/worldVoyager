@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { BODY_DEFS } from '../../src/physics/bodies.js';
-import { GOALS, STICKERS } from '../../src/progress.js';
+import { GOALS, STICKERS, JOURNEY_DONE } from '../../src/progress.js';
 import { PARTS } from '../../src/rocket/parts.js';
 import { sentencesOf, keyOf } from '../../src/ui/speech.js';
 
@@ -73,6 +73,7 @@ for (const g of GOALS) {
   messages.add(g.hint);
   messages.add(`Next: ${g.text}`);
 }
+messages.add(JOURNEY_DONE); // the starter journey's end (#36)
 for (const [id, s] of Object.entries(STICKERS)) if (!id.startsWith('land-')) messages.add(s.say || s.name);
 for (const s of Object.values(STICKERS)) if (s.hint) messages.add(s.hint); // discoveries' sticker-book hints (#15)
 for (const b of BODY_DEFS) {

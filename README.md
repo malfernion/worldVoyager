@@ -8,6 +8,12 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
 
 ## How to play
 
+- **Your first trip:** Pip gives you a few goals, one at a time (the chip at the top shows the
+  next one, and Pip says how): 🚀 fly up into space, 🌀 go all the way round
+  Homestead, 🏡 land at home, 🌕 fly to Pebble the moon, 🌕 land on Pebble, then 🏡 fly home
+  and land. Then Pip says "You can fly anywhere now! Pick a world on the map. I can fly you
+  there, or show you how!", the goals are done and the chip goes away: the whole solar system
+  is yours to explore.
 - **Workshop:** tap a part to add it, or drag it onto the rocket. Tap a part on the rocket to
   paint it. Drag a part off the rocket to throw it away. 🎲 builds a surprise rocket.
 - **Fly:** ⟲ ⟳ turn, hold **GO** to fire the engine. 🗺️ opens the map, ⏩ speeds up time,
@@ -99,8 +105,8 @@ sticker, and from then on they play along in the campfire song back home (and si
 fire by the launch pad and in the workshop). Find all five, then come home to Homestead's
 ground for the **Full Band**.
 
-Collect stickers for reaching space, orbiting, landing on every world, your discoveries and the
-band. Tap a world in the 📖 sticker book to hear a real space fact. Tap a discovery to hear its
+Collect stickers for the first trip's goals, visiting and landing on every world (they're not
+goals, just stickers to find), your discoveries and the band. Tap a world in the 📖 sticker book to hear a real space fact. Tap a discovery to hear its
 fact again, or a ❓ one for a hint from Pip. Tap a friend in the 🎵 Band to hear them play.
 
 ## Develop

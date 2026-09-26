@@ -200,10 +200,6 @@
   "text": "Can you wake it up?"
  },
  {
-  "key": "catch ducky the comet and land on it",
-  "text": "Catch Ducky, the comet, and land on it!"
- },
- {
   "key": "come home and land softly",
   "text": "Come home and land softly!"
  },
@@ -252,16 +248,8 @@
   "text": "Ducky is behind us."
  },
  {
-  "key": "ducky zooms close to ember then drifts far away",
-  "text": "Ducky zooms close to Ember, then drifts far away."
- },
- {
   "key": "dusty",
   "text": "Dusty!"
- },
- {
-  "key": "dusty has a giant volcano",
-  "text": "Dusty has a giant volcano."
  },
  {
   "key": "dusty is a red rusty planet like mars",
@@ -336,10 +324,6 @@
   "text": "Flip goes around Tumble the wrong way, just like Triton, a moon of Neptune."
  },
  {
-  "key": "flip goes around tumble the wrong way so we have to go around the other way too",
-  "text": "Flip goes around Tumble the wrong way, so we have to go around the other way too."
- },
- {
   "key": "flip goes the other way",
   "text": "Flip goes the other way."
  },
@@ -356,16 +340,12 @@
   "text": "Fly close to it, but not too close!"
  },
  {
+  "key": "fly home and land",
+  "text": "Fly home and land!"
+ },
+ {
   "key": "fly to pebble the moon",
   "text": "Fly to Pebble, the moon!"
- },
- {
-  "key": "fly to ringo the ringed giant",
-  "text": "Fly to Ringo, the ringed giant!"
- },
- {
-  "key": "fly to tumble the tipped over giant",
-  "text": "Fly to Tumble, the tipped-over giant!"
  },
  {
   "key": "fly up into space",
@@ -394,10 +374,6 @@
  {
   "key": "frosty",
   "text": "Frosty!"
- },
- {
-  "key": "frosty goes around ringo too",
-  "text": "Frosty goes around Ringo too."
  },
  {
   "key": "frosty goes the other way",
@@ -512,6 +488,10 @@
   "text": "Hold the big GO button to blast off!"
  },
  {
+  "key": "home again all the way from pebble",
+  "text": "Home again, all the way from Pebble!"
+ },
+ {
   "key": "homestead",
   "text": "Homestead!"
  },
@@ -530,6 +510,10 @@
  {
   "key": "howdy space explorer",
   "text": "Howdy, space explorer!"
+ },
+ {
+  "key": "i can fly you there or show you how",
+  "text": "I can fly you there, or show you how!"
  },
  {
   "key": "i can hear a harmonica on pebble",
@@ -616,10 +600,6 @@
   "text": "It is the only spacecraft that ever went there!"
  },
  {
-  "key": "it is tiny",
-  "text": "It is tiny!"
- },
- {
   "key": "it is tipped over on its side",
   "text": "It is tipped over on its side."
  },
@@ -644,28 +624,8 @@
   "text": "Keep holding jump to fire the jets!"
  },
  {
-  "key": "land on dusty",
-  "text": "Land on Dusty!"
- },
- {
-  "key": "land on flip the backwards moon",
-  "text": "Land on Flip, the backwards moon!"
- },
- {
-  "key": "land on frosty the icy moon",
-  "text": "Land on Frosty, the icy moon!"
- },
- {
-  "key": "land on nibble the potato moon",
-  "text": "Land on Nibble, the potato moon!"
- },
- {
   "key": "land on pebble",
   "text": "Land on Pebble!"
- },
- {
-  "key": "land on sizzle the volcano moon",
-  "text": "Land on Sizzle, the volcano moon!"
  },
  {
   "key": "land standing up straight",
@@ -912,24 +872,16 @@
   "text": "Mossy was having a nap on Pebble."
  },
  {
-  "key": "next catch ducky the comet and land on it",
-  "text": "Next: Catch Ducky, the comet, and land on it!"
- },
- {
   "key": "next come home and land softly",
   "text": "Next: Come home and land softly!"
  },
  {
+  "key": "next fly home and land",
+  "text": "Next: Fly home and land!"
+ },
+ {
   "key": "next fly to pebble the moon",
   "text": "Next: Fly to Pebble, the moon!"
- },
- {
-  "key": "next fly to ringo the ringed giant",
-  "text": "Next: Fly to Ringo, the ringed giant!"
- },
- {
-  "key": "next fly to tumble the tipped over giant",
-  "text": "Next: Fly to Tumble, the tipped-over giant!"
  },
  {
   "key": "next fly up into space",
@@ -940,44 +892,16 @@
   "text": "Next: Go all the way around Homestead!"
  },
  {
-  "key": "next land on dusty",
-  "text": "Next: Land on Dusty!"
- },
- {
-  "key": "next land on flip the backwards moon",
-  "text": "Next: Land on Flip, the backwards moon!"
- },
- {
-  "key": "next land on frosty the icy moon",
-  "text": "Next: Land on Frosty, the icy moon!"
- },
- {
-  "key": "next land on nibble the potato moon",
-  "text": "Next: Land on Nibble, the potato moon!"
- },
- {
   "key": "next land on pebble",
   "text": "Next: Land on Pebble!"
- },
- {
-  "key": "next land on sizzle the volcano moon",
-  "text": "Next: Land on Sizzle, the volcano moon!"
  },
  {
   "key": "next time hold go a little sooner",
   "text": "Next time, hold GO a little sooner."
  },
  {
-  "key": "next visit dusty the red planet",
-  "text": "Next: Visit Dusty, the red planet!"
- },
- {
   "key": "nibble",
   "text": "Nibble!"
- },
- {
-  "key": "nibble goes around dusty",
-  "text": "Nibble goes around Dusty."
  },
  {
   "key": "nibble goes the other way",
@@ -1068,32 +992,20 @@
   "text": "Oops, we tipped over!"
  },
  {
-  "key": "open the map and tap ducky",
-  "text": "Open the map and tap Ducky."
- },
- {
-  "key": "open the map and tap dusty",
-  "text": "Open the map and tap Dusty."
+  "key": "open the map and tap homestead",
+  "text": "Open the map and tap Homestead."
  },
  {
   "key": "open the map and tap pebble",
   "text": "Open the map and tap Pebble."
  },
  {
-  "key": "open the map and tap ringo",
-  "text": "Open the map and tap Ringo."
- },
- {
-  "key": "open the map and tap tumble",
-  "text": "Open the map and tap Tumble."
- },
- {
   "key": "or tap the landing button",
   "text": "Or tap the landing button."
  },
  {
-  "key": "or tap the swirly orbit helper",
-  "text": "Or tap the swirly orbit helper!"
+  "key": "or tap the swirly button and ill fly",
+  "text": "Or tap the swirly button and I'll fly!"
  },
  {
   "key": "our rocket is too weak to land here",
@@ -1132,6 +1044,10 @@
   "text": "Pick a buggy to drive around on other worlds."
  },
  {
+  "key": "pick a world on the map",
+  "text": "Pick a world on the map."
+ },
+ {
   "key": "pip needs a cabin",
   "text": "Pip needs a cabin!"
  },
@@ -1158,10 +1074,6 @@
  {
   "key": "ringo is behind us",
   "text": "Ringo is behind us."
- },
- {
-  "key": "ringo is far far away",
-  "text": "Ringo is far, far away."
  },
  {
   "key": "ringo is made of clouds theres no ground",
@@ -1192,10 +1104,6 @@
   "text": "Sizzle!"
  },
  {
-  "key": "sizzle goes around ringo",
-  "text": "Sizzle goes around Ringo."
- },
- {
   "key": "sizzle goes the other way",
   "text": "Sizzle goes the other way."
  },
@@ -1210,6 +1118,10 @@
  {
   "key": "slow down before landing",
   "text": "Slow down before landing."
+ },
+ {
+  "key": "slow down gently before you touch the ground",
+  "text": "Slow down gently before you touch the ground."
  },
  {
   "key": "slow down rocket",
@@ -1318,14 +1230,6 @@
  {
   "key": "tap the landing button to land",
   "text": "Tap the landing button to land!"
- },
- {
-  "key": "tap the landing helper or slow down gently before you touch the ground",
-  "text": "Tap the landing helper, or slow down gently before you touch the ground."
- },
- {
-  "key": "tap the landing helper when you are going around pebble",
-  "text": "Tap the landing helper when you are going around Pebble."
  },
  {
   "key": "that boom shows where we would crash",
@@ -1524,10 +1428,6 @@
   "text": "Tumble is made of clouds, there's no ground to land on!"
  },
  {
-  "key": "tumble is the farthest world of all",
-  "text": "Tumble is the farthest world of all."
- },
- {
   "key": "turn on the compass and ill show you how",
   "text": "Turn on the compass and I'll show you how!"
  },
@@ -1546,10 +1446,6 @@
  {
   "key": "uranus is tipped over on its side so it rolls around the sun like a ball",
   "text": "Uranus is tipped over on its side, so it rolls around the Sun like a ball!"
- },
- {
-  "key": "visit dusty the red planet",
-  "text": "Visit Dusty, the red planet!"
  },
  {
   "key": "voyager 2 saw streaks like this on triton",
@@ -1940,12 +1836,12 @@
   "text": "You are in orbit!"
  },
  {
-  "key": "you caught a comet",
-  "text": "You caught a comet!"
+  "key": "you can fly anywhere now",
+  "text": "You can fly anywhere now!"
  },
  {
-  "key": "you explored everything",
-  "text": "You explored everything!"
+  "key": "you caught a comet",
+  "text": "You caught a comet!"
  },
  {
   "key": "you flew all the way to tumble",

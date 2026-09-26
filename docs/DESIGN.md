@@ -239,6 +239,35 @@ map goes from about 3× the focused world's radius out to the whole solar system
 Tumble, `SYSTEM_EXTENT`; Ember's default view shows every planet's orbit); re-fitting
 picks a new default view inside that range without changing it.
 
+## The starter journey (#36)
+
+A new player gets a short run of goals, one at a time, that teaches the whole game: 🚀 fly up
+into space, 🌀 go all the way round Homestead, 🏡 land at home, 🌕 fly to Pebble, 🌕 land on
+Pebble, and 🏡 fly home and land (`home-again`, earned landing on Homestead once `land-pebble`
+is done). Then the goals **end**: Pip says "You can fly anywhere now! Pick a world on the map. I
+can fly you there, or show you how!" (queued right after the last sticker's line), the goal chip
+and banner go away, and Pip no longer says "Next: …" or reads a goal on the pad.
+
+- *Why end:* a long checklist (it used to go on through every world) turned the open solar
+  system into chores, and a child who wanted Ringo was told to go to Dusty. After Pebble they
+  know every step of a trip (launch, orbit, fly there, land, come back), so the rest is theirs.
+- *The later worlds* (Dusty, Nibble, Ringo, Sizzle, Frosty, Tumble, Flip, Ducky) keep their
+  visit and landing stickers, with the same ids, so they're still there to collect; they just
+  aren't goals. Discoveries (#15) and friends (#16) are unchanged.
+- *One source of truth:* `Progress.starterDone` (the last goal, `STARTER_END`, is done).
+  `currentGoal` is null after it, and `goalShown()` in `progress.js` decides what the builder's
+  chip and the flight banner show (the current starter goal, else nothing), so a later rule, a
+  coached trip's destination, goes in that one place.
+- *Older saves:* `migrate()` in `progress.js`. A save that landed on Pebble **and** has any other
+  world's visit or landing sticker explored beyond Pebble, so it has finished the journey
+  (`home-again` is set, dated as its Pebble landing) and goes straight into the open game. A
+  save that stopped at Pebble is asked to fly home and land; any other save carries on from its
+  first goal not done.
+- *Hints* describe the player flying, with the autopilot buttons as the alternative and the 🧭
+  for being shown how: "Once you are high up, tip sideways and hold GO. Or tap the swirly button
+  and I'll fly! Turn on the compass and I'll show you how!", "Slow down gently before you touch
+  the ground. Or tap the landing button.", "Open the map and tap Pebble."
+
 ## Buggies
 
 A **Garage** section holds one buggy. You choose its type and colour in the workshop:

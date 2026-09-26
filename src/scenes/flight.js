@@ -18,6 +18,7 @@ import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/fri
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
 import { TAP_RADIUS, clockAllowed, clockOnPath, clockWindow, pickOnPath, travelWarp, arrived } from '../ui/fastTravel.js';
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
+import { STARTER_END } from '../progress.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
@@ -456,7 +457,9 @@ export class FlightScene {
         const found = landingFinds(b, this.flight.state.landAngle, { time: this.time, toSun: sunDirection(b, this.flight.state.t), has });
         const met = landingMeets(b, this.flight.state.landAngle, has); // right by a friend (#16)
         const first = app.progress.earn(id);
-        if (first) this.burst(b, 'confetti');
+        // The starter journey's last goal (#36): home again, after landing on Pebble.
+        const back = b === this.system.home && has('land-pebble') && app.progress.earn(STARTER_END);
+        if (first || back) this.burst(b, 'confetti');
         else if (!found && !met) app.pip(`Touchdown on ${b.name}! ${b.icon}`, { speak: true });
         this.warpIndex = 0;
         this.discover(b);

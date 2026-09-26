@@ -2,22 +2,47 @@
 
 const KEY = 'worldVoyager.v1';
 
+// The starter journey (#36): these goals, in order, then the goals end and the game is open.
+// Only these are goals; every other world's visit and landing stickers are just stickers.
 export const GOALS = [
   { id: 'space', icon: '🚀', text: 'Fly up into space!', hint: 'Hold the big GO button to blast off!' },
-  { id: 'orbit', icon: '🌀', text: 'Go all the way around Homestead!', hint: 'Once you are high up, tip sideways and hold GO. Or tap the swirly orbit helper! Turn on the compass and I\'ll show you how!' },
-  { id: 'land-homestead', icon: '🏡', text: 'Come home and land softly!', hint: 'Tap the landing helper, or slow down gently before you touch the ground.' },
-  { id: 'visit-pebble', icon: '🌕', text: 'Fly to Pebble, the moon!', hint: 'Open the map and tap Pebble. Tap the button to fly there!' },
-  { id: 'land-pebble', icon: '🌕', text: 'Land on Pebble!', hint: 'Tap the landing helper when you are going around Pebble.' },
-  { id: 'visit-dusty', icon: '🔴', text: 'Visit Dusty, the red planet!', hint: 'Open the map and tap Dusty.' },
-  { id: 'land-dusty', icon: '🔴', text: 'Land on Dusty!', hint: 'Dusty has a giant volcano. Can you find it?' },
-  { id: 'land-nibble', icon: '🥔', text: 'Land on Nibble, the potato moon!', hint: 'Nibble goes around Dusty. It is tiny!' },
-  { id: 'visit-ringo', icon: '🪐', text: 'Fly to Ringo, the ringed giant!', hint: 'Ringo is far, far away. Open the map and tap Ringo.' },
-  { id: 'land-sizzle', icon: '🌋', text: 'Land on Sizzle, the volcano moon!', hint: 'Sizzle goes around Ringo.' },
-  { id: 'land-frosty', icon: '❄️', text: 'Land on Frosty, the icy moon!', hint: 'Frosty goes around Ringo too.' },
-  { id: 'visit-tumble', icon: '🔵', text: 'Fly to Tumble, the tipped-over giant!', hint: 'Tumble is the farthest world of all. Open the map and tap Tumble.' },
-  { id: 'land-flip', icon: '🔄', text: 'Land on Flip, the backwards moon!', hint: 'Flip goes around Tumble the wrong way, so we have to go around the other way too.' },
-  { id: 'land-ducky', icon: '☄️', text: 'Catch Ducky, the comet, and land on it!', hint: 'Ducky zooms close to Ember, then drifts far away. Open the map and tap Ducky.' },
+  { id: 'orbit', icon: '🌀', text: 'Go all the way around Homestead!', hint: 'Once you are high up, tip sideways and hold GO. Or tap the swirly button and I\'ll fly! Turn on the compass and I\'ll show you how!' },
+  { id: 'land-homestead', icon: '🏡', text: 'Come home and land softly!', hint: 'Slow down gently before you touch the ground. Or tap the landing button.' },
+  { id: 'visit-pebble', icon: '🌕', text: 'Fly to Pebble, the moon!', hint: 'Open the map and tap Pebble.' },
+  { id: 'land-pebble', icon: '🌕', text: 'Land on Pebble!', hint: 'Slow down gently before you touch the ground. Or tap the landing button.' },
+  // Earned landing on Homestead once `land-pebble` is done (FlightScene's 'landed' event).
+  { id: 'home-again', icon: '🏡', text: 'Fly home and land!', hint: 'Open the map and tap Homestead.' },
 ];
+
+/** The starter journey's last goal: once it's done, the journey is finished (`Progress.starterDone`). */
+export const STARTER_END = GOALS[GOALS.length - 1].id;
+
+/** What Pip says when the starter journey is finished, right after its last sticker line. */
+export const JOURNEY_DONE = 'You can fly anywhere now! Pick a world on the map. I can fly you there, or show you how!';
+
+/**
+ * The goal the chip (builder) and banner (flight) show, or null to hide them (#36): the current
+ * starter goal during the journey, nothing after it. The one place that decides, so a later
+ * rule (e.g. a coached trip's destination) goes here.
+ */
+export function goalShown(progress) {
+  return progress.currentGoal;
+}
+
+/**
+ * Older saves (#36): before the starter journey ended with `home-again`, the goals went on to the
+ * later worlds. A save that landed on Pebble and then explored beyond it (any other world's
+ * visit or landing sticker) has clearly finished the journey, so it goes straight into the open
+ * game. A save that got only as far as Pebble gets the new last goal (fly home and land); one
+ * partway through carries on. Changes `done` in place; returns true if it did.
+ */
+export function migrate(done) {
+  if (done[STARTER_END] || !done['land-pebble']) return false;
+  const beyond = Object.keys(done).some((id) => /^(visit|land)-/.test(id) && !/-(homestead|pebble)$/.test(id));
+  if (!beyond) return false;
+  done[STARTER_END] = done['land-pebble'];
+  return true;
+}
 
 export const STICKERS = {
   space: { icon: '🚀', name: 'Space Cadet', say: 'You made it to space! Space starts way up high where the sky turns black.' },
@@ -25,6 +50,9 @@ export const STICKERS = {
   'land-homestead': { icon: '🏡', name: 'Home Sweet Home', say: 'Welcome home, space explorer!' },
   'visit-pebble': { icon: '🌕', name: 'Moon Visitor', say: 'Hello Pebble!' },
   'land-pebble': { icon: '🌕', name: 'Moonwalker' },
+  // The starter journey's last goal (#36); `world` shows Homestead on the sticker.
+  'home-again': { icon: '🎒', name: 'Round Tripper', world: 'homestead', say: 'Home again, all the way from Pebble!' },
+  // The later worlds' stickers (#36: no longer goals, same ids so old saves keep them).
   'visit-dusty': { icon: '🔴', name: 'Red Planet Rider', say: 'Hello Dusty, the red planet!' },
   'land-dusty': { icon: '🔴', name: 'Dusty Boots' },
   'land-nibble': { icon: '🥔', name: 'Potato Pilot' },
@@ -164,6 +192,7 @@ export class Progress {
   constructor() {
     const d = load();
     this.done = d.done || {};
+    migrate(this.done); // older saves (#36); saved with the next change
     this.design = d.design || null;
     this.settings = { music: true, sfx: true, voice: true, ...(d.settings || {}) };
     // Screen markers Pip has already explained (#33), and autopilot buttons (`button-orbit`…,
@@ -219,8 +248,25 @@ export class Progress {
     return true;
   }
 
+  /** Is the starter journey (#36) finished? Then there are no goals: the game is open. */
+  get starterDone() {
+    return !!this.done[STARTER_END];
+  }
+
+  /** The next starter goal, or null once the journey is finished. */
   get currentGoal() {
+    if (this.starterDone) return null;
     return GOALS.find((g) => !this.done[g.id]) || null;
+  }
+
+  /**
+   * What Pip says after a sticker's own line (#36): the next goal, only for a starter goal and
+   * only while one remains; after the journey's last sticker, that it's finished.
+   */
+  afterSticker(id) {
+    if (id === STARTER_END) return [JOURNEY_DONE];
+    const next = this.currentGoal;
+    return next && GOALS.some((g) => g.id === id) ? [`Next: ${next.text}`] : [];
   }
 
   /** Forget everything about this adventure (stickers, goals, saved rocket, explained markers, worlds driven round). Settings stay. */

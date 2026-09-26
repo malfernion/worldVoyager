@@ -1,6 +1,7 @@
 // Buttons, readouts and touch gestures for flying.
 import { sliderToDist, distToSlider } from './zoom.js';
 import { TAP_MOVE } from './fastTravel.js';
+import { goalShown } from '../progress.js';
 
 const fmt = (n) => (n >= 10000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`);
 
@@ -48,7 +49,7 @@ export class FlightHud {
     click('crash-pad', () => this.scene.resetToPad());
     click('crash-build', () => this.app.toBuilder());
     this.el('goal-banner').addEventListener('click', () => {
-      const g = this.app.progress.currentGoal;
+      const g = goalShown(this.app.progress);
       if (g) this.app.pip(g.hint, { speak: true, key: 'goal' });
     });
     this.bindKeys();
@@ -352,7 +353,10 @@ export class FlightHud {
     status.classList.toggle('hidden', !s.autopilot.status);
     // Who's flying: 🧭 you (Pip coaches) or 🤖 Pip.
     status.textContent = s.autopilot.status ? `${s.autopilot.coachSession ? '🧭' : '🤖'} ${s.autopilot.status}` : '';
-    const g = this.app.progress.currentGoal;
-    this.el('goal-banner').textContent = g ? `${g.icon} ${g.text}` : '🌟 You explored everything! Fly anywhere!';
+    // Only while there's a goal to show (#36): gone after the starter journey.
+    const g = goalShown(this.app.progress);
+    const banner = this.el('goal-banner');
+    banner.classList.toggle('hidden', !g);
+    if (g) banner.textContent = `${g.icon} ${g.text}`;
   }
 }

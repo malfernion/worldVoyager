@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -66,7 +66,7 @@ Only push work that is tested and ready for players.
 
 ```
 src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
-src/progress.js        Goals, stickers (incl. discoveries' facts and hints, friends' hellos and hints), saved design + settings (incl. the 🧭 coach switch),
+src/progress.js        The starter journey's goals (`GOALS`, `starterDone`, `goalShown()`, older saves' `migrate()`; #36), stickers (incl. discoveries' facts and hints, friends' hellos and hints), saved design + settings (incl. the 🧭 coach switch),
                        which screen markers Pip has explained (#33), which worlds were driven round (#29; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
@@ -171,6 +171,12 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   second (`App.updateBand`); the engine only glides (`setTargetAtTime`) when a level really
   changes and schedules no notes for silent parts. Friends' parts play **only chord tones** of
   the sequencer's current chord (a test checks), so any mix of them fits.
+- **Goals are only the starter journey** (#36, `GOALS` in `progress.js`: space, orbit, land
+  at home, Pebble, land on Pebble, `home-again`). `Progress.starterDone` is the one answer to
+  "is the journey finished?"; after it `currentGoal` is null, there's no "Next: …" and no goal
+  line on the pad, and what the goal chip / banner show comes only from `goalShown()`. Every
+  other world's `visit-` / `land-` ids are plain stickers (same ids, so old saves keep them);
+  don't add goals past `home-again`. Older saves go through `migrate()` on load.
 - **Pip says one line at a time** (#31). Every spoken line goes through `App.pip(text, { pri, key })`
   and the speech queue (`src/ui/speechQueue.js`); never call `narrator.say()` directly, and never
   chain lines with `setTimeout` (that's what cut lines off). To do something after Pip's

@@ -10,7 +10,7 @@ import { FlightHud } from './ui/flightHud.js';
 import { Narrator } from './ui/narrator.js';
 import { SpeechQueue } from './ui/speechQueue.js';
 import { AudioEngine } from './audio/audio.js';
-import { Progress, GOALS, STICKERS, DISCOVERY_IDS, BAND_IDS } from './progress.js';
+import { Progress, STICKERS, DISCOVERY_IDS, BAND_IDS, JOURNEY_DONE, goalShown } from './progress.js';
 import { friendLevels, FRIEND_BY_ID } from './physics/friends.js';
 import { defaultDesign } from './rocket/parts.js';
 
@@ -182,11 +182,15 @@ class App {
     } else if (g) {
       this.pip(`${g.text} ${g.hint}`, { speak: true, key: 'goal' });
     }
+    // After the starter journey (#36) Pip says nothing on the pad: there's no goal to read.
   }
 
+  /** The builder's goal chip: shown only while there's a goal to show (`goalShown`, #36). */
   updateGoalChip() {
-    const g = this.progress.currentGoal;
-    $('goal-chip').textContent = g ? `${g.icon} Next: ${g.text}` : '🌟 You explored everything!';
+    const g = goalShown(this.progress);
+    // Hidden, not removed, so the ⚙️ button stays on the right of the top bar.
+    $('goal-chip').style.visibility = g ? '' : 'hidden';
+    $('goal-chip').textContent = g ? `${g.icon} Next: ${g.text}` : '';
   }
 
   /**
@@ -258,9 +262,11 @@ class App {
     // A sticker is worth waiting for: it keeps longer in the queue than other news, and a full
     // queue drops other lines before it (a first landing can bring a sticker, a discovery and a friend).
     this.pip(line, { speak: true, duration: Math.max(7000, line.length * 70), stale: 60, onStart: pop, keep: true });
-    const next = this.progress.currentGoal;
-    // Then the next goal, once that's been said.
-    if (next && GOALS.some((g) => g.id === id)) this.pip(`Next: ${next.text}`, { speak: true, key: 'goal' });
+    // Then, once that's been said, the next starter goal, or that the journey is finished (#36):
+    // queued behind the sticker line, never on a timer. The journey's end is kept like a sticker.
+    for (const next of this.progress.afterSticker(id)) {
+      this.pip(next, { speak: true, key: 'goal', ...(next === JOURNEY_DONE && { stale: 60, keep: true }) });
+    }
     this.updateGoalChip();
   }
 
