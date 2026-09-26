@@ -282,11 +282,15 @@ export class FlightHud {
     if (driving && s.homeCompass) {
       compass.firstChild.style.transform = `rotate(${s.homeCompass.angle}rad)`;
       this.el('home-dist').textContent = `${fmt(s.drive.distanceToRocket)} m`;
-      // Super hopping round Nibble: the ring fills as we go.
+      // Super hopping round Nibble, or driving round the world (#29): the ring fills as we go.
       const bg = s.drive.buggy;
       const ring = this.el('orbit-ring');
-      ring.classList.toggle('hidden', !bg?.orbiting);
-      if (bg?.orbiting) ring.style.setProperty('--lap', Math.min(1, bg.lap / (2 * Math.PI)).toFixed(3));
+      const lap = bg?.orbiting ? Math.min(1, bg.lap / (2 * Math.PI)) : s.drive.roundShown ? bg.round.progress : -1;
+      ring.classList.toggle('hidden', lap < 0);
+      if (lap >= 0) {
+        ring.style.setProperty('--lap', lap.toFixed(3));
+        if (ring.firstChild.textContent !== b.icon) ring.firstChild.textContent = b.icon;
+      }
     }
     // The ✨ compass (#15): points at the nearest secret on this world, glowing brighter up close.
     const secret = this.el('secret-compass');

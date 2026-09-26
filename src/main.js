@@ -271,7 +271,8 @@ class App {
       const visited = this.progress.has(`visit-${b.id}`) || this.progress.has(`land-${b.id}`) || b === this.system.home || b.kind === 'star';
       const card = document.createElement('div');
       card.className = `world-card${visited ? '' : ' unknown'}`;
-      const badges = [this.progress.has(`visit-${b.id}`) ? '👀' : '', this.progress.has(`land-${b.id}`) ? '🚩' : ''].join(' ');
+      // 👀 visited, 🚩 landed, 🌍 driven all the way round (#29).
+      const badges = [this.progress.has(`visit-${b.id}`) ? '👀' : '', this.progress.has(`land-${b.id}`) ? '🚩' : '', this.progress.rounds[b.id] ? '🌍' : ''].join(' ');
       card.innerHTML = `<img src="${this.thumbs[b.id]}" alt=""><b>${visited ? b.name : '???'}</b><div class="badges">${badges}</div>`;
       card.addEventListener('click', () => {
         this.audio.play('tap');

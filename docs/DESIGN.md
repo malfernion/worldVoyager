@@ -281,6 +281,37 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
     world keeps the caps.
 - **Getting home.** 🏠 drives back into the garage when close, or whisks you back with
   sparkles when far. A HUD compass always points to the rocket.
+- **Driving all the way round the world** (#29; `WorldLap` in `buggy.js`). The worlds are
+  little globes, so a kid naturally drives "that way" until the rocket comes back into view.
+  - **What counts** is what counts on Earth: crossing every line of longitude round some axis
+    and coming back, i.e. the *net* angle swept round the axis. Wobbly steering still adds up;
+    driving back and forth, or halfway and back, adds up to nothing (it's the net angle, not
+    the distance). The axis isn't fixed in advance: three axes, square to each other, are set
+    where the lap starts (one square to the way the buggy faces, so straight ahead goes round
+    its equator), and any great circle stays at least 35° from the poles of one of them,
+    so a kid who turns off onto some other way round still gets there. Near an axis's pole
+    (`ROUND.cap`: within about 32°) that axis starts again; a lap must also cross that axis's
+    equator and be at least 80% of the way round in distance (`ROUND.far`), so driving in
+    circles never counts unless the circle is nearly as big as the world. After a lap the
+    next one starts from there. A single axis picked from the first heading was simpler but
+    too strict: one big turn (round a rock, say) and the lap was spoiled. Counting "visited
+    regions" would count wandering about, and "came back to the rocket from the other side"
+    would miss loops that don't pass the rocket.
+  - **Jumps count, orbits don't.** Hops, crests and Ducky's gas jets are still driving; a super
+    hop round Nibble is flying and has its own sticker, so the lap starts again where the
+    Hopper comes down.
+  - **Feedback.** From a quarter of the way round, the ring next to the rocket compass (the
+    orbit secret's) fills with the world's icon in the middle; Pip says "Halfway round! Keep
+    going!" once a lap (the orbit secret's line); all the way round is the discovery chime,
+    sparkles and, the first time on any world, the 🌍 Round the World sticker ("…Long ago, a
+    ship called Victoria was the first to sail all the way around the Earth. It took three
+    years!"), afterwards "We drove all the way round again!". Each world driven round gets a
+    🌍 on its page in the sticker book (`progress.rounds`, saved; older saves have none). One
+    sticker, not one per world, to keep the book uncluttered. Gas giants and Ember have no
+    ground, so they can't be driven round; a lap of Homestead takes about 3 minutes, Nibble
+    about one.
+  - In narrow portrait the compass chip (with the ring and the ✨) is wide, so while driving the
+    zoom slider sits a little lower.
 
 ## Discoveries (#15)
 

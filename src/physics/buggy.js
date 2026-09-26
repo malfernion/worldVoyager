@@ -60,6 +60,84 @@ export const JETS = {
 };
 const JET_COS = Math.cos(JETS.reach);
 
+// Driving all the way round the world (#29). Like a real trip round the Earth, it's the angle
+// swept round an axis, crossing every line of longitude and coming back. Only the net angle
+// counts, so wobbles are fine and driving back and forth (or halfway and back) adds up to
+// nothing. We watch three axes at once, square to each other, set where we set off: one is
+// square to the way we're facing, so driving "that way" goes round its equator; and any great
+// circle keeps well clear of at least one axis's poles (at least 35°), so turning off onto
+// some other way round still counts. Near an axis's pole (`cap`) that axis starts
+// again. A lap must also cross that axis's equator and be most of the way round in distance
+// (`far`), so going round in circles never counts, unless the circle is nearly as big as the world.
+export const ROUND = {
+  cap: 0.85, // |sin latitude| above this (within about 32° of a pole) starts that axis again
+  far: 0.8, // a lap is at least this many times the distance round the equator
+};
+
+export class WorldLap {
+  constructor() {
+    this.axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    this.angle = [0, 0, 0]; // net radians round each axis (either sign)
+    this.dist = [0, 0, 0]; // radians travelled while counting round each axis
+    this.sides = [0, 0, 0]; // which sides of each axis's equator we've been on (bits: 1 north, 2 south)
+    this.last = [0, 0, 0];
+    this.reset();
+  }
+
+  /** Forget the lap; the next update sets off from wherever we are then. */
+  reset() {
+    this.started = false;
+    this.angle.fill(0);
+    this.dist.fill(0);
+    this.sides.fill(0);
+  }
+
+  /** How far round, 0..1 (the best of the three). */
+  get progress() {
+    const a = this.angle;
+    return Math.min(1, Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(a[2])) / (2 * Math.PI));
+  }
+
+  /**
+   * Follow the buggy: u is the unit vector from the world's middle, f the way it faces.
+   * True when it has just been all the way round (then the next lap starts from here).
+   */
+  update(u, f) {
+    const last = this.last;
+    if (!this.started) {
+      this.started = true;
+      const fw = norm(sub(f, mul(u, dot(f, u))));
+      this.axes = [u.slice(), fw, cross(u, fw)];
+      last[0] = u[0];
+      last[1] = u[1];
+      last[2] = u[2];
+      return false;
+    }
+    const step = Math.acos(Math.min(1, dot(last, u)));
+    let round = false;
+    for (let i = 0; i < 3; i++) {
+      const a = this.axes[i];
+      const la = dot(last, a), ua = dot(u, a);
+      if (Math.abs(ua) > ROUND.cap) {
+        this.angle[i] = 0;
+        this.dist[i] = 0;
+        this.sides[i] = 0;
+        continue;
+      }
+      // The signed angle between the two positions, seen from above this axis's pole.
+      this.angle[i] += Math.atan2(dot(cross(last, u), a), dot(last, u) - la * ua);
+      this.dist[i] += step;
+      this.sides[i] |= ua >= 0 ? 1 : 2;
+      if (Math.abs(this.angle[i]) >= 2 * Math.PI && this.sides[i] === 3 && this.dist[i] >= ROUND.far * 2 * Math.PI) round = true;
+    }
+    last[0] = u[0];
+    last[1] = u[1];
+    last[2] = u[2];
+    if (round) this.reset();
+    return round;
+  }
+}
+
 // Trees and rocks: bucketed into a coarse 3D grid once per world, so each substep only looks
 // at the few cells around the buggy instead of ~900 trees.
 export class ObstacleGrid {
@@ -122,6 +200,7 @@ export class Buggy {
     this.jets = false; // the Hopper's jets are firing (in a super hop)
     this.jetTime = 0; // a tap keeps the jets going this much longer (s)
     this.lap = 0; // how far round the world we've flown since the super hop (radians)
+    this.round = new WorldLap(); // how far round the world we've driven (#29)
     this.obstacles = []; // [{ p: [x,y,z], r, top }] e.g. the parked rocket (r: its own radius, top: its height)
     this.grid = null; // ObstacleGrid of the world's trees or rocks
     this.bumped = 0; // hardest bump since the scene last looked (m/s), and what we hit
@@ -174,6 +253,7 @@ export class Buggy {
     this.n = this.normalAt(dir, this.f);
     this.v = [0, 0, 0];
     this.grounded = true;
+    this.round.reset();
   }
 
   get up() {
@@ -199,6 +279,10 @@ export class Buggy {
       left -= h;
     }
     this.speed = len(this.v);
+    // Driving round the world (#29). Ordinary jumps and gas jets count, but not the Nibble
+    // orbit secret (that's flying, with its own sticker): start again wherever we come down.
+    if (this.orbiting) this.round.reset();
+    else if (this.round.update(this.up, this.f)) this.wentRound = true;
   }
 
   substep(h, input, press) {

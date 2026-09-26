@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy, discoveries, friends (+ the band's music), speech (+ the speech queue), markers, zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -67,7 +67,7 @@ Only push work that is tested and ready for players.
 ```
 src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
 src/progress.js        Goals, stickers (incl. discoveries' facts and hints, friends' hellos and hints), saved design + settings (incl. the 🧭 coach switch),
-                       which screen markers Pip has explained (#33; localStorage)
+                       which screen markers Pip has explained (#33), which worlds were driven round (#29; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
   bodies.js            The solar system: on-rails orbits (round, or Ducky the comet's Kepler ellipse), SOIs, per-world surfaces
@@ -80,7 +80,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
   autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner (+ comet windows and homing)
-  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets)
+  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets),
+                       WorldLap: have we driven all the way round the world? (#29)
 src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
@@ -95,7 +96,8 @@ src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): play
                        silent unlock buffer, older-iOS silent <audio>, promise-safe decoding, debugState()
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
 tools/voice/           Recording pipeline for Pip's voice (see below)
-test/                  vitest suites; missions.js has the shared headless flights (autopilot, pretend kid, trips, tours)
+test/                  vitest suites; missions.js has the shared headless flights (autopilot, pretend kid, trips, tours);
+                       roundWorld.test.js drives real buggies round (and not round) the worlds (#29)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
 ```
 
@@ -166,6 +168,13 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   chain lines with `setTimeout` (that's what cut lines off). To do something after Pip's
   current lines (the next sticker), use `app.afterPip(fn)`. Give each new line a priority on
   purpose (see "Pip's voice").
+- **Driving round the world counts net angle, never distance** (#29, `WorldLap` in `buggy.js`).
+  It's the angle swept round three axes set where the lap starts, each dropped near its poles, and
+  a lap must also cross that axis's equator and be at least `ROUND.far` of the way round in
+  distance. So there-and-back and circles never add up, and any real loop round the world does.
+  The Nibble orbit secret doesn't count (the lap starts again where the buggy comes down). The
+  tests drive real buggies (straight, wobbly, there and back, circles, the orbit); keep them
+  green if you touch buggy speeds or steering.
 - **Screen markers explain themselves** (#33). Every marker a child can see over the view is made
   with `FlightScene.kindMarker(key, class, html, kind, x, y)`, with a line in `MARKER_LINES`
   (`src/ui/markers.js`): it's tappable (a 48 px hit area; HUD buttons sit above `#labels`, so

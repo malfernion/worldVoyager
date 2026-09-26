@@ -98,6 +98,8 @@ export class DriveMode {
     this.nearest = null;
     this.targets.length = 0;
     this.seekWait = 0;
+    this.halfRound = false;
+    this.roundShown = false;
     this.mesh = buildBuggy(choice.kind, choice.paint);
     fs.scene.add(this.mesh.group);
     this.active = true;
@@ -267,6 +269,7 @@ export class DriveMode {
     }
     this.bumpEffects(dt);
     this.orbitEffects(dt);
+    this.roundEffects();
     this.jetEffects(dt);
     this.seek(dt);
     fs.app.audio.setEngine(b.grounded && (input.go || input.back) ? 0.25 : b.braking || b.jets ? 0.2 : 0.06);
@@ -347,6 +350,32 @@ export class DriveMode {
       b.orbited = false;
       if (!app.progress.earn('orbit-nibble')) app.pip('All the way round Nibble again!', { speak: true });
     }
+  }
+
+  /**
+   * Driving all the way round the world (#29, `WorldLap` in physics/buggy.js): from a quarter of
+   * the way the ring by the compass fills, Pip cheers at halfway, and all the way round is a
+   * chime, sparkles, a 🌍 by the world in the journal and (the first time) the sticker.
+   */
+  roundEffects() {
+    const b = this.buggy;
+    const app = this.fs.app;
+    const p = b.round.progress;
+    if (p >= 0.25) this.roundShown = true;
+    else if (p < 0.1) this.roundShown = false;
+    // Once a lap, so driving back and forth past halfway doesn't keep saying it.
+    if (p >= 0.5 && !this.halfRound) {
+      this.halfRound = true;
+      app.pip('Halfway round! Keep going!', { speak: true, stale: 5 });
+    }
+    if (!b.wentRound) return;
+    b.wentRound = false;
+    this.halfRound = false;
+    this.roundShown = false;
+    app.audio.play('discover');
+    this.sparkle();
+    app.progress.wentRound(b.body.id);
+    if (!app.progress.earn('round-world')) app.pip('We drove all the way round again!', { speak: true });
   }
 
   /** Ducky's gas jets (#13): fizz under the wheels, a whoosh, and the first time Pip explains. */

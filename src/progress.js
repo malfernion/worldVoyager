@@ -40,6 +40,8 @@ export const STICKERS = {
   dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Giant planets are all clouds, there is no ground to land on!' },
   sun: { icon: '☀️', name: 'Sunburnt', say: 'That is close enough to Ember! Stars are super hot.' },
   drive: { icon: '🚙', name: 'Off-Roader', say: 'Vroom! Your first drive in the buggy! Steer with the arrows and hold GO to drive.' },
+  // Drive all the way round any world (#29, WorldLap in physics/buggy.js). Which worlds: `rounds`.
+  'round-world': { icon: '🌍', name: 'Round the World', say: 'We drove all the way round the world! Long ago, a ship called Victoria was the first to sail all the way around the Earth. It took three years!' },
   // A secret: super hop the Hopper all the way round Nibble (see ORBIT in physics/buggy.js).
   'orbit-nibble': { icon: '🛰️', name: 'Moon Orbiter', say: 'You orbited Nibble in your buggy! When you go sideways fast enough, you keep falling around the moon and never hit the ground!' },
   kaboom: { icon: '💥', name: 'Kaboom Club', say: 'Kaboom! Every great explorer crashes sometimes. Let\'s try again!' },
@@ -166,12 +168,14 @@ export class Progress {
     this.settings = { music: true, sfx: true, voice: true, ...(d.settings || {}) };
     // Screen markers Pip has already explained (#33): { kind: true }. Older saves have none.
     this.markers = d.markers || {};
+    // Worlds driven all the way round (#29): { worldId: time }. Older saves have none.
+    this.rounds = d.rounds || {};
     this.listeners = [];
   }
 
   save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ done: this.done, design: this.design, settings: this.settings, markers: this.markers }));
+      localStorage.setItem(KEY, JSON.stringify({ done: this.done, design: this.design, settings: this.settings, markers: this.markers, rounds: this.rounds }));
     } catch {
       // Storage may be unavailable (private mode); progress just won't persist.
     }
@@ -206,15 +210,24 @@ export class Progress {
     this.save();
   }
 
+  /** Remember we drove all the way round this world (#29). Returns true the first time. */
+  wentRound(world) {
+    if (this.rounds[world]) return false;
+    this.rounds[world] = Date.now();
+    this.save();
+    return true;
+  }
+
   get currentGoal() {
     return GOALS.find((g) => !this.done[g.id]) || null;
   }
 
-  /** Forget everything about this adventure (stickers, goals, saved rocket, explained markers). Settings stay. */
+  /** Forget everything about this adventure (stickers, goals, saved rocket, explained markers, worlds driven round). Settings stay. */
   reset() {
     this.done = {};
     this.design = null;
     this.markers = {};
+    this.rounds = {};
     this.save();
   }
 }

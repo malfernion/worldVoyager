@@ -624,6 +624,10 @@
   "text": "It is tipped over on its side."
  },
  {
+  "key": "it took three years",
+  "text": "It took three years!"
+ },
+ {
   "key": "kaboom",
   "text": "Kaboom!"
  },
@@ -878,6 +882,10 @@
  {
   "key": "listen toasty plays the big bass",
   "text": "Listen, Toasty plays the big bass!"
+ },
+ {
+  "key": "long ago a ship called victoria was the first to sail all the way around the earth",
+  "text": "Long ago, a ship called Victoria was the first to sail all the way around the Earth."
  },
  {
   "key": "long ago galileo looked at saturn with a tiny telescope",
@@ -1530,6 +1538,14 @@
  {
   "key": "want me to show you how to fly",
   "text": "Want me to show you how to fly?"
+ },
+ {
+  "key": "we drove all the way round again",
+  "text": "We drove all the way round again!"
+ },
+ {
+  "key": "we drove all the way round the world",
+  "text": "We drove all the way round the world!"
  },
  {
   "key": "we drove through a dust devil",

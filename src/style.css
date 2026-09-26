@@ -1679,7 +1679,7 @@ h1 {
   transition: transform 0.1s linear;
 }
 
-/* The Nibble orbit secret: a ring that fills as the Hopper goes round (--lap: 0..1). */
+/* How far round: a ring that fills as the Hopper orbits Nibble, or as we drive round a world (#29) (--lap: 0..1). */
 #orbit-ring {
   --lap: 0;
   display: grid;
@@ -1780,6 +1780,11 @@ h1 {
     bottom: calc(18px + var(--go) / 2 - 16px + var(--safe-bottom));
     width: 88px;
     font-size: 19px;
+  }
+
+  /* Driving: the rocket compass with its ring (#29) and the ✨ compass is wide, so the zoom slider sits below it. */
+  #flight-screen.driving #zoom-box {
+    top: calc(190px + var(--safe-top));
   }
 }
 
