@@ -66,7 +66,8 @@ export function dustRate(speed, slip = 0, push = 0) {
 export function dustColor(body, x, y, z, out) {
   const t = body.terrainFn;
   const h = t ? t.height(x, y, z) : 0;
-  out.water = !!body.liquid && body.liquidDepth(x, y, z) > 0;
+  // (Lava is never driven into, #45: by it, the dust is its dark rock.)
+  out.water = !!body.liquid && body.liquid.kind !== 'lava' && body.liquidDepth(x, y, z) > 0;
   if (out.water) {
     out.r = 0.86; out.g = 0.95; out.b = 1;
     return out;
@@ -616,6 +617,44 @@ export class BuggyDust {
       pool.alpha[i] = 0.6;
     }
     return i;
+  }
+
+  /**
+   * At the lava's edge (#45): a puff of steam and smoke rising from where the buggy's nose
+   * meets the heat (`hard`: how hard it pushed, m/s), with a few glowing sparks spat up.
+   * `out`: the unit way out of the lava (the buggy's shoreOut()).
+   */
+  steam(hard, out) {
+    const b = this.b, U = this.U, rn = this.rand;
+    this.frame();
+    const d = 1.4 + b.kind.ride; // just in front, towards the lava, at the ground
+    const cx = b.p[0] - out[0] * d - U[0] * b.kind.ride, cy = b.p[1] - out[1] * d - U[1] * b.kind.ride, cz = b.p[2] - out[2] * d - U[2] * b.kind.ride;
+    const n = Math.round(Math.min(14, 5 + hard * 3));
+    for (let i = 0; i < n; i++) {
+      const jx = (rn() - 0.5) * 1.6, jy = (rn() - 0.5) * 1.6, jz = (rn() - 0.5) * 1.6;
+      const up = 1.2 + rn() * 1.6;
+      const grey = i % 3 === 0 ? 0.45 : 0.95;
+      if (this.emit(cx + jx, cy + jy, cz + jz, U[0] * up + jx * 0.4, U[1] * up + jy * 0.4, U[2] * up + jz * 0.4,
+        grey, grey * 0.97, grey * 0.94, (0.6 + rn() * 0.5) * this.scale, { grav: -0.15, drag: 1.4, life: 1.6 + rn() * 0.8, grow: 3, alpha: 0.7 }) < 0) return;
+    }
+    for (let i = 0; i < 4; i++) {
+      const c = FLAME_COLS[i % FLAME_COLS.length];
+      const jx = (rn() - 0.5) * 2, jy = (rn() - 0.5) * 2, jz = (rn() - 0.5) * 2;
+      const up = 2 + rn() * 2;
+      this.emit(cx, cy, cz, U[0] * up + jx, U[1] * up + jy, U[2] * up + jz, c[0], c[1] * 0.8, c[2] * 0.5,
+        0.25, { kind: FLAME_KIND, grav: 1, drag: 0.5, life: 0.7 + rn() * 0.4, grow: 0.6, alpha: 1 });
+    }
+  }
+
+  /** A wisp of steam drifting up off the lava just ahead (#45): by its edge, now and then. */
+  wisp(out) {
+    const b = this.b, U = this.U, rn = this.rand;
+    this.frame();
+    const d = 3 + rn() * 3;
+    const sx = (rn() - 0.5) * 4;
+    const R = this.R;
+    const x = b.p[0] - out[0] * d + R[0] * sx - U[0] * b.kind.ride, y = b.p[1] - out[1] * d + R[1] * sx - U[1] * b.kind.ride, z = b.p[2] - out[2] * d + R[2] * sx - U[2] * b.kind.ride;
+    return this.emit(x, y, z, U[0] * 1.2, U[1] * 1.2, U[2] * 1.2, 0.96, 0.94, 0.92, 0.7, { grav: 0, drag: 0.8, life: 2.2, grow: 3.2, alpha: 0.4 });
   }
 
   /** Ducky's gas jets (#13): pale fizz rising from under the wheels (gas, so it doesn't fall). */

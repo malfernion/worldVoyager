@@ -248,7 +248,7 @@ function makeNibble() {
 // Sizzle's volcano vents. Exported so the plumes rise from exactly these spots.
 export const SIZZLE_VENTS = randomDirs(8, 7);
 
-// Sizzle's lava (#45): pools and short flows at the feet of the volcanoes, below one lava level
+// Sizzle's lava (#45): pools and short flows, mostly at the feet of the volcanoes, below one lava level
 // (see makePools). Placed by hand: clear of the vents' plumes (the biggest is a discovery,
 // #15), Toasty's camp (#16, one pool is in view of it) and the great circle through the
 // poles and the flight plane at x = 0 (where the buggy tests drive round), and only two cross the flight
@@ -260,9 +260,11 @@ export const SIZZLE_LAVA = {
   pools: [
     { a: dirOf(0.02, -0.04), r: 10, deep: 2.5, bank: 0.35 }, // at the west foot of the flight plane's volcano, across the plane
     { a: dirOf(1.93, 0.04), b: dirOf(2.08, -0.08), r: 7.5, deep: 2.2, bank: 0.35 }, // a flow in the lowland between two volcanoes, across the plane
-    { a: dirOf(1.04, 0.38), r: 9, deep: 2.5, bank: 0.35 }, // in view of Toasty's camp
-    { a: dirOf(1.12, 0.64), b: dirOf(1.3, 0.72), r: 7, deep: 2, bank: 0.35 }, // a flow north of it
-    { a: dirOf(2.72, 0.56), b: dirOf(2.52, 0.68), r: 8, deep: 2.2, bank: 0.35 }, // below the biggest volcano
+    { a: dirOf(1.04, 0.38), r: 10, deep: 2.5, bank: 0.35 }, // in view of Toasty's camp
+    { a: dirOf(1.12, 0.64), b: dirOf(1.32, 0.72), r: 8, deep: 2.2, bank: 0.35 }, // a flow north of it
+    { a: dirOf(2.72, 0.56), b: dirOf(2.5, 0.68), r: 9, deep: 2.2, bank: 0.35 }, // below the biggest volcano
+    { a: dirOf(0.5, 0.74), r: 9, deep: 2.5, bank: 0.35 }, // up behind the little volcano north of the flight plane's
+    { a: dirOf(2.25, 0.82), b: dirOf(2.0, 0.88), r: 8, deep: 2.2, bank: 0.35 }, // a flow on the high plain
     { a: dirOf(3.45, -0.45), r: 11, deep: 2.5, bank: 0.35 }, // round the back
     { a: dirOf(4.95, 0.3), r: 10, deep: 2.5, bank: 0.35 }, // the far side
   ].map((p, i) => ({ ...p, seed: i * 3.7 })),

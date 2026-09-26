@@ -2,7 +2,8 @@
 // shader for gentle waves, colour by depth (from a baked per-vertex attribute: the ground's
 // height under each vertex, never worked out per frame) and foam along the shore. What the
 // liquid is (its level, and what kind) is in src/physics/terrain.js; how each kind looks is in
-// LOOKS below, so a new kind (#45 lava, #46 methane) is one more entry here.
+// LOOKS below, so a new kind (#46 methane) is one more entry here. Lava (#45) has its own small
+// shader (lavaMaterial): no waves, no foam, not see-through; a glowing, slowly shifting crust.
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -17,10 +18,18 @@ export const LOOKS = {
     shallow: 0x4cc4d6, deep: 0x1f5fa8, depth: 5, foam: 0xf4fbff,
     alpha: [0.5, 0.88], waves: 0.07, speed: 1, glow: 0, fog: 0x2d7fa8, fogFar: 36,
   },
+  // Lava (#45): glows by itself (the sun doesn't light it, so it shines at night too): molten
+  // orange-red with plates of dark crust drifting slowly, bright yellow cracks between them and
+  // a hot rim at the shore. `crust`: the plates' colour; `cell`: how big they are (m).
+  lava: {
+    shallow: 0xff5a1a, deep: 0xe0381a, hot: 0xffc446, crust: 0x3b1a12, rim: 0xffe08a, cell: 4,
+    speed: 1, glow: 1, fog: 0x7a2a10, fogFar: 8, shore: 1.2,
+  },
 };
 
 // Under the liquid (camera or buggy): the triangles that are all well under dry land are left
-// out, so the mesh is only the seas and their shores (much less to draw).
+// out, so the mesh is only the seas and their shores (much less to draw). A look can keep
+// fewer (`shore`): lava's pools sit in steep-sided hollows.
 const SHORE = 2.5;
 
 /**
@@ -49,15 +58,34 @@ export function createLiquid(body, detail, sunDir) {
   // Keep only the triangles where some corner is near or under the liquid.
   const src = geo.index.array;
   const keep = [];
+  const shore = look.shore ?? SHORE;
   for (let f = 0; f < src.length; f += 3) {
     const a = src[f], b = src[f + 1], c = src[f + 2];
-    if (depth[a] > -SHORE || depth[b] > -SHORE || depth[c] > -SHORE) keep.push(a, b, c);
+    if (depth[a] > -shore || depth[b] > -shore || depth[c] > -shore) keep.push(a, b, c);
   }
   geo.setIndex(keep);
   geo.setAttribute('depth', new THREE.BufferAttribute(depth, 1));
   geo.computeBoundingSphere();
 
-  const mat = new THREE.ShaderMaterial({
+  const mat = look.crust ? lavaMaterial(look) : waterMaterial(look);
+  // The planet's sun direction, shared (the flight scene updates it in place).
+  mat.uniforms.sunDir = { value: sunDir };
+  const mesh = new THREE.Mesh(geo, mat);
+  // Drawn after the ground and the trees, before the buggy's dust (renderOrder 2).
+  mesh.renderOrder = 1;
+  mesh.userData.liquid = true;
+  return {
+    mesh,
+    look,
+    update(time) {
+      mat.uniforms.time.value = time * look.speed;
+    },
+  };
+}
+
+/** Water (#44): gentle waves, shallow-to-deep colour, see-through shallows, shore foam, glints. */
+function waterMaterial(look) {
+  return new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([
       THREE.UniformsLib.fog,
       {
@@ -148,17 +176,79 @@ export function createLiquid(body, detail, sunDir) {
     side: THREE.DoubleSide,
     fog: true,
   });
-  // The planet's sun direction, shared (the flight scene updates it in place).
-  mat.uniforms.sunDir = { value: sunDir };
-  const mesh = new THREE.Mesh(geo, mat);
-  // Drawn after the ground and the trees, before the buggy's dust (renderOrder 2).
-  mesh.renderOrder = 1;
-  mesh.userData.liquid = true;
-  return {
-    mesh,
-    look,
-    update(time) {
-      mat.uniforms.time.value = time * look.speed;
-    },
-  };
+}
+
+/**
+ * Lava (#45): still (no waves, no foam), solid, and lit only by itself. Crust plates come from
+ * three crossing sine ridges (plus a smaller copy), drifting slowly with time: dark where the
+ * sum is high, bright cracks where it crosses zero, molten orange-red between. Far away (from
+ * orbit) the fine pattern fades to its average, so it doesn't shimmer; a hot rim at the shore.
+ */
+function lavaMaterial(look) {
+  return new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([
+      THREE.UniformsLib.fog,
+      {
+        time: { value: 0 },
+        molten: { value: new THREE.Color(look.shallow) },
+        deep: { value: new THREE.Color(look.deep) },
+        hot: { value: new THREE.Color(look.hot) },
+        crust: { value: new THREE.Color(look.crust) },
+        rim: { value: new THREE.Color(look.rim) },
+        cell: { value: look.cell },
+      },
+    ]),
+    vertexShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_vertex>
+      #include <logdepthbuf_pars_vertex>
+      attribute float depth;
+      varying float vDepth;
+      varying vec3 vObj;
+      void main() {
+        vDepth = depth;
+        vObj = position;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <logdepthbuf_vertex>
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_fragment>
+      #include <logdepthbuf_pars_fragment>
+      uniform float time;
+      uniform vec3 molten;
+      uniform vec3 deep;
+      uniform vec3 hot;
+      uniform vec3 crust;
+      uniform vec3 rim;
+      uniform float cell;
+      varying float vDepth;
+      varying vec3 vObj;
+      float ridges(vec3 p, float t) {
+        return sin(p.x + 1.3 * sin(p.y * 0.7 + t * 0.11))
+             + sin(p.y * 0.9 - p.z * 0.6 + t * 0.07)
+             + sin(p.z * 1.1 + p.x * 0.5 - t * 0.09);
+      }
+      void main() {
+        #include <logdepthbuf_fragment>
+        vec3 p = vObj / cell;
+        float n = ridges(p, time) + 0.45 * ridges(p * 2.3 + 5.0, time * 1.4);
+        // How many metres one pixel covers: past a cell or so, show the pattern's average.
+        float far = smoothstep(0.25, 1.0, length(fwidth(p)));
+        float plate = smoothstep(0.35, 0.9, n) * (1.0 - far) + 0.15 * far;
+        float crack = (1.0 - smoothstep(0.04, 0.22, abs(n - 0.35))) * (1.0 - far);
+        float pulse = 0.88 + 0.12 * sin(time * 0.9 + vObj.x * 0.13 + vObj.z * 0.17);
+        vec3 col = mix(molten, deep, smoothstep(0.5, 2.5, vDepth)) * pulse;
+        col = mix(col, crust, plate * 0.92);
+        col = mix(col, hot, crack * 0.9);
+        // A bright rim where it meets the ground.
+        col = mix(col, rim, (1.0 - smoothstep(0.0, 0.25, vDepth)) * 0.7);
+        gl_FragColor = vec4(col, 1.0);
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+    fog: true,
+  });
 }

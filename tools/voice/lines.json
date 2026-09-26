@@ -552,6 +552,10 @@
   "text": "I'll fly us over to dry land."
  },
  {
+  "key": "ill fly us over to solid ground",
+  "text": "I'll fly us over to solid ground."
+ },
+ {
   "key": "ill steer us away from the ground",
   "text": "I'll steer us away from the ground!"
  },
@@ -642,6 +646,10 @@
  {
   "key": "land standing up straight",
   "text": "Land standing up straight."
+ },
+ {
+  "key": "lava is much too hot to land on",
+  "text": "Lava is much too hot to land on!"
  },
  {
   "key": "legs need a tube to hold on to",
@@ -818,6 +826,10 @@
  {
   "key": "lets land on the ground",
   "text": "Let's land on the ground!"
+ },
+ {
+  "key": "lets steer around the lava",
+  "text": "Let's steer around the lava."
  },
  {
   "key": "lets try again",
@@ -998,6 +1010,10 @@
  {
   "key": "one garage is plenty",
   "text": "One garage is plenty!"
+ },
+ {
+  "key": "oops lava",
+  "text": "Oops, lava!"
  },
  {
   "key": "oops water",
@@ -1414,6 +1430,10 @@
  {
   "key": "too heavy",
   "text": "Too heavy!"
+ },
+ {
+  "key": "too hot",
+  "text": "Too hot!"
  },
  {
   "key": "too hot to land on",

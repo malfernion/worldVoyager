@@ -678,12 +678,13 @@ export class FlightScene {
         this.clearClock();
         this.warpIndex = 0;
         const s = this.flight.state;
-        // Into a sea (#44): a big splash instead of a fireball.
+        // Into a sea (#44): a big splash instead of a fireball; into lava (#45): a sizzle and smoke.
         const wet = !!s.body.liquid && d.reason === s.body.liquid.kind;
-        app.audio.play(wet ? 'bigSplash' : 'crash');
+        const lava = d.reason === 'lava';
+        app.audio.play(lava ? 'lavaCrash' : wet ? 'bigSplash' : 'crash');
         this.debris.explode(this.rocket, s.body, { x: s.x, y: s.y }, s.angle, Math.atan2(s.y, s.x));
         this.rocketHolder.visible = false;
-        this.burst(s.body, wet ? 'splash' : 'explosion');
+        this.burst(s.body, lava ? 'steam' : wet ? 'splash' : 'explosion');
         // A crash makes anything Pip was about to say old news.
         app.hush();
         const first = !app.progress.has('kaboom');
@@ -693,6 +694,7 @@ export class FlightScene {
           fast: 'Kaboom! Too fast! Slow down before landing.',
           tipped: 'Oops, we tipped over! Land standing up straight.',
           water: 'Splash! Rockets can\'t float. Let\'s land on the ground!',
+          lava: 'Sizzle! Lava is much too hot to land on!',
         };
         // The first splash says it with its sticker.
         const splashFirst = d.reason === 'water' && !app.progress.has('splash');
@@ -785,7 +787,28 @@ export class FlightScene {
     const s = this.flight.state;
     const up = Math.atan2(s.y, s.x);
     const ux = Math.cos(up), uy = Math.sin(up);
-    const n = kind === 'confetti' ? 70 : kind === 'explosion' ? 40 : kind === 'splash' ? 60 : kind === 'sparkle' ? 30 : 14;
+    const n = kind === 'confetti' ? 70 : kind === 'explosion' ? 40 : kind === 'splash' || kind === 'steam' ? 60 : kind === 'sparkle' ? 30 : 14;
+    if (kind === 'steam') {
+      // Into lava (#45): a hiss of white steam and dark smoke billowing up, with a few glowing
+      // sparks of lava thrown out.
+      const g = body.mu / (body.radius * body.radius);
+      const top = body.surfaceAt(up);
+      for (let i = 0; i < n; i++) {
+        const spark = i % 4 === 0;
+        const a = up + (Math.random() - 0.5) * (spark ? 1.6 : 0.9);
+        const sp = spark ? 6 + Math.random() * 8 : 2 + Math.random() * 5;
+        const vz = (Math.random() - 0.5) * sp;
+        const x = ux * top + Math.cos(a) * 0.8, y = uy * top + Math.sin(a) * 0.8, z = (Math.random() - 0.5) * 3;
+        if (spark) {
+          this.particles.spawn('spark', body, x, y, z, Math.cos(a) * sp, Math.sin(a) * sp, vz, { size: 1.2, grow: -0.5, life: 1 + Math.random() * 0.6, drag: 0.4, gravity: g, color: 0xffa040 });
+        } else {
+          this.particles.spawn('puff', body, x, y, z, Math.cos(a) * sp, Math.sin(a) * sp, vz, {
+            size: 2 + Math.random(), grow: 3, life: 2.4 + Math.random() * 1.2, drag: 0.9, gravity: -0.4, color: i % 3 === 1 ? 0x4a3a34 : i % 3 ? 0xf2eee8 : 0xb8aca2,
+          });
+        }
+      }
+      return;
+    }
     if (kind === 'splash') {
       // A tall white column and a ring of spray thrown out sideways, falling back in (#44).
       const g = body.mu / (body.radius * body.radius);
@@ -889,15 +912,17 @@ export class FlightScene {
     this.app.audio.setUnderwater(under);
   }
 
-  /** Leaving the flight screen: out of any sea, and no more lapping. */
+  /** Leaving the flight screen: out of any sea, and no more lapping (or lava's hiss). */
   dryOff() {
     if (this.underwater) this.setUnderwater(false);
     this.app.audio.setLapping(0);
+    this.app.audio.setBubbling(0);
   }
 
   /**
    * The camera under a sea (#44): blue fog and tint, the stars hidden, the music and sounds
-   * muffled. And, near a sea, the gentle lapping of the waves (checked a few times a second).
+   * muffled. And, near a sea, the gentle lapping of the waves (checked a few times a second;
+   * by lava, #45, its bubbling hiss).
    */
   updateUnderwater(dt) {
     const s = this.flight.state;
@@ -921,7 +946,10 @@ export class FlightScene {
       if (this.drive.active) near = under ? 0.3 : body.nearLiquid(this.drive.buggy.p);
       else if (s.body === body && (s.landed || this.flight.altitude < 30)) near = body.nearLiquid([s.x, s.y, 0]) * (s.landed ? 1 : 0.6);
     }
-    this.app.audio.setLapping(near);
+    // By lava (#45) it's a low bubbling hiss instead of waves.
+    const lava = body.liquid?.kind === 'lava';
+    this.app.audio.setLapping(lava ? 0 : near);
+    this.app.audio.setBubbling(lava ? near : 0);
   }
 
   /**

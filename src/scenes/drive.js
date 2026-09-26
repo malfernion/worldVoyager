@@ -1,7 +1,7 @@
 // Buggy mode: roll out of the garage, drive anywhere on the globe with a chase camera,
 // then head home to the rocket. The rocket stays parked on its flight plane the whole time.
 import * as THREE from 'three';
-import { Buggy, ObstacleGrid, Garage, homeAim, vec } from '../physics/buggy.js';
+import { Buggy, ObstacleGrid, Garage, homeAim, vec, LAVA } from '../physics/buggy.js';
 import { BUGGIES, DEFAULT_BUGGY, garageOf } from '../rocket/parts.js';
 import { buildBuggy } from '../rocket/buggyMesh.js';
 import { DustPool, BuggyDust } from '../physics/dust.js';
@@ -325,6 +325,7 @@ export class DriveMode {
       this.dust.takeOff(b.superHop);
     }
     this.bumpEffects(dt);
+    this.lavaEffects(dt);
     this.orbitEffects(dt);
     this.roundEffects();
     this.jetEffects(dt);
@@ -364,6 +365,32 @@ export class DriveMode {
     } else {
       this.dust.ring(8, 1.2, 1, 0.6); // a puff of dust by the wheels
     }
+  }
+
+  /**
+   * At the lava's edge (#45): stopped and nudged back, a sizzle, a puff of steam and smoke,
+   * a little shake, and now and then Pip says it's too hot. By the lava, wisps of steam.
+   */
+  lavaEffects(dt) {
+    const b = this.buggy;
+    if (!b.lava) return;
+    const fs = this.fs;
+    this.sizzleWait = Math.max(0, (this.sizzleWait ?? 0) - dt);
+    this.tooHotWait = Math.max(0, (this.tooHotWait ?? 0) - dt);
+    const hard = b.sizzled;
+    b.sizzled = 0;
+    const u = b.up;
+    const near = b.body.shoreDist(u[0], u[1], u[2]) < LAVA.edge + 4;
+    if (near && Math.random() < dt * 2.5) this.dust.wisp(b.shoreOut(u));
+    if (hard < 0.3 || this.sizzleWait > 0) return;
+    this.sizzleWait = 0.8;
+    fs.app.audio.play('sizzle');
+    this.shake = Math.max(this.shake, Math.min(0.15, hard * 0.03));
+    this.dust.steam(hard, b.shoreOut(u));
+    // Not every bump: once in a while, and only if Pip isn't busy.
+    if (this.tooHotWait > 0) return;
+    if (fs.app.pip('Too hot! Let\'s steer around the lava.', { speak: true, pri: 'chatter' })) this.tooHotWait = 25;
+    else this.tooHotWait = 3;
   }
 
   /** The Nibble orbit secret: jets, Pip's hints and the sticker. */
@@ -523,7 +550,9 @@ export class DriveMode {
     // Keep the camera above the hills. With the buggy deep in a sea (#44), dive in after it
     // (looking down through deep water it would be lost); it comes back up as the buggy does.
     const local = vec.add(b.p, [offset.x, offset.y, offset.z + 1.2]);
-    const minR = b.groundRadius(vec.norm(local)) + 1.5;
+    // (Lava, #45, is solid as far as the camera goes: it never dives into it.)
+    const lu = vec.norm(local);
+    const minR = Math.max(b.groundRadius(lu), b.lava && b.isWater(lu) ? b.body.liquidR : 0) + 1.5;
     const r = vec.len(local);
     const dive = b.depth > 1.2 && b.body.liquid ? b.body.liquidR - 0.6 : Infinity;
     this.dive += ((dive < Infinity ? 1 : 0) - this.dive) * k(3);

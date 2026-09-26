@@ -231,6 +231,52 @@ export class AudioEngine {
     this.lap.gain.setTargetAtTime(level * 0.16, ctx.currentTime, 0.4);
   }
 
+  /**
+   * By lava (#45): a low bubbling hiss, `level` 0 (far) to 1 (right by it). Like the lapping: a
+   * looped noise made the first time it's needed (a soft hiss on top, and low blubs from a
+   * band of rumble pulsed by two slow, uneven wobbles), only touched when the level changes.
+   */
+  setBubbling(level) {
+    level = Math.max(0, Math.min(1, level));
+    if (!this.ctx || (this.bubbleLevel ?? 0) === level || (!this.bubbling && level <= 0)) return;
+    if (this.bubbling && Math.abs(level - this.bubbleLevel) < 0.03 && level > 0) return;
+    this.bubbleLevel = level;
+    const ctx = this.ctx;
+    if (!this.bubbling) {
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      gain.connect(this.sfx);
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const hiss = ctx.createBiquadFilter();
+      hiss.type = 'highpass';
+      hiss.frequency.value = 2800;
+      const hissGain = ctx.createGain();
+      hissGain.gain.value = 0.22;
+      src.connect(hiss).connect(hissGain).connect(gain);
+      const low = ctx.createBiquadFilter();
+      low.type = 'bandpass';
+      low.frequency.value = 170;
+      low.Q.value = 2.5;
+      const blub = ctx.createGain();
+      blub.gain.value = 0.6;
+      for (const [hz, depth] of [[2.3, 0.45], [3.7, 0.35]]) {
+        const lfo = ctx.createOscillator();
+        lfo.type = 'triangle';
+        lfo.frequency.value = hz;
+        const d = ctx.createGain();
+        d.gain.value = depth;
+        lfo.connect(d).connect(blub.gain);
+        lfo.start();
+      }
+      src.connect(low).connect(blub).connect(gain);
+      src.start();
+      this.bubbling = gain;
+    }
+    this.bubbling.gain.setTargetAtTime(level * 0.3, ctx.currentTime, 0.4);
+  }
+
   setMood(mood) {
     if (MOODS[mood]) this.nextMood = mood;
   }
@@ -758,6 +804,17 @@ export class AudioEngine {
         this.noiseBurst(0.45, 900, { vol: 0.35, type: 'lowpass' });
         this.noiseBurst(0.3, 2600, { vol: 0.08, q: 0.7, delay: 0.03 });
         this.tone(320, 0.18, { vol: 0.12, slide: 1.8, delay: 0.05 });
+        break;
+      case 'sizzle': // the buggy stopped at the lava's edge (#45): a short hiss and a pop
+        this.noiseBurst(0.5, 4200, { vol: 0.22, type: 'highpass' });
+        this.noiseBurst(0.25, 1400, { vol: 0.1, q: 0.8, delay: 0.02 });
+        this.tone(140, 0.12, { vol: 0.12, slide: 1.6, delay: 0.08 });
+        break;
+      case 'lavaCrash': // a rocket into lava (#45): a thump, a long sizzling hiss and bubbling
+        this.noiseBurst(0.5, 500, { vol: 0.6, type: 'lowpass' });
+        this.noiseBurst(2.2, 3800, { vol: 0.4, type: 'highpass', delay: 0.05 });
+        this.noiseBurst(1.4, 1600, { vol: 0.15, q: 0.6, delay: 0.1 });
+        [0.4, 0.7, 1.05, 1.3, 1.7].forEach((d, i) => this.tone(110 + (i % 2) * 40, 0.14, { vol: 0.14, slide: 1.7, delay: d }));
         break;
       case 'bigSplash': // a rocket crashing into a sea (#44): a huge sploosh, then drips
         this.noiseBurst(1.4, 700, { vol: 0.9, type: 'lowpass' });

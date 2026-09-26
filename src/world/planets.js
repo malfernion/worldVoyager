@@ -14,7 +14,8 @@ import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
 
-const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 32, frosty: 36, flip: 32, ducky: 20 };
+// (Sizzle's is finer than its size needs, for its lava pools' round shores, #45.)
+const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 48, frosty: 36, flip: 32, ducky: 20 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
@@ -274,6 +275,8 @@ function rocks(body, group) {
     if (zw > -4 && zw < 16) continue;
     if (hot.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > Math.cos(0.12))) continue;
     if (camps.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > campCos)) continue;
+    // Out of lava pools and off their banks (#45).
+    if (body.shoreDist(up.x, up.y, up.z) < 6) continue;
     const h = body.terrainFn.height(up.x, up.y, up.z);
     const size = def.size[0] + rand() * (def.size[1] - def.size[0]);
     spots.push({ position: up.clone().multiplyScalar(body.radius + h - 0.1), up, size });
