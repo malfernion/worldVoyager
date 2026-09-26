@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -101,6 +101,8 @@ src/ui/                flightHud.js (controls, readouts, gestures, which helpers
                        what each autopilot button says the first time it flies for us; #36),
                        fastTravel.js (pure: tapping the map's path for a ⏰, where it may go, the travel warp that lands on it; #27),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
+                       pageZoom.js (#39: the *page* never stays zoomed: blocks WebKit's page pinch / double-tap, and if the page
+                       is zoomed anyway resets it, then fits #ui into the visual viewport with the 🔍 zoom-out button; pure `zoomAction()`)
 src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
 src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): playback audio session, tap-to-resume,
                        silent unlock buffer, older-iOS silent <audio>, promise-safe decoding, debugState()
@@ -289,6 +291,23 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
      Nothing should keep playing, or show a player on the lock screen, while the game is hidden.
   5. Fly and land: sound effects, rocket rumble, and Pip's recorded voice (not the robot
      fallback voice).
+- **Page zoom on iPad (#39):** headless Chromium can't reproduce WebKit's page zoom, so only the real
+  iPad shows whether the page can still be zoomed. On the iPad mini, in Safari and in Chrome, try
+  each of these and the page must **not** zoom (the game's own pinch in flight must still zoom
+  the camera):
+  1. Pinch (in and out) starting on the workshop's parts tray, then swipe the tray sideways:
+     it still scrolls.
+  2. Pinch in the 📖 sticker book, then swipe it up and down: it still scrolls.
+  3. Pinch in flight and on the 🗺️ map (zooms the camera, not the page); drag the map (pans).
+  4. Pinch starting on HUD buttons and chips (GO, ⟲ ⟳, the top bar, the helper row), on the
+     settings card, on the title screen, and right at the screen edges.
+  5. Double-tap quickly on empty space, on the tray, on a sticker, on a chip, on a settings
+     tick box; hold GO and ⟲ / ⟳ as usual; drag a part onto the rocket.
+  If the page does zoom: within a second it should snap back by itself; if not, a big glowing
+  🔍 button appears in the middle of what you see, Pip says "Tap the big button to zoom back
+  out!", and every control stays on screen at its normal size. Tap 🔍 (tell us whether that
+  unzoomed it), and try pinching back out. At normal zoom the 🔍 must never show. With a Mac
+  and Web Inspector, `app.pageZoom` shows `scale`, `resets` and `rescuing`.
 - After deploying, GitHub Pages can serve the old version for a few minutes; hard-refresh
   (or add `?v=2`).
 
@@ -422,5 +441,21 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   (or `onerror`), and before the first tap it fails at once. `Narrator.speakFallback()` gives up
   after `stallTimeout()`, and the speech queue has its own watchdog, so Pip never goes quiet
   for good (#31).
+- **iOS ignores `user-scalable=no` and `maximum-scale`** (since iOS 10, for accessibility), in
+  every iPad browser: a child pinched the whole page in, and the controls were off screen with
+  no way back (#39). What stops it (`src/ui/pageZoom.js`, the touch-action block in
+  `style.css`): `preventDefault()` on WebKit's own `gesturestart` / `gesturechange` /
+  `gestureend` (they fire whatever `touch-action` says; they're separate from pointer events,
+  so the game's pinch in `bindGestures` is unaffected), on two-finger `touchmove` (one finger
+  still scrolls the tray and sticker book) and on `dblclick`; and `touch-action: none` on
+  every layer (it isn't inherited), `pan-x` / `pan-y` only on the two scrollers (neither
+  allows pinch-zoom or double-tap zoom). While the page *is* zoomed those blocks stand aside so
+  a pinch can zoom back out. Recovery watches `visualViewport` (`resize` / `scroll`): rewrite
+  the viewport meta (different text, then back), and if `scale` is still above 1, transform
+  `#ui` by the visual viewport's offset and 1/scale so the whole HUD fits what's visible, and
+  show the 🔍 button. Browser zoom (Ctrl +/-) leaves `visualViewport.scale` at 1, so it never
+  triggers; desktop trackpad pinch does (and gets the same rescue). Headless Chromium can't pinch
+  the page like WebKit; test it by stubbing `visualViewport.scale` / `offsetLeft` / `offsetTop`
+  and dispatching `resize` on it.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

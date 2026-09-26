@@ -124,6 +124,11 @@ Collect stickers for the first trip's goals, visiting and landing on every world
 goals, just stickers to find), your discoveries and the band. Tap a world in the 📖 sticker book to hear a real space fact. Tap a discovery to hear its
 fact again, or a ❓ one for a hint from Pip. Tap a friend in the 🎵 Band to hear them play.
 
+**Zoomed in by accident?** iPads let a pinch zoom the whole page even though the game asks
+them not to. The game blocks that, but if it happens anyway it zooms back out by itself, or
+shows a big glowing 🔍 button (and Pip says "Tap the big button to zoom back out!"); all the
+controls stay reachable meanwhile. A two-finger pinch outwards also works.
+
 ## Develop
 
 ```bash

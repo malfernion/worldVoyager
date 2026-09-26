@@ -92,7 +92,7 @@ input[type='checkbox'] {
 }
 
 /* Only when the page got zoomed in anyway (src/ui/pageZoom.js): #ui is fitted into the visible
-   part, and this big button in the middle tries the zoom reset again. */
+   part, and this big button in the middle (below Pip's bubble) tries the zoom reset again. */
 #ui.page-zoomed {
   transform-origin: 0 0;
 }
@@ -100,10 +100,10 @@ input[type='checkbox'] {
 #unzoom-btn {
   position: absolute;
   left: 50%;
-  top: 50%;
-  width: 124px;
-  height: 124px;
-  margin: -62px 0 0 -62px;
+  top: calc(50% + 40px);
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
   font-size: 60px;
   background: var(--glow);
   pointer-events: auto;
