@@ -26,8 +26,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   coached launch into orbit. Flipping it while a helper or trip is running hands it over on
   the spot and it carries on from where you are: on, "You fly, I'll tell you when!"; off,
   "I'll fly, you watch!".
-- **Helpers:** 🌀 Orbit and 🛬 Land (tap again to stop). The small 🤖 on their corner (and on
-  🚙 Drive) means Pip does it for you. They sit in a row between the turn buttons and GO (just
+- **Helpers:** 🌀 Orbit and 🛬 Land (tap again to stop). The small 🤖 on their corner means Pip
+  does it for you (🚙 Drive has none: you drive the buggy). They sit in a row between the turn buttons and GO (just
   above them on narrow phones). Only the useful ones show: on the ground that's 🧭, 🌀 Orbit
   and 🚙 Drive; Land appears once you're flying. The first time Pip flies one for you, she
   says what it does ("This button flies us all the way round the planet!", "This button lands

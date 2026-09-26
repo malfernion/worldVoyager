@@ -58,9 +58,10 @@ borrow the vibe, not the content: all names, worlds and music are original.
    behave the same way every time. The helper's status chip at the top says who's flying (🧭 you,
    🤖 Pip). Flipping it mid-helper hands that helper over on the spot (they're closed-loop, so
    they carry on from wherever the rocket is). Every other button in the helper row is an
-   autopilot action (🌀 Orbit, 🛬 Land, 🚙 Drive on the ground), marked with a small 🤖 on its
-   corner: "Pip does this for you" (#36; the old hold-to-burn speed buttons were dropped, since
-   the player flies and Pip only flies when asked). Pip offers the coach once, on the very first launch, with the switch glowing;
+   autopilot action (🌀 Orbit, 🛬 Land), marked with a small 🤖 on its corner: "Pip does
+   this for you" (🚙 Drive on the ground has none, since the player drives the buggy). The old
+   hold-to-burn speed buttons were dropped (#36), since the player flies and Pip only flies when
+   asked. Pip offers the coach once, on the very first launch, with the switch glowing;
    saying yes starts a coached launch to orbit.
    Every flip, Pip says **who flies next**, at once (#32): on, "You fly, I'll tell you when!";
    off with a helper running, "I'll fly, you watch!"; off with nothing running, "Now I'll fly

@@ -197,8 +197,9 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   used to fly for us (`BUTTON_LINES`, `buttonExplanation()`, saved as `button-<mode>` in
   `progress.markers`): `FlightScene.explainButton()` queues the line (a helper line, key
   `button`) just before the helper starts, so the helper flies at once and its own opener
-  waits its turn behind it. Not in coach mode. Every button in the helper row is an autopilot
-  action with the small 🤖 badge (class `auto`); the 🧭 switch is the only exception.
+  waits its turn behind it. Not in coach mode. Every button in the helper row that Pip flies is an
+  autopilot action with the small 🤖 badge (class `auto`); the 🧭 switch and 🚙 Drive (the player
+  drives) have none.
 - **The game has one pause** (`FlightScene.pause`): `{ why: 'explain' }` for a marker (#33) or
   `{ why: 'arrived' }` when fast travel gets to its ⏰ (#27). It only stops the sim, the helper
   and prediction (`fly()`); any tap, steering or GO ends it. Don't add another pause flag.
