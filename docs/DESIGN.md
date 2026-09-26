@@ -330,7 +330,7 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours; Ducky 36) are
   circle colliders: trunk (or most of a bush's / rock's width) plus the buggy's `reach` from
   `BUGGIES`. Rocks keep a narrower strip in front of the flight plane clear than trees do
-  (z from -4 to 16 m, as they're low), and stay off Sizzle's vents, Flip's geysers and Dusty's caldera.
+  (z from -4 to 16 m, as they're low), and stay off Sizzle's vents (and 6 m off its lava, #45), Flip's geysers and Dusty's caldera.
   - The drive scene turns the visuals' lists into plain `{ p, up, r, h }` data and builds an
     `ObstacleGrid` once per world: a coarse 3D grid (cells as big as the tallest reach), so
     each physics substep looks at the 27 cells around the buggy, typically a handful.
@@ -496,8 +496,8 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
 
 ## Liquids (#44)
 
-Homestead's seas are real water now, and the same system is meant for Sizzle's lava (#45) and
-a Titan-like moon's methane lakes (#46).
+Homestead's seas are real water, Sizzle has lava pools (#45, below), and the same system is
+meant for a Titan-like moon's methane lakes (#46).
 
 - **What a liquid is.** A world's terrain (`terrain.js`) can have `liquid: { kind, level }`:
   what it is (`'water'`; later `'lava'`, `'methane'`) and its surface in metres above the
@@ -540,10 +540,68 @@ a Titan-like moon's methane lakes (#46).
   buggy deep in a sea, since looking down through deep water it'd be lost), the scene's fog
   closes in to the liquid's colour, a tint covers the view, the stars hide, and the music and
   sound effects (not Pip) go through a low-pass. Near a sea, gentle lapping swells and fades.
-- **A new kind** (#45, #46) is: `liquid: { kind, level }` in its terrain, a `LOOKS` entry in
-  `liquid.js` (colours, see-through, waves, `glow` for lava, underwater fog), a crash line in
-  `FlightScene` (a new kind's crash falls back to "Kaboom!"), and any buggy rules it needs
-  (lava might not let a buggy in at all: that's the place to decide).
+- **A new kind** (#46) is: `liquid: { kind, level }` in its terrain, a `LOOKS` entry in
+  `liquid.js` (colours, see-through, waves, underwater fog), a crash line in `FlightScene` (a
+  new kind's crash falls back to "Kaboom!"), a line for the coach's fly-over in
+  `glideToLand()`, and any buggy rules it needs.
+
+### Lava on Sizzle (#45)
+
+- **Pools, still one level.** Homestead's water is a sea level; Sizzle's lava sits in pools
+  and short flows by its volcanoes. Two ways to do that were: (a) keep one level per world and
+  carve basins down through it, or (b) let the liquid's height vary from place to place. We
+  chose (a) (`makePools()` in `terrain.js`). Sizzle's lava level is 4 m below its base radius,
+  under all of its natural ground (whose lowest dip is about 2.7 m down), so on its own it
+  touches nothing. Each pool (a round blob, or a flow along a short line, with a
+  noise-wobbled shore) is a bowl 2 to 2.5 m deep under the level, with a bank rising from the
+  shore at 0.35 (about 19°) until it meets the ground. So the lava lies in dark hollows a few
+  metres down, which looks right, and everything from #44 works as it is: the physics
+  (`liquidDepth`, `wetAt`, the rocket's `surface`, `landableAt` / `nearestLandable`), the
+  mesh (only the triangles near the pools are kept: about 2,500) and the helpers. (b) would
+  have touched all of them, plus the prediction and the meshes. The same carving will make
+  #46's methane lakes. The one rule it adds: nothing else may dip below the level (a test
+  checks every wet spot is in a pool).
+- **Where.** Nine pools, placed by hand: clear of the vents and their plumes (at least 28 m,
+  the biggest plume is a discovery), 20 m from Toasty's camp (one pool is in view of it; a
+  rocket can still land right by the camp), off the x = 0 great circle that the buggy tests
+  drive round, and off the rocks (they keep 6 m off the shore). Two cross the flight plane
+  (about 6% of it), so a rocket can come down in lava and the helpers have something to
+  avoid; 92% of the flight plane is landable, never more than 20 m from where the rocket would
+  stop. Several are on the camera's side, so they glow on Sizzle's face from orbit. The banks
+  are dark cooled rock with scorched orange ground beyond. Sizzle's mesh is a little finer
+  than before (detail 48) so the shores are round.
+- **The look.** Its own small shader in `liquid.js`: solid (not see-through), no waves, no
+  foam, and lit only by itself, so it glows the same by day and night. Three crossing sine
+  ridges (and a smaller copy) drift slowly: dark crust plates where they're high, bright
+  yellow cracks along one contour, molten orange-red between, pulsing gently, with a hot rim
+  at the shore. Where a pixel covers more than a crust plate (from orbit), the pattern fades
+  to its average (`fwidth`) so it never shimmers.
+- **The rocket.** Touching lava is a crash with reason `lava` (nothing new in the sim): a
+  thump, a long hiss and bubbling, steam and dark smoke billowing up with a few sparks, and
+  "Sizzle! Lava is much too hot to land on!". The helpers land beside it, as by the sea; a
+  coached landing heading for lava has Pip say "Oops, lava! I'll fly us over to solid
+  ground." (tested from 48 points round the orbit, autopilot and coached; a bigger sweep of
+  720, both ways round, quick and lazy kids, all landed on solid ground).
+- **The buggy can't go in** (`LAVA`, `lavaEdge()` in `buggy.js`). It's a soft wall rather
+  than a bonk: from 9 m out the buggy's speed towards the shore is capped more and more
+  (0.6 m/s plus 2 m/s per metre still to go), so it slows smoothly and touches the wall 2 m
+  from the shore (its nose about a metre short), where its push in is taken away and it's
+  nudged back at 0.8 m/s. Coming in at an angle it turns to slide along the shore, and
+  steering works there even while it's stopped (on its own, steering needs rolling, and the
+  nudge back would reverse it), so GO and a steer always gets away along the shore, and
+  backing up always works. "Which way is out" is the slope of `shoreDist()`, the distance to
+  the nearest pool's shore. A jump or the Hopper's jets may fly over a flow, but whatever
+  comes down over lava lands on a cushion of steam at its surface and is popped back towards
+  the nearest shore (3 m/s plus 1 m/s per metre of lava under it, and up), until it's on
+  solid ground. Rolling off a bump near the shore doesn't count as a jump: the wall still
+  holds. Each touch is a sizzle and a puff of steam and smoke (and sparks) from the dust pool,
+  a small shake, and now and then (at most every 25 s, and only when Pip is free) "Too hot!
+  Let's steer around the lava."; wisps of steam drift off the lava near the buggy and a low
+  bubbling hiss rises near it (like the lapping: made once, only its level changes). The
+  tests drive all three buggies straight at every pool from 16 sides, then steer away or back
+  up; hop and jet over them; put a buggy down in the middle; and a pretend kid laps Sizzle
+  (on the flight plane's great circle, which crosses two pools, and a tilted one) by steering
+  left for a moment whenever the lava stops them.
 
 ## Discoveries (#15)
 
