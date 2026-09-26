@@ -21,14 +21,10 @@ export class FlightHud {
     this.bindHold('right-btn', (on) => (this.scene.input.right = on));
     for (const btn of document.querySelectorAll('.helper[data-helper]')) {
       const mode = btn.dataset.helper;
-      if (btn.classList.contains('hold')) {
-        this.bindHold(btn, (on) => this.scene.holdHelper(mode, on));
-      } else {
-        btn.addEventListener('click', () => {
-          this.app.audio.play('tap');
-          this.scene.helper(mode);
-        });
-      }
+      btn.addEventListener('click', () => {
+        this.app.audio.play('tap');
+        this.scene.helper(mode);
+      });
     }
     const click = (id, fn) => this.el(id).addEventListener('click', () => {
       this.app.audio.play('tap');
@@ -293,9 +289,7 @@ export class FlightHud {
     screen.classList.toggle('map', s.mode === 'map');
     screen.classList.toggle('crashed', s.crashed);
     // Only the helpers that make sense now: on the ground, 🚙 Drive and 🌀 Orbit (plus the 🧭 switch).
-    for (const id of ['faster', 'slower', 'land']) {
-      document.querySelector(`.helper[data-helper="${id}"]`).classList.toggle('hidden', st.landed);
-    }
+    document.querySelector('.helper[data-helper="land"]').classList.toggle('hidden', st.landed);
     this.el('drive-btn').classList.toggle('hidden', !s.drive.canDeploy());
     this.el('jump-btn').classList.toggle('hidden', !(driving && s.drive.kind?.jump));
     const compass = this.el('home-compass');

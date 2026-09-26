@@ -79,7 +79,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        the 🎵 compass targets, how loud each friend's part is from where you are, Full Band
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
-  autopilot.js         Helpers (orbit, land, faster/slower, goto) + coach mode + transfer planner (+ comet windows and homing)
+  autopilot.js         Helpers (orbit, land, goto) + coach mode + transfer planner (+ comet windows and homing)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets),
                        WorldLap: have we driven all the way round the world? (#29)
   dust.js              Buggy dust (#26): a fixed pool of particles in typed arrays (tyre dust, landing thumps, the Hopper's
@@ -92,7 +92,8 @@ src/rocket/            Parts catalogue + stats, procedural rocket and buggy mesh
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
-                       markers.js (pure: what each screen marker means, when it's safe to pause and explain one, label decluttering; #33),
+                       markers.js (pure: what each screen marker means, when it's safe to pause and explain one, label decluttering; #33;
+                       what each autopilot button says the first time it flies for us; #36),
                        fastTravel.js (pure: tapping the map's path for a ⏰, where it may go, the travel warp that lands on it; #27),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
 src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
@@ -191,7 +192,13 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   lesson or coached landing, one explanation at a time). The pause only stops the sim and the
   helper stepping; it ends when the line has been said (`afterPip`), on any tap, or after
   `MAX_PAUSE`. Explained kinds are saved in `progress.markers`. Adding a marker kind? Add its
-  line (and record it), and decide whether it belongs in `FIRST_SIGHT`.
+  line (and record it), and decide whether it belongs in `FIRST_SIGHT`. The autopilot buttons
+  (🌀 🛬 and the map's 🤖 Take me there, #36) explain themselves the same way, once, when first
+  used to fly for us (`BUTTON_LINES`, `buttonExplanation()`, saved as `button-<mode>` in
+  `progress.markers`): `FlightScene.explainButton()` queues the line (a helper line, key
+  `button`) just before the helper starts, so the helper flies at once and its own opener
+  waits its turn behind it. Not in coach mode. Every button in the helper row is an autopilot
+  action with the small 🤖 badge (class `auto`); the 🧭 switch is the only exception.
 - **The game has one pause** (`FlightScene.pause`): `{ why: 'explain' }` for a marker (#33) or
   `{ why: 'arrived' }` when fast travel gets to its ⏰ (#27). It only stops the sim, the helper
   and prediction (`fly()`); any tap, steering or GO ends it. Don't add another pause flag.
@@ -282,7 +289,7 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   `GAP` (0.4 s) after the last ends. Priorities (`pri`):
   - `urgent`: crash, safety takeovers (too fast, too low). Cuts in and drops the queue.
   - `cue`: the coach's in-flight HOLD / LET GO / turn / tiny-push lines (`CUE` in
-    `autopilot.js`), the first-flight "Blast off", the super hop. Jumps the queue and cuts the
+    `autopilot.js`), the first-flight "Blast off" (only when you fly it; with Pip flying it waits its turn, #36), the super hop. Jumps the queue and cuts the
     current line off, unless it ends within `CUE_WAIT` (2 s). Stale after 3 s.
   - `normal` (default): waits its turn. Stale after 30 s (stickers 60 s).
   - `chatter`: only if Pip is free, else dropped and `pip()` returns false (idle hints, the

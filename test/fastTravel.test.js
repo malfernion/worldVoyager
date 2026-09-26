@@ -278,7 +278,7 @@ describe('fast travel in flight (#27)', () => {
     const p = () => s.screenAt(s.segmentFrames(), flight.state.t + flight.elements().period / 2);
     s.tapMap(p().x, p().y);
     expect(s.clock).not.toBe(null);
-    s.holdHelper('slower', true);
+    s.helper('land');
     expect(s.clock).toBe(null);
     expect(ap.active).toBe(true);
     const q = p();

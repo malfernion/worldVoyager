@@ -212,8 +212,6 @@ export class Autopilot {
     const programs = {
       orbit: () => this.orbitProgram(),
       land: () => this.landProgram(),
-      faster: () => this.holdProgram(1),
-      slower: () => this.holdProgram(-1),
       goto: () => this.gotoProgram(target),
     };
     this.program = programs[mode]();
@@ -295,22 +293,6 @@ export class Autopilot {
   }
 
   // ---- programs --------------------------------------------------------
-
-  *holdProgram(sign) {
-    const f = this.flight;
-    this.warp = 1;
-    while (true) {
-      const s = f.state;
-      if (s.landed || f.speed < 1) {
-        this.setThrottle(sign > 0 ? 1 : 0);
-        this.setAngle(f.upAngle);
-      } else {
-        const ok = this.aim(this.prograde() + (sign < 0 ? Math.PI : 0), 0.25);
-        this.setThrottle(ok ? 1 : 0);
-      }
-      yield;
-    }
-  }
 
   *orbitProgram(quiet = false) {
     const f = this.flight;

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   MARKER_LINES, FIRST_SIGHT, SETTLE, EXPLAIN_GAP, calmToExplain, nextToExplain, pickExplanation, labelRank, declutterLabels,
+  BUTTON_LINES, buttonExplanation,
 } from '../src/ui/markers.js';
 import { Progress } from '../src/progress.js';
 import { createSystem } from '../src/physics/bodies.js';
@@ -116,6 +117,40 @@ describe('saving explained markers (#33)', () => {
     p.reset();
     expect(p.explained('impact')).toBe(false);
     expect(new Progress().explained('impact')).toBe(false);
+  });
+});
+
+describe('autopilot buttons explain themselves once (#36)', () => {
+  it('each autopilot button has one short line', () => {
+    for (const mode of ['orbit', 'land', 'goto']) {
+      expect(sentencesOf(BUTTON_LINES[mode]), mode).toHaveLength(1);
+    }
+  });
+
+  it('only when Pip flies, and only the first time', () => {
+    const done = new Set();
+    const explained = (k) => done.has(k);
+    expect(buttonExplanation('orbit', { coach: true, explained })).toBe(null);
+    const ex = buttonExplanation('orbit', { explained });
+    expect(ex.line).toBe(BUTTON_LINES.orbit);
+    done.add(ex.key);
+    expect(buttonExplanation('orbit', { explained })).toBe(null);
+    expect(buttonExplanation('land', { explained })?.line).toBe(BUTTON_LINES.land);
+    expect(buttonExplanation('drive', { explained })).toBe(null);
+  });
+
+  it('saved alongside the markers, and older saves have none explained', () => {
+    const store = new Map([['worldVoyager.v1', JSON.stringify({ done: {}, markers: { high: true } })]]);
+    globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+    const p = new Progress();
+    const explained = (k) => p.explained(k);
+    const ex = buttonExplanation('land', { explained });
+    expect(ex).not.toBe(null);
+    p.markExplained(ex.key);
+    const again = new Progress();
+    expect(buttonExplanation('land', { explained: (k) => again.explained(k) })).toBe(null);
+    expect(again.explained('high')).toBe(true);
+    expect(FIRST_SIGHT.includes(ex.key)).toBe(false);
   });
 });
 

@@ -26,10 +26,13 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   coached launch into orbit. Flipping it while a helper or trip is running hands it over on
   the spot and it carries on from where you are: on, "You fly, I'll tell you when!"; off,
   "I'll fly, you watch!".
-- **Helpers:** 🌀 Orbit, 🛬 Land (tap again to stop), ⏫ Faster / ⏬ Slower (hold; always flown
-  for you). They sit in a row between the turn buttons and GO (just above them on narrow
-  phones). Only the useful ones show: on the ground that's 🧭, 🌀 Orbit and 🚙 Drive; Land,
-  Faster and Slower appear once you're flying. With the coach on, Orbit teaches the launch
+- **Helpers:** 🌀 Orbit and 🛬 Land (tap again to stop). The small 🤖 on their corner (and on
+  🚙 Drive) means Pip does it for you. They sit in a row between the turn buttons and GO (just
+  above them on narrow phones). Only the useful ones show: on the ground that's 🧭, 🌀 Orbit
+  and 🚙 Drive; Land appears once you're flying. The first time Pip flies one for you, she
+  says what it does ("This button flies us all the way round the planet!", "This button lands
+  us nice and softly!", and for the map's 🤖 Take me there, "This button flies us all the way
+  there!"), once, while it already flies. With the coach on, Orbit teaches the launch
   and Land teaches the landing: point up at the arrow, then HOLD / LET GO to keep the descent
   gentle (Pip steps in if it gets too fast). After a crash only the three choices show: go
   back, launch pad, or build.

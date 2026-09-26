@@ -57,8 +57,10 @@ borrow the vibe, not the content: all names, worlds and music are original.
    green rather than the yellow of a running helper, so it never looks busy), and helpers
    behave the same way every time. The helper's status chip at the top says who's flying (🧭 you,
    🤖 Pip). Flipping it mid-helper hands that helper over on the spot (they're closed-loop, so
-   they carry on from wherever the rocket is). ⏫ Faster / ⏬ Slower are hold-to-burn and always
-   fly for you. Pip offers the coach once, on the very first launch, with the switch glowing;
+   they carry on from wherever the rocket is). Every other button in the helper row is an
+   autopilot action (🌀 Orbit, 🛬 Land, 🚙 Drive on the ground), marked with a small 🤖 on its
+   corner: "Pip does this for you" (#36; the old hold-to-burn speed buttons were dropped, since
+   the player flies and Pip only flies when asked). Pip offers the coach once, on the very first launch, with the switch glowing;
    saying yes starts a coached launch to orbit.
    Every flip, Pip says **who flies next**, at once (#32): on, "You fly, I'll tell you when!";
    off with a helper running, "I'll fly, you watch!"; off with nothing running, "Now I'll fly
@@ -95,6 +97,10 @@ borrow the vibe, not the content: all names, worlds and music are original.
    she's done, or at any tap. Only when nothing urgent is happening: never over a coach cue, a
    safety takeover, a burn, the first lesson or a coached landing; otherwise it waits. Each kind
    is explained once (saved); after that, tapping a marker says it again, without pausing.
+   The autopilot buttons explain themselves once too (#36), the first time Pip flies one for
+   you: "This button flies us all the way round the planet!" (🌀), "This button lands us nice
+   and softly!" (🛬), "This button flies us all the way there!" (🤖 Take me there). No pause:
+   the helper starts flying at once and its own first line follows the explanation.
    ▲ ▼ are only drawn where we are now and at the world we picked (one pair per path piece made
    a trip a clutter of triangles). The coach's arrow isn't tappable or explained this way: the
    coach's own cues already say "follow the arrow". World labels on the map keep out of each
@@ -137,7 +143,7 @@ src/physics/   pure, headless, unit-tested
   terrain.js     terrain height + colour functions shared by physics and meshes
   sim.js         Flight: thrust, patched-conic stepping, landing/crash, rewind snapshots
   predict.js     multi-patch trajectory prediction (impact / escape / encounter)
-  autopilot.js   helpers: orbit, land, faster/slower, goto (planner + coach mode)
+  autopilot.js   helpers: orbit, land, goto (planner + coach mode)
 src/world/     three.js visuals: planets, rings, atmospheres, sky, effects, thumbnails
 src/rocket/    parts catalogue + stats, procedural rocket meshes
 src/scenes/    builder (drag & drop workshop) and flight (flight cam + map)
@@ -215,7 +221,7 @@ the duck's lumps stick up a long way, and a lopsided orbit skimmed them). Pip al
 1. Orbital core + tests (RK4 cross-check, apsis timing) ✅
 2. Flight sim: thrust, SOI, landing/crash, rewind ✅
 3. Predictor + map rendering: patched segments, ghosts, ▲▼ markers, 💥 impact ✅
-4. Helpers: orbit, land, faster/slower, goto; mission tests from pad to every world ✅
+4. Helpers: orbit, land, goto; mission tests from pad to every world ✅
 5. Coach mode, tested with a simulated player who reacts late ✅
 6. Worlds: terrain, launch village, rings, atmospheres, sky ✅
 7. Workshop: drag/tap to add, drag off to remove, tap to paint, live stats ✅

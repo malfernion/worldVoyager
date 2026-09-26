@@ -45,10 +45,11 @@ function fakeClock() {
  * A flight scene with just what the switch needs. `heard` is every line Pip starts saying, in
  * order; `flip(on)` marks the moment in it. Lines are paced by their estimated length.
  */
-function setup(m, { coach = false } = {}) {
+function setup(m, { coach = false, explain = false } = {}) {
   const clock = fakeClock();
   const heard = [];
   const cut = [];
+  const explained = new Set(explain ? [] : ['button-orbit', 'button-land', 'button-goto']);
   const speech = new SpeechQueue({
     timers: clock,
     play: (l) => {
@@ -59,7 +60,7 @@ function setup(m, { coach = false } = {}) {
   });
   const s = Object.create(FlightScene.prototype);
   s.app = {
-    progress: { settings: { coach }, save() {}, has: () => false },
+    progress: { settings: { coach }, save() {}, has: () => false, explained: (k) => explained.has(k), markExplained: (k) => explained.add(k) },
     speech,
     pip: (text, o = {}) => speech.push(text, { pri: 'normal', key: null, ...o }),
     audio: { setMood() {} },
@@ -79,7 +80,7 @@ function setup(m, { coach = false } = {}) {
   };
   /** What Pip said after the last flip. */
   const since = () => heard.slice(heard.findLastIndex((t) => t.startsWith('---')) + 1);
-  return { s, heard, cut, run, flip, since, ap: m.ap, flight: m.flight, sys: m.sys };
+  return { s, heard, cut, explained, run, flip, since, ap: m.ap, flight: m.flight, sys: m.sys };
 }
 
 const onPad = () => {
@@ -195,16 +196,6 @@ describe('the 🧭 coach switch (#32)', () => {
     expect(t.ap.driving).toBe(true);
   });
 
-  it('holding Faster: always flown for you, so it\'s an idle flip', async () => {
-    const t = setup(inOrbit());
-    t.s.holdHelper('faster', true);
-    t.flip(true);
-    await t.run(2);
-    expect(t.since()).toEqual([YOU_FLY]);
-    expect(t.ap.mode).toBe('faster');
-    expect(t.ap.coachSession).toBe(false);
-  });
-
   it('the first-launch nudge: tapping the compass on the pad starts a coached launch', async () => {
     const t = setup(onPad());
     t.s.coachNudge = true;
@@ -218,5 +209,73 @@ describe('the 🧭 coach switch (#32)', () => {
     expect(t.ap.coachSession).toBe(true);
     expect(t.ap.driving).toBe(false);
     expect(t.flight.state.landed).toBe(true); // waits for the player's GO
+  });
+});
+
+// The autopilot buttons explain themselves once, the first time they fly for us (#36).
+const ORBIT_BTN = 'This button flies us all the way round the planet!';
+const LAND_BTN = 'This button lands us nice and softly!';
+const GOTO_BTN = 'This button flies us all the way there!';
+
+describe('autopilot buttons say what they do, once (#36)', () => {
+  it('🌀 on the pad: the explanation first, then the helper\'s own line, and it flies at once', async () => {
+    const t = setup(onPad(), { explain: true });
+    t.s.helper('orbit');
+    expect(t.ap.driving).toBe(true);
+    await t.run(0.5);
+    expect(t.flight.state.landed).toBe(false); // not waiting for Pip to finish talking
+    await t.run(6);
+    expect(t.heard.slice(0, 2)).toEqual([ORBIT_BTN, 'Up, up and away! Let\'s go around!']);
+    expect(t.cut).toEqual([]);
+    expect(t.explained.has('button-orbit')).toBe(true);
+    // Stopped and used again: no second explanation.
+    t.s.helper('orbit');
+    t.s.helper('orbit');
+    await t.run(4);
+    expect(t.heard.filter((l) => l === ORBIT_BTN)).toHaveLength(1);
+  });
+
+  it('the first flight\'s "Blast off!" doesn\'t cut the 🌀 explanation off', async () => {
+    const t = setup(onPad(), { explain: true });
+    t.s.system = t.sys;
+    t.flight.on((type, d) => type === 'liftoff' && t.s.onFlightEvent(type, d));
+    t.s.helper('orbit');
+    await t.run(8);
+    expect(t.heard[0]).toBe(ORBIT_BTN);
+    expect(t.heard).toContain('Blast off! Keep holding GO!');
+    expect(t.cut).toEqual([]);
+  });
+
+  it('🛬 and 🤖 Take me there each have their own line', async () => {
+    const t = setup(inOrbit(), { explain: true });
+    t.s.helper('land');
+    await t.run(6);
+    expect(t.heard.slice(0, 2)).toEqual([LAND_BTN, 'Let\'s land on Homestead. Nice and gentle!']);
+    t.s.helper('land');
+    t.s.target = t.sys.byId.pebble;
+    t.s.helper('goto');
+    await t.run(6);
+    expect(t.heard).toContain(GOTO_BTN);
+    expect(t.heard.indexOf(GOTO_BTN)).toBeLessThan(t.heard.indexOf('Let\'s fly to Pebble!'));
+    expect(t.cut).toEqual([]);
+  });
+
+  it('coached (the 🧭 switch on): no "flies us" line, and it still explains itself later', async () => {
+    const t = setup(onPad(), { coach: true, explain: true });
+    t.s.helper('orbit');
+    await t.run(4);
+    expect(t.heard.join(' ')).not.toMatch(/This button/);
+    expect(t.explained.has('button-orbit')).toBe(false);
+  });
+
+  it('handed over to the player before it\'s said: the explanation is dropped', async () => {
+    const t = setup(inOrbit(), { explain: true });
+    t.s.app.pip('A long goal line that Pip is still saying when the helper starts, so it waits.', { speak: true, key: 'goal' });
+    t.s.helper('land');
+    await t.run(0.5);
+    t.flip(true);
+    await t.run(8);
+    expect(t.heard).not.toContain(LAND_BTN);
+    expect(t.since()[0]).toBe(YOU_FLY);
   });
 });

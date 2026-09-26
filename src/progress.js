@@ -166,7 +166,8 @@ export class Progress {
     this.done = d.done || {};
     this.design = d.design || null;
     this.settings = { music: true, sfx: true, voice: true, ...(d.settings || {}) };
-    // Screen markers Pip has already explained (#33): { kind: true }. Older saves have none.
+    // Screen markers Pip has already explained (#33), and autopilot buttons (`button-orbit`…,
+    // #36): { kind: true }. Older saves have none.
     this.markers = d.markers || {};
     // Worlds driven all the way round (#29): { worldId: time }. Older saves have none.
     this.rounds = d.rounds || {};
@@ -198,7 +199,7 @@ export class Progress {
     this.listeners.push(fn);
   }
 
-  /** Has Pip explained this kind of screen marker (▲, 💥…) yet? (#33) */
+  /** Has Pip explained this kind of screen marker (▲, 💥…, #33) or autopilot button (#36) yet? */
   explained(kind) {
     return !!this.markers[kind];
   }

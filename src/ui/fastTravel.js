@@ -32,7 +32,7 @@ export function clockOnPath(segments, t, now) {
 
 /**
  * Can a ⏰ be dropped now? Only on the map, flying, and while the child is the pilot: helpers
- * (autopilot, coach, Faster / Slower) run the clock themselves, so while one is on, taps on
+ * (autopilot and coach) run the clock themselves, so while one is on, taps on
  * the path do nothing. c: { mode, crashed, landed, helper }
  */
 export function clockAllowed(c) {

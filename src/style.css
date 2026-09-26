@@ -1350,6 +1350,21 @@ h1 {
   filter: none;
 }
 
+/* Autopilot buttons (#36): a small 🤖 on the corner says "Pip does this for you". */
+.btn.helper.auto {
+  position: relative;
+}
+
+.btn.helper.auto::after {
+  content: '🤖';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .guide-arrow {
   translate: -50% -50%;
 }

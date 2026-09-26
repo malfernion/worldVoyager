@@ -1,6 +1,7 @@
 // Screen markers (#33): the icons over the view (▲ ▼ 💥 ✨ 🎯 🔥 ⏰, the rocket arrow, the pins
 // while driving). Each kind explains itself: the first time one shows, Pip pauses the game when
 // nothing urgent is happening and says one short line while it glows; tapping one says it again.
+// The autopilot buttons (🌀 🛬 🤖) explain themselves the same way, once, when first used (#36).
 // Also keeps the map's world labels from piling on top of each other. Pure: no DOM, no three.js.
 
 // What Pip says about each kind. Plain string literals, so the voice scanner finds them.
@@ -17,6 +18,26 @@ export const MARKER_LINES = {
   friend: 'Listen! Can you hear music? Follow the notes!',
   clock: 'The clock makes time go fast until we get there! Tap it to stop.',
 };
+
+// Autopilot buttons (#36) explain themselves too, once, the first time one is used to fly for
+// us. Saved with the markers (`progress.markers`) under `button-<mode>`, so no marker kind clashes.
+export const BUTTON_LINES = {
+  orbit: 'This button flies us all the way round the planet!',
+  land: 'This button lands us nice and softly!',
+  goto: 'This button flies us all the way there!',
+};
+
+/**
+ * The line to say as an autopilot button is used, or null: only when Pip flies (never in coach
+ * mode, where the button doesn't fly for you), and only the first time for each button.
+ * explained(key) -> bool. Returns { key, line }; the caller saves `key` as explained.
+ */
+export function buttonExplanation(mode, { coach = false, explained }) {
+  const line = BUTTON_LINES[mode];
+  const key = `button-${mode}`;
+  if (!line || coach || explained(key)) return null;
+  return { key, line };
+}
 
 // Kinds explained with a pause the first time they show, in this order if several show at once.
 // The pins while driving aren't: Pip's compass hints already cover them (tap still explains).

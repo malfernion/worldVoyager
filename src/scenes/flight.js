@@ -15,7 +15,7 @@ import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
 import { landingFinds, ringGapCrossed, flareSeen, sunDirection } from '../physics/discoveries.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
-import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, labelRank, declutterLabels } from '../ui/markers.js';
+import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
 import { TAP_RADIUS, clockAllowed, clockOnPath, clockWindow, pickOnPath, travelWarp, arrived } from '../ui/fastTravel.js';
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
 
@@ -344,7 +344,7 @@ export class FlightScene {
     const ap = this.autopilot;
     const nudged = this.coachNudge;
     this.coachNudge = false;
-    const running = ap.active && ap.mode !== 'faster' && ap.mode !== 'slower';
+    const running = ap.active;
     const handOver = running && ap.coachSession !== on;
     app.speech.drop((l) => l.key === 'coach-switch' || (handOver && l.from === 'helper'));
     const said = { speak: true, pri: 'cue', key: 'coach-switch' };
@@ -374,19 +374,22 @@ export class FlightScene {
     this.clearClock();
     this.warpIndex = 0;
     this.manualWarp = false;
+    this.explainButton(mode, coach);
     ap.start(mode, mode === 'goto' ? this.target : null, { coach });
   }
 
-  holdHelper(mode, on) {
-    if (this.crashed) return;
-    if (on) {
-      this.clearClock();
-      this.warpIndex = 0;
-      this.manualWarp = false;
-      this.autopilot.start(mode);
-    } else if (this.autopilot.mode === mode) {
-      this.autopilot.stop();
-    }
+  /**
+   * The first time an autopilot button flies for us, Pip says what it does (#36), saved like
+   * the markers. Queued before the helper's own first line (which comes on its first step), so
+   * that waits its turn behind it instead of cutting it off; the helper flies meanwhile. It's a
+   * helper line: if the 🧭 switch hands the helper over, it's dropped with the rest.
+   */
+  explainButton(mode, coach) {
+    const app = this.app;
+    const ex = buttonExplanation(mode, { coach, explained: (k) => app.progress.explained(k) });
+    if (!ex) return;
+    app.progress.markExplained(ex.key);
+    app.pip(ex.line, { speak: true, key: 'button', from: 'helper' });
   }
 
   setTarget(body) {
@@ -417,8 +420,10 @@ export class FlightScene {
     switch (type) {
       case 'liftoff':
         if (d.body === this.system.home && this.flight.state.landAngle === Math.PI / 2 && !app.progress.has('space')) {
-          // Replaces the goal line (how to blast off): that's being done now.
-          app.pip('Blast off! Keep holding GO!', { speak: true, pri: 'cue', key: 'goal' });
+          // Replaces the goal line (how to blast off): that's being done now. A cue for the
+          // player's GO; when Pip flies there's no GO to time, so it waits its turn rather than
+          // cutting off what she's saying (the 🌀 button's first explanation, #36).
+          app.pip('Blast off! Keep holding GO!', { speak: true, pri: this.autopilot.driving ? 'normal' : 'cue', key: 'goal' });
         }
         break;
       case 'soi': {
