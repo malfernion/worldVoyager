@@ -4,11 +4,12 @@
 // with a real speech queue on a fake clock, a real Progress, and a pretend kid on the controls
 // who does what the coach says, a few frames late.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { FlightScene } from '../src/scenes/flight.js';
+import { FlightScene, WARP_LEVELS } from '../src/scenes/flight.js';
 import { SpeechQueue } from '../src/ui/speechQueue.js';
 import { Progress, STICKERS, GOALS, FIRST_FLIGHT, goalShown } from '../src/progress.js';
 import { coachButton } from '../src/ui/flightHud.js';
 import { mission, parkAt } from './missions.js';
+import { inStableOrbit, helperWarp } from '../src/physics/autopilot.js';
 
 // The lines, exactly (#36).
 const COACH_ON = 'Okay! I\'ll tell you what to do while you fly.';
@@ -65,7 +66,8 @@ const JOURNEY = GOALS.map((g) => g.id);
  * A flight scene with what fly(), the goals and the flight events need. `done`: stickers
  * already earned (JOURNEY for after the starter journey). `heard`: every line Pip starts
  * saying, in order; `mark(label)` notes a moment in it. The kid flies whenever Pip coaches
- * (and lets go of everything when she doesn't), unless `t.kid = false`.
+ * (and lets go of everything when she doesn't), unless `t.kid = false`. When a coached wait is
+ * long, ⏩ glows and the kid taps it all the way up (#50), a few frames late, unless `t.skip = false`.
  */
 function setup(m, { done = [], coach = false, explain = false } = {}) {
   store.clear(); // each scene starts from its own save
@@ -107,12 +109,15 @@ function setup(m, { done = [], coach = false, explain = false } = {}) {
   s.burst = s.discover = s.checkDiscoveries = s.checkBand = () => {};
   m.ap.on((e) => s.onPilotMessage(e));
   m.flight.on((type, d) => s.onFlightEvent(type, d));
-  const t = { s, m, heard, speech, progress, kid: true, ap: m.ap, flight: m.flight, sys: m.sys, lag: 8 };
+  const t = { s, m, heard, speech, progress, kid: true, skip: true, ap: m.ap, flight: m.flight, sys: m.sys, lag: 8 };
   const queue = [];
+  let glowFor = 0;
   /** The pretend kid: follows the arrow with the turn buttons and holds GO when told, `lag` frames late. */
   const kid = () => {
     const ap = m.ap;
     const f = m.flight;
+    glowFor = s.skipGlow ? glowFor + 1 : 0;
+    if (t.kid && t.skip && glowFor > t.lag) s.setWarpLevel(WARP_LEVELS.length - 1);
     if (!t.kid || !ap.coachSession || ap.driving) {
       queue.length = 0;
       if (t.kid) s.input.left = s.input.right = s.input.go = false;
@@ -570,4 +575,161 @@ describe('the first launch (#36)', () => {
     await t.run(4);
     expect(t.heard).toEqual([COACH_ON, LAUNCH]);
   });
+});
+
+// #50: the game only slows time down by itself. Only a 🤖 Take me there trip speeds it up.
+describe('time speed: only a 🤖 trip speeds up by itself (#50)', () => {
+  const SKIP = 'Tap the fast button ⏩ to skip ahead!';
+  /**
+   * Every frame's time speed, next to the player's own speed and the helper's warp going into
+   * that frame (fly() reads them before the helper's step), and what the helper did.
+   */
+  const record = (t) => {
+    const log = [];
+    const fly = t.s.fly.bind(t.s);
+    let pre = null;
+    t.s.fly = (dt) => {
+      pre = { mine: WARP_LEVELS[t.s.warpIndex], helper: t.ap.active ? t.ap.warp : null, trip: t.ap.trip, coach: !!t.ap.coachSession };
+      fly(dt);
+    };
+    const step = t.flight.step.bind(t.flight);
+    t.flight.step = (dt, w) => {
+      const body = t.flight.state.body;
+      step(dt, w);
+      log.push({ ...pre, w, thr: t.flight.throttle, left: t.ap.waitLeft, glow: !!t.s.skipGlow, soi: t.flight.state.body !== body });
+    };
+    return log;
+  };
+  /** Waits (runs of frames the helper spent waiting) with a long bit Pip would suggest ⏩ for. */
+  const longWaits = (log) => {
+    let n = 0, inWait = false, counted = false;
+    for (const l of log) {
+      if (l.left === null) inWait = counted = false;
+      else {
+        inWait = true;
+        if (!counted && l.left > 10 && l.mine === 1) n++, (counted = true);
+      }
+    }
+    return n;
+  };
+
+  it('the rule: a helper only caps the player\'s speed; only a 🤖 trip may raise it', () => {
+    expect(helperWarp(100, null, false)).toBe(100); // no say: the player's
+    expect(helperWarp(100, 1, true)).toBe(1); // a burn: normal speed, trip or not
+    expect(helperWarp(100, 8, false)).toBe(8); // a cap near an event
+    expect(helperWarp(1, 300, false)).toBe(1); // never faster than the player chose
+    expect(helperWarp(3, 300, false)).toBe(3);
+    expect(helperWarp(1, 300, true)).toBe(300); // a 🤖 trip's long coast
+    for (const player of WARP_LEVELS) for (const helper of [null, 0.5, 1, 2.5, 8, 30, 1000]) {
+      expect(helperWarp(player, helper, false)).toBeLessThanOrEqual(player);
+    }
+  });
+
+  it('coached, a patient kid flies the whole trip and landing at ×1, and hears "tap ⏩" once per long wait', async () => {
+    const t = setup(inOrbit(), { done: JOURNEY });
+    t.skip = false;
+    const log = record(t);
+    t.s.setTarget(t.sys.byId.pebble);
+    t.s.showMeHow();
+    expect(await t.run(3000, () => t.flight.state.landed)).toBe(true);
+    expect(t.flight.state.body).toBe(t.sys.byId.pebble);
+    expect(Math.max(...log.map((l) => l.w))).toBe(1);
+    const hints = t.heard.filter((l) => l === SKIP).length;
+    expect(hints).toBeGreaterThan(0);
+    expect(hints).toBeLessThanOrEqual(longWaits(log));
+    expect(log.some((l) => l.glow)).toBe(true);
+  }, 300000);
+
+  it('coached, the kid taps ⏩ when it glows: never faster than they chose, ×1 for every burn and cue, and each wait they choose again', async () => {
+    const t = setup(inOrbit(), { done: JOURNEY });
+    const log = record(t);
+    t.s.setTarget(t.sys.byId.pebble);
+    t.s.showMeHow();
+    expect(await t.run(3000, () => t.flight.state.landed)).toBe(true);
+    expect(t.flight.state.body).toBe(t.sys.byId.pebble);
+    const coached = log.filter((l) => l.coach);
+    expect(coached.length).toBeGreaterThan(0);
+    for (const l of coached) {
+      expect(l.w).toBeLessThanOrEqual(l.mine);
+      if (l.helper !== null && l.helper <= 1) expect(l.w).toBe(1);
+      if (l.thr > 0) expect(l.w).toBe(1);
+    }
+    // The skip really skipped...
+    expect(Math.max(...log.map((l) => l.w))).toBeGreaterThan(30);
+    // ...and every wait ended back at the player's normal speed (from the next frame on).
+    let ends = 0;
+    for (let i = 1; i < log.length - 1; i++) {
+      if (log[i - 1].left !== null && log[i].left === null) {
+        ends++;
+        expect(log[i + 1].mine).toBe(1);
+      }
+    }
+    expect(ends).toBeGreaterThan(2);
+    expect(t.s.warpIndex).toBe(0);
+  }, 300000);
+
+  it('🌀 and 🛬 never speed time up by themselves', async () => {
+    const t = setup(onPad(), { done: JOURNEY });
+    t.kid = false;
+    const log = record(t);
+    t.s.helper('orbit');
+    expect(await t.run(600, () => !t.ap.active)).toBe(true);
+    t.s.helper('land');
+    expect(await t.run(600, () => !t.ap.active)).toBe(true);
+    expect(t.flight.state.landed).toBe(true);
+    expect(Math.max(...log.map((l) => l.w))).toBe(1);
+    // Their waits are short enough to sit through: no "tap ⏩" (that's for coaching).
+    expect(t.heard).not.toContain(SKIP);
+  }, 120000);
+
+  it('the player\'s own ⏩ during 🛬 is kept, but capped before the ground and every burn, and ends with the wait', async () => {
+    const t = setup(inOrbit(), { done: JOURNEY });
+    t.kid = false;
+    const log = record(t);
+    t.s.helper('land');
+    t.s.setWarpLevel(WARP_LEVELS.length - 1);
+    expect(await t.run(600, () => !t.ap.active)).toBe(true);
+    expect(t.flight.state.landed).toBe(true);
+    const mine = log.filter((l) => l.mine > 1);
+    expect(mine.length).toBeGreaterThan(0);
+    expect(Math.max(...mine.map((l) => l.w))).toBeGreaterThan(1);
+    for (const l of log) {
+      expect(l.w).toBeLessThanOrEqual(Math.max(1, Math.min(l.mine, l.helper ?? Infinity)));
+      if (l.thr > 0) expect(l.w).toBe(1);
+    }
+    expect(t.s.warpIndex).toBe(0);
+  }, 120000);
+
+  it('🤖 Take me there still speeds up on long coasts, and is ×1 for every burn', async () => {
+    const t = setup(inOrbit(), { done: JOURNEY });
+    t.kid = false;
+    const log = record(t);
+    t.s.setTarget(t.sys.byId.dusty);
+    t.s.helper('goto');
+    expect(await t.run(1500, () => !t.ap.active)).toBe(true);
+    expect(t.flight.state.body).toBe(t.sys.byId.dusty);
+    const trip = log.filter((l) => l.trip);
+    expect(Math.max(...trip.map((l) => l.w))).toBeGreaterThan(100);
+    for (const l of trip) if (l.thr > 0) expect(l.w).toBe(1);
+    // Slowed right down for each new world.
+    const hand = log.filter((l) => l.soi);
+    expect(hand.length).toBeGreaterThan(0);
+    for (const l of hand) expect(l.w).toBeLessThan(5);
+    expect(t.heard).not.toContain(SKIP);
+  }, 300000);
+
+  it('with no helper, the player\'s ⏩ is slowed down before a new world, and stays down', async () => {
+    const t = setup(inOrbit(), { done: JOURNEY });
+    t.kid = false;
+    const log = record(t);
+    // Fast enough to leave Homestead's pull.
+    const s = t.flight.state;
+    s.vx *= 1.6;
+    s.vy *= 1.6;
+    t.s.setWarpLevel(WARP_LEVELS.length - 1);
+    expect(await t.run(300, () => t.flight.state.body !== t.sys.byId.homestead)).toBe(true);
+    const hand = log.find((l) => l.soi);
+    expect(hand.w).toBeLessThan(5);
+    expect(t.s.warpIndex).toBeLessThanOrEqual(1);
+  }, 60000);
 });

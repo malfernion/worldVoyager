@@ -1091,11 +1091,19 @@ export class Autopilot {
     let best = { score: baseScore * 0.8, dir: 0, dv: 0 };
     let work = 0; // yield every so often so the game keeps animating while we think
     const mags = [0.3, 0.7, 1.5, 3, 6, 12, 20, 32];
+    // Leaving a world from low down: never a push that skims its ground on the way out. The
+    // push isn't instant (turning, then a second or two of burning), so a path the plan says
+    // just clears the ground can still hit it (Misty, from a low orbit, after a late LET GO).
+    const here = s.body;
+    const skim = here !== dest && here.kind !== 'star' ? (here.solid ? here.maxSurface : here.radius) + here.spaceLine * 0.3 : -Infinity;
     for (let i = 0; i < 16; i++) {
       const dir = pro + (i / 16) * Math.PI * 2;
       for (const dv of mags) {
         const st = { body: s.body, x: at.x, y: at.y, vx: at.vx + dv * Math.cos(dir), vy: at.vy + dv * Math.sin(dir), t: tb };
-        const score = arrivalScore(predict(st, { target: dest, maxSegments: 3, maxTime: 40000 }), dest, tb);
+        const pred = predict(st, { target: dest, maxSegments: 3, maxTime: 40000 });
+        const out = pred.segments[0];
+        if (out.body === here && out.el.timeToPe !== null && out.el.rp < skim) continue;
+        const score = arrivalScore(pred, dest, tb);
         if (score < best.score) best = { score, dir, dv };
       }
       if (++work % 3 === 0) {
