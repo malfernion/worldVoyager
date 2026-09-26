@@ -349,6 +349,12 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   the sparkly whoosh from further). Close by (within 30 m) but beside or behind the rocket, the
   home compass points at a spot 7 m in front of the door instead (`homeAim()`), so it leads
   round to the front rather than into the back.
+- **Compasses follow the ground** (#41). The 🏠, ✨ and 🎵 arrows point along the start of the
+  great circle to the target (`groundHeading()` in `buggy.js`), projected onto the screen from
+  just above the buggy, not at the target's own screen position. Once a target was more than
+  about a quarter of the way round a world, the straight line to it ran through the planet
+  and the arrow drifted, up to 140° off near the far side of Nibble. The rocket distance
+  under the 🏠 is measured round the world too.
 - **Never orbit.** Top speed is capped at 70% of the world's orbit speed, and airborne
   speed at 75% of local circular speed, so every jump comes back down.
 - **Ducky's gas jets** (#13, `JETS` in `buggy.js`). Driving over one of the comet's vents,

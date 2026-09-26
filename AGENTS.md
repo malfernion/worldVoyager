@@ -85,7 +85,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        `landRefusal()` (why 🛬 can't land here)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets),
                        WorldLap: have we driven all the way round the world? (#29), driving back in through the garage door
-                       (#37: `GARAGE`, `atGarage()`, `Garage`, and `homeAim()` for the compass)
+                       (#37: `GARAGE`, `atGarage()`, `Garage`, and `homeAim()` for the compass), `groundHeading()`: which way
+                       round the world the compasses point (#41)
   dust.js              Buggy dust (#26): a fixed pool of particles in typed arrays (tyre dust, landing thumps, the Hopper's
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js
 src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the

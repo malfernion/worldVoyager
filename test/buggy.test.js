@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createSystem } from '../src/physics/bodies.js';
-import { Buggy, ObstacleGrid, vec, ORBIT, JETS } from '../src/physics/buggy.js';
+import { Buggy, ObstacleGrid, vec, ORBIT, JETS, groundHeading } from '../src/physics/buggy.js';
 import { DUCKY_JETS } from '../src/physics/terrain.js';
 import { BUGGIES } from '../src/rocket/parts.js';
 
@@ -53,6 +53,44 @@ describe('buggy', () => {
       expect(vec.len(b.p)).toBeLessThan(body.maxSurface + body.radius);
     });
   }
+
+  describe('compass heading along the ground (#41)', () => {
+    const R = 40;
+    const onSphere = (th, ph) => [R * Math.sin(th) * Math.cos(ph), R * Math.sin(th) * Math.sin(ph), R * Math.cos(th)];
+
+    it('following it from anywhere drives round the world to the target', () => {
+      const target = onSphere(0.4, 0.3);
+      for (let n = 0; n < 40; n++) {
+        let p = onSphere(0.2 + (n % 8) * 0.37, n * 0.9);
+        let f = vec.cross(vec.norm(p), [0, 0, 1]);
+        for (let i = 0; i < 5000 && vec.len(vec.sub(p, target)) > 1; i++) {
+          f = groundHeading(p, target, f);
+          p = vec.mul(vec.norm(vec.add(p, vec.mul(f, 0.05))), R); // a small step, back on the ground
+        }
+        expect(vec.len(vec.sub(p, target))).toBeLessThan(1);
+      }
+    });
+
+    it('is level with the ground and never points into it, even for targets far round the world', () => {
+      const p = onSphere(1, 1);
+      for (let k = 0; k < 30; k++) {
+        const target = onSphere(k * 0.1, 2 + k * 0.2);
+        const h = groundHeading(p, target, [1, 0, 0]);
+        expect(Math.abs(vec.dot(h, vec.norm(p)))).toBeLessThan(1e-9);
+        expect(vec.len(h)).toBeCloseTo(1, 9);
+        // Going that way, the target gets closer (the straight line would dive through the world).
+        const next = vec.mul(vec.norm(vec.add(p, vec.mul(h, 0.5))), R);
+        if (vec.len(vec.sub(p, target)) > 1e-6) expect(vec.len(vec.sub(next, target))).toBeLessThan(vec.len(vec.sub(p, target)));
+      }
+    });
+
+    it('right on the far side, any way will do: it uses the fallback', () => {
+      const p = [R, 0, 0];
+      expect(groundHeading(p, [-R, 0, 0], [0.3, 1, 0])).toEqual([0, 1, 0]);
+      const h = groundHeading(p, [-R, 0, 0], [1, 0, 0]); // fallback straight up: still level
+      expect(Math.abs(vec.dot(h, [1, 0, 0]))).toBeLessThan(1e-9);
+    });
+  });
 
   describe('the Hopper\'s jets', () => {
     for (const world of ['homestead', 'pebble', 'dusty', 'frosty', 'flip']) {

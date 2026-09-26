@@ -10,6 +10,7 @@ import { Autopilot, inStableOrbit, landRefusal } from '../physics/autopilot.js';
 import { pointAt, propagate } from '../physics/orbit.js';
 import { buildRocket } from '../rocket/rocketMesh.js';
 import { rocketStats } from '../rocket/parts.js';
+import { groundHeading, vec } from '../physics/buggy.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
@@ -1642,13 +1643,7 @@ export class FlightScene {
       // Direction to the rocket for the HUD compass (flipped if it's behind us). Close by but
       // beside or behind it, the compass leads round to the front of the garage door (#37).
       const aim = this.drive.homeAim(foot);
-      let c = v;
-      if (aim !== foot) {
-        const la = Math.hypot(...aim), lift = 2 / la;
-        c = new THREE.Vector3(w.x + aim[0] * (1 + lift) - this.origin.x, w.y + aim[1] * (1 + lift) - this.origin.y, aim[2] * (1 + lift)).project(this.camera);
-      }
-      const sx = c.z > 1 ? -c.x : c.x, sy = c.z > 1 ? -c.y : c.y;
-      this.homeCompass = { angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight), visible: onScreen };
+      this.homeCompass = { angle: this.groundAngle(aim, w), visible: onScreen };
       this.secretCompass = this.compassTo(this.drive.nearest, w);
     } else {
       this.homeCompass = null;
@@ -1696,12 +1691,29 @@ export class FlightScene {
       const kind = nearest.target.icon === '🎵' ? 'friend' : 'secret';
       this.kindMarker(`secret-pin-${kind}`, 'secret-pin', `<span>${nearest.target.icon}</span>`, kind, p.x, p.y, p.z);
     }
-    const sx = v.z > 1 ? -v.x : v.x, sy = v.z > 1 ? -v.y : v.y;
     return {
-      angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight),
+      angle: this.groundAngle(tp, w),
       near: Math.max(0, Math.min(1, 1 - nearest.dist / 150)),
       icon: nearest.target.icon,
     };
+  }
+
+  /**
+   * Which way on screen a compass points to reach `target` (in the world's frame) from the
+   * buggy: along the ground, round the world, not through it (#41). The screen direction of a
+   * short step along groundHeading(), from just above the buggy.
+   */
+  groundAngle(target, w) {
+    const b = this.drive.buggy;
+    const up = vec.norm(b.p);
+    const dir = groundHeading(b.p, target, b.f);
+    const at = (k) => new THREE.Vector3(
+      w.x + b.p[0] + up[0] + dir[0] * k - this.origin.x,
+      w.y + b.p[1] + up[1] + dir[1] * k - this.origin.y,
+      b.p[2] + up[2] + dir[2] * k,
+    ).project(this.camera);
+    const a = at(0), c = at(1);
+    return Math.atan2((c.x - a.x) * window.innerWidth, (c.y - a.y) * window.innerHeight);
   }
 
   clearMarkers() {

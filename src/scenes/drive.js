@@ -532,7 +532,11 @@ export class DriveMode {
     camera.near = 0.2;
   }
 
+  /** How far to drive to the rocket: round the world, the way the compass leads (#41). */
   get distanceToRocket() {
-    return this.buggy ? vec.len(vec.sub(this.buggy.p, this.rocketFoot())) : 0;
+    if (!this.buggy) return 0;
+    const p = this.buggy.p, foot = this.rocketFoot();
+    const angle = Math.acos(Math.max(-1, Math.min(1, vec.dot(vec.norm(p), vec.norm(foot)))));
+    return angle * (vec.len(p) + vec.len(foot)) / 2;
   }
 }

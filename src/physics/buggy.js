@@ -225,6 +225,24 @@ export function homeAim(p, foot, door) {
   return add(foot, mul(door, GARAGE.lead));
 }
 
+/**
+ * Which way to drive from p to reach target, along the ground (#41): the start of the great
+ * circle between them, a unit vector level with the ground at p. A straight line to a target
+ * well round the world runs through it, so compasses use this instead. Right on the far
+ * side every way is as good, so `fallback` (e.g. straight ahead) is used.
+ */
+export function groundHeading(p, target, fallback) {
+  const u = norm(p);
+  const d = sub(target, p);
+  const t = sub(d, mul(u, dot(d, u)));
+  // Nearly opposite: t is tiny and points anywhere. Use the fallback, kept level.
+  if (len(t) < 1e-6 * len(d) + 1e-9) {
+    const f = sub(fallback, mul(u, dot(fallback, u)));
+    return len(f) > 1e-9 ? norm(f) : norm(cross(u, Math.abs(u[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]));
+  }
+  return norm(t);
+}
+
 // Trees and rocks: bucketed into a coarse 3D grid once per world, so each substep only looks
 // at the few cells around the buggy instead of ~900 trees.
 export class ObstacleGrid {
