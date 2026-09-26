@@ -1,5 +1,5 @@
 // The discoveries' landmarks (#15): an old observatory, footprints and a flag, a laser mirror,
-// a sleeping rover, a little comet lander, Frosty's glowing cracks and Ember's solar flares.
+// a sleeping rover, a little comet lander, Huygens on Misty, Frosty's glowing cracks and Ember's solar flares.
 // Where they are and what finds them is src/physics/discoveries.js.
 // Also Pip's friends' campfires (#16, src/physics/friends.js), and the friends found so far
 // sitting round Homestead's campfire.
@@ -262,6 +262,34 @@ function philae(body, kit) {
   kit.solid(body, rock, 2.3, 3.4);
 }
 
+// Misty (#46): Huygens, a little saucer-shaped probe, resting on pebbles of ice by a lake, with
+// its striped parachute lying spread out behind it (it floated down on it through the haze).
+function huygens(body, kit) {
+  const at = DISCOVERY_BY_ID['find-huygens'].spots[0];
+  const f = frameAt(body, at, { lift: -0.05, spin: 0.7 });
+  kit.add(cyl(1.1, 0.8, 0.35, 16), 0x9a9aa2, f, { y: 0.15, rx: 0.08 }); // the grey underside
+  kit.add(cyl(1.15, 1.15, 0.12, 16), 0xd9a441, f, { y: 0.5, rx: 0.08 }); // a gold-foil rim
+  kit.add(cyl(0.95, 0.5, 0.45, 16), 0xe8c26a, f, { y: 0.62, rx: 0.08 }); // the gold top
+  kit.add(cyl(0.12, 0.12, 0.3, 8), 0xcfd3da, f, { x: 0.3, y: 1.05, z: 0.1, rx: 0.08 }); // instruments
+  kit.add(box(0.25, 0.18, 0.25), 0x3a3f48, f, { x: -0.35, y: 1.02, z: -0.1, rx: 0.08 });
+  kit.solid(body, at, 1.3, 1.3);
+  // The parachute: a flattened dome of orange and white panels, a few metres behind.
+  const chute = offset(body, at, -1, -4.5);
+  const fc = frameAt(body, chute, { lift: -0.1, spin: 0.3 });
+  for (let i = 0; i < 8; i++) {
+    const panel = new THREE.SphereGeometry(2.2, 3, 5, (i / 8) * Math.PI * 2, Math.PI / 4, 0, Math.PI / 2).scale(1, 0.18, 1);
+    kit.add(panel, i % 2 ? 0xf4efe6 : 0xf08a3c, fc, { ink: false });
+  }
+  // Pebbles of ice all round (flat, un-inked).
+  const rand = mulberry32(46);
+  const pebble = new THREE.IcosahedronGeometry(0.16, 0).scale(1, 0.6, 1);
+  for (let i = 0; i < 26; i++) {
+    const a = rand() * Math.PI * 2, d = 1.4 + rand() * 3.2;
+    const p = offset(body, at, Math.cos(a) * d, Math.sin(a) * d);
+    kit.add(pebble, rand() < 0.5 ? 0xe0cfb4 : 0xb8a080, frameAt(body, p, { lift: 0.02, spin: rand() * 3 }), { s: 0.7 + rand() * 0.9, ink: false });
+  }
+}
+
 // Frosty: a faint blue glow deep in each of the fresh cracks, only at night.
 function oceanGlow(body, group, out) {
   const glows = FROSTY_GLOWS.map((g) => {
@@ -444,6 +472,7 @@ export function createLandmarks(body) {
     case 'pebble': footprints(body, kit); mirror(body, kit, group, updates); break;
     case 'dusty': rover(body, kit, group, updates); break;
     case 'ducky': philae(body, kit); break;
+    case 'misty': huygens(body, kit); break;
     case 'frosty': oceanGlow(body, group, updates); break;
     case 'ember': flares(body, group, updates); break;
     case 'nibble': case 'sizzle': break; // only a friend (#16)

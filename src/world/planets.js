@@ -14,8 +14,9 @@ import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
 
-// (Sizzle's is finer than its size needs, for its lava pools' round shores, #45.)
-const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 48, frosty: 36, flip: 32, ducky: 20 };
+// (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
+// for its lakes' shores and its dunes' crests.)
+const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 20 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
@@ -99,12 +100,18 @@ function surfaceFromMesh(body, geo, liquidGeo = null) {
   body.combineSurface();
 }
 
-function atmosphere(radius, color, strength = 1.2) {
+/**
+ * A glowing shell round a world: bright at the rim, fading towards the middle. `fill` tints the
+ * whole face too, for a thick haze (Misty, #46) that you half see the ground through.
+ */
+function atmosphere(radius, color, strength = 1.2, fill = 0) {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       color: { value: new THREE.Color(color) },
       sunDir: { value: new THREE.Vector3(1, 0, 0) },
       strength: { value: strength },
+      fill: { value: fill },
+      fade: { value: 1 }, // how much of it shows: less once we're down in a haze (#46)
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -124,13 +131,15 @@ function atmosphere(radius, color, strength = 1.2) {
       uniform vec3 color;
       uniform vec3 sunDir;
       uniform float strength;
+      uniform float fill;
+      uniform float fade;
       varying vec3 vN;
       varying vec3 vP;
       void main() {
         #include <logdepthbuf_fragment>
         float rim = 1.0 - abs(dot(normalize(-vP), vN));
         float day = 0.25 + 0.75 * smoothstep(-0.3, 0.5, dot(vN, sunDir));
-        float a = pow(rim, 2.6) * strength * day;
+        float a = min(1.0, (pow(rim, 2.6) * strength + fill) * day) * fade;
         gl_FragColor = vec4(color * a, a);
       }`,
     transparent: true,
@@ -247,6 +256,8 @@ const ROCKS = {
   dusty: { count: 110, size: [1.2, 3], palette: [0xa9502e, 0x8a3f25, 0xc4693c] },
   sizzle: { count: 70, size: [1, 2.4], palette: [0x5a4030, 0x3d2a1f, 0x8a6a3a] },
   frosty: { count: 80, size: [1, 2.6], palette: [0xcfe3ef, 0xa9c6d8, 0xe8f1f6, 0xb98a6c] },
+  // Misty's (#46): round pebbles and cobbles of ice, like the ones Huygens saw on Titan.
+  misty: { count: 90, size: [0.6, 1.6], palette: [0xcdb89a, 0xa88d6c, 0xe0cfb4, 0x7d6448] },
   flip: { count: 60, size: [1, 2.4], palette: [0xe9dcd6, 0xc5d0da, 0xf0c9bf, 0x8e8793] },
   ducky: { count: 36, size: [0.8, 2], palette: [0x4c525c, 0x5d6470, 0x3a3f48, 0xc8d4de] },
 };
@@ -275,7 +286,7 @@ function rocks(body, group) {
     if (zw > -4 && zw < 16) continue;
     if (hot.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > Math.cos(0.12))) continue;
     if (camps.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > campCos)) continue;
-    // Out of lava pools and off their banks (#45).
+    // Out of lava pools and lakes, and off their banks (#45, #46).
     if (body.shoreDist(up.x, up.y, up.z) < 6) continue;
     const h = body.terrainFn.height(up.x, up.y, up.z);
     const size = def.size[0] + rand() * (def.size[1] - def.size[0]);
@@ -460,7 +471,10 @@ export function createBodyVisual(body) {
   }
 
   if (body.atmosphere) {
-    const atm = atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4);
+    // A hazy world's (Misty, #46) is thicker: further out, brighter, and over its whole face.
+    const atm = body.haze
+      ? atmosphere(body.radius * 1.22, body.atmosphere, 1.5, 0.8)
+      : atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4);
     group.add(atm);
     out.atmosphere = atm;
   }

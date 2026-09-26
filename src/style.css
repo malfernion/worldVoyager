@@ -60,6 +60,11 @@ body {
   opacity: 1;
 }
 
+/* Under Misty's methane lakes (#46): dark amber. */
+#underwater.amber {
+  background: linear-gradient(to bottom, rgba(200, 130, 50, 0.3), rgba(60, 30, 8, 0.55));
+}
+
 #labels {
   position: fixed;
   inset: 0;

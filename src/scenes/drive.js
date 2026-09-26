@@ -549,15 +549,18 @@ export class DriveMode {
     const offset = f.clone().multiplyScalar(-dist).addScaledVector(this.camUp, dist * 0.42);
     // Keep the camera above the hills. With the buggy deep in a sea (#44), dive in after it
     // (looking down through deep water it would be lost); it comes back up as the buggy does.
-    const local = vec.add(b.p, [offset.x, offset.y, offset.z + 1.2]);
+    // (The camera's spot in the world's frame: the buggy, 1.2 m up, plus the offset.)
+    const lift = [this.camUp.x * 1.2, this.camUp.y * 1.2, this.camUp.z * 1.2];
+    const local = vec.add(vec.add(b.p, lift), [offset.x, offset.y, offset.z]);
     // (Lava, #45, is solid as far as the camera goes: it never dives into it.)
     const lu = vec.norm(local);
-    const minR = Math.max(b.groundRadius(lu), b.lava && b.isWater(lu) ? b.body.liquidR : 0) + 1.5;
     const r = vec.len(local);
     const dive = b.depth > 1.2 && b.body.liquid ? b.body.liquidR - 0.6 : Infinity;
     this.dive += ((dive < Infinity ? 1 : 0) - this.dive) * k(3);
+    // Diving, it may skim closer to the bed (Misty's lakes, #46, are only a few metres deep).
+    const minR = Math.max(b.groundRadius(lu), b.lava && b.isWater(lu) ? b.body.liquidR : 0) + 1.5 - 1.1 * this.dive;
     if (this.dive > 0.01 && dive < Infinity && r > dive) offset.add(V(vec.mul(vec.norm(local), (dive - r) * this.dive)));
-    const r2 = vec.len(vec.add(b.p, [offset.x, offset.y, offset.z + 1.2]));
+    const r2 = vec.len(vec.add(vec.add(b.p, lift), [offset.x, offset.y, offset.z]));
     if (r2 < minR) offset.add(V(vec.mul(vec.norm(local), minR - r2)));
     camera.up.copy(this.camUp);
     camera.position.copy(target).add(offset);

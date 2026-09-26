@@ -37,8 +37,10 @@ export function planetThumb(visual, size = 160) {
     obj.add(glow);
   } else {
     obj.add(new THREE.Mesh(visual.mesh.geometry, visual.mesh.material));
-    // A world's liquid (Homestead's seas, #44; Sizzle's lava, #45) is its own mesh.
+    // A world's liquid (Homestead's seas, #44; Sizzle's lava, #45; Misty's lakes, #46) is its own mesh.
     if (visual.liquid) obj.add(new THREE.Mesh(visual.liquid.mesh.geometry, visual.liquid.mesh.material));
+    // Misty's thick orange haze (#46): a see-through shell.
+    if (body.haze) obj.add(new THREE.Mesh(new THREE.SphereGeometry(body.radius * 1.08, 32, 16), new THREE.MeshBasicMaterial({ color: body.atmosphere, transparent: true, opacity: 0.28, depthWrite: false })));
     for (const child of visual.group.children) {
       if (child.geometry && child.geometry.type === 'RingGeometry') obj.add(child.clone());
     }

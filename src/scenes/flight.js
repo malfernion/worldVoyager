@@ -21,8 +21,15 @@ import { TAP_RADIUS, clockAllowed, clockOnPath, clockWindow, pickOnPath, travelW
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
 import { GOALS, STARTER_END } from '../progress.js';
 
+// A splash's two colours: white and blue for water (#44), pale and dark amber for methane (#46).
+const WATER_SPLASH = [0xeaf7ff, 0x9fd6ee];
+const AMBER_SPLASH = [0xf4e0bc, 0xb8864a];
+
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const FOG_OFF = 1e9;
+// Misty's haze (#46, updateHaze): full up to `low` metres above the ground, gone by `top`; the
+// fog starts `near` and is solid `far` metres from the camera (divided by how hazy it is).
+const HAZE = { low: 30, top: 200, near: 18, far: 280 };
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
 const CONFETTI = [0xff6b6b, 0xffd166, 0x06d6a0, 0x4cc9f0, 0xf78c6b, 0xc77dff];
 // Longest (real seconds) a new coached action waits for Pip to stop talking (#36).
@@ -68,6 +75,7 @@ export class FlightScene {
     this.discoverUntil = 0;
 
     for (const v of this.visuals) this.scene.add(v.group);
+    this.sunVisual = this.visuals.find((v) => v.body.kind === 'star');
     this.sky = createSky();
     this.scene.add(this.sky);
     this.scene.add(new THREE.HemisphereLight(0x8a9cff, 0x2a1d30, 0.55));
@@ -684,7 +692,7 @@ export class FlightScene {
         app.audio.play(lava ? 'lavaCrash' : wet ? 'bigSplash' : 'crash');
         this.debris.explode(this.rocket, s.body, { x: s.x, y: s.y }, s.angle, Math.atan2(s.y, s.x));
         this.rocketHolder.visible = false;
-        this.burst(s.body, lava ? 'steam' : wet ? 'splash' : 'explosion');
+        this.burst(s.body, lava ? 'steam' : wet ? 'splash' : 'explosion', s.body.liquid?.kind === 'methane' ? AMBER_SPLASH : WATER_SPLASH);
         // A crash makes anything Pip was about to say old news.
         app.hush();
         const first = !app.progress.has('kaboom');
@@ -695,6 +703,7 @@ export class FlightScene {
           tipped: 'Oops, we tipped over! Land standing up straight.',
           water: 'Splash! Rockets can\'t float. Let\'s land on the ground!',
           lava: 'Sizzle! Lava is much too hot to land on!',
+          methane: 'Splash! That lake is made of methane. Let\'s land on the ground!',
         };
         // The first splash says it with its sticker.
         const splashFirst = d.reason === 'water' && !app.progress.has('splash');
@@ -783,7 +792,7 @@ export class FlightScene {
     return w;
   }
 
-  burst(body, kind) {
+  burst(body, kind, splash = WATER_SPLASH) {
     const s = this.flight.state;
     const up = Math.atan2(s.y, s.x);
     const ux = Math.cos(up), uy = Math.sin(up);
@@ -819,7 +828,7 @@ export class FlightScene {
         const sp = col ? 10 + Math.random() * 12 : 5 + Math.random() * 8;
         const vz = (Math.random() - 0.5) * (col ? 4 : sp * 1.6);
         this.particles.spawn('puff', body, ux * top + Math.cos(a) * 0.5, uy * top + Math.sin(a) * 0.5, (Math.random() - 0.5) * 2,
-          Math.cos(a) * sp, Math.sin(a) * sp, vz, { size: col ? 2.2 : 1.6, grow: 1.8, life: 1.6 + Math.random() * 0.8, drag: 0.6, gravity: g, color: i % 3 ? 0xeaf7ff : 0x9fd6ee });
+          Math.cos(a) * sp, Math.sin(a) * sp, vz, { size: col ? 2.2 : 1.6, grow: 1.8, life: 1.6 + Math.random() * 0.8, drag: 0.6, gravity: g, color: splash[i % 3 ? 0 : 1] });
       }
       return;
     }
@@ -890,6 +899,7 @@ export class FlightScene {
     this.updateAtmospheres();
     this.updateMarkers();
     this.updateUnderwater(dt);
+    this.updateHaze();
     this.app.audio.setEngine(this.crashed ? 0 : f.throttle);
   }
 
@@ -908,8 +918,57 @@ export class FlightScene {
       this.scene.background.copy(this.spaceColour);
     }
     this.sky.visible = !under;
-    document.getElementById('underwater')?.classList.toggle('on', under);
+    const tint = document.getElementById('underwater');
+    tint?.classList.toggle('on', under);
+    // (Under Misty's methane, #46, a dark amber tint instead of blue.)
+    if (under) tint?.classList.toggle('amber', look.tint === 'amber');
     this.app.audio.setUnderwater(under);
+  }
+
+  /**
+   * Misty's thick orange haze (#46), only the look: near its ground (driving, landed, or flying
+   * low) the sky turns hazy orange, even by day, the stars fade out, and the distance fogs over
+   * in the same colour. It thins out as the camera climbs, gone by `HAZE.top` metres up. It
+   * reuses the scene's always-there fog (#44), so no material changes; nothing is allocated.
+   * Under a methane lake the underwater fog wins.
+   */
+  updateHaze() {
+    const s = this.flight.state;
+    const body = this.drive.active ? this.drive.buggy.body : s.body;
+    let k = 0;
+    const v = body.haze && this.mode !== 'map' && !this.underwater ? this.visuals.find((x) => x.body === body) : null;
+    const c = this.camera.position;
+    if (v) {
+      const g = v.group.position;
+      const r = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
+      const t = Math.max(0, Math.min(1, (r - body.radius - HAZE.low) / (HAZE.top - HAZE.low)));
+      k = 1 - t * t * (3 - 2 * t);
+    }
+    if (k === this.haze && k === 0) return;
+    this.haze = k;
+    // Down in it, the fog is the haze; the shell seen from so close would only glare.
+    if (v) this.hazeShell = v.atmosphere;
+    if (this.hazeShell) this.hazeShell.material.uniforms.fade.value = 1 - 0.85 * k;
+    if (this.underwater) return;
+    const fog = this.scene.fog;
+    if (k < 0.01) {
+      fog.near = FOG_OFF;
+      fog.far = FOG_OFF * 2;
+      this.scene.background.copy(this.spaceColour);
+      this.sky.visible = true;
+      return;
+    }
+    // Dimmer on the night side (the sun's direction from the world against the camera's "up").
+    const g = v.group.position, sun = this.sunVisual.group.position;
+    const ux = c.x - g.x, uy = c.y - g.y, uz = c.z - g.z;
+    const sx = sun.x - g.x, sy = sun.y - g.y, sz = sun.z - g.z;
+    const cos = (ux * sx + uy * sy + uz * sz) / ((Math.hypot(ux, uy, uz) * Math.hypot(sx, sy, sz)) || 1);
+    const day = 0.3 + 0.7 * Math.max(0, Math.min(1, (cos + 0.2) / 0.5));
+    fog.color.set(body.haze).multiplyScalar(day);
+    fog.near = HAZE.near / k;
+    fog.far = HAZE.far / k;
+    this.scene.background.copy(this.spaceColour).lerp(fog.color, k);
+    this.sky.visible = k < 0.6;
   }
 
   /** Leaving the flight screen: out of any sea, and no more lapping (or lava's hiss). */
@@ -948,7 +1007,8 @@ export class FlightScene {
     }
     // By lava (#45) it's a low bubbling hiss instead of waves.
     const lava = body.liquid?.kind === 'lava';
-    this.app.audio.setLapping(lava ? 0 : near);
+    // Misty's methane lakes (#46) are nearly still: only a faint lapping.
+    this.app.audio.setLapping(lava ? 0 : near * (body.liquid?.kind === 'methane' ? 0.4 : 1));
     this.app.audio.setBubbling(lava ? near : 0);
   }
 
