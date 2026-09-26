@@ -18,7 +18,10 @@ import { landingFinds, ringGapCrossed, flareSeen, sunDirection } from '../physic
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
 import { TAP_RADIUS, clockAllowed, clockOnPath, clockWindow, pickOnPath, travelWarp, arrived } from '../ui/fastTravel.js';
-import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
+import {
+  clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW,
+  handoffCarry, handoffCalm, easeCarry, HANDOFF_TURN,
+} from '../ui/zoom.js';
 import { GOALS, STARTER_END } from '../progress.js';
 
 // A splash's two colours: white and blue for water (#44), pale and dark amber for methane (#46).
@@ -57,6 +60,9 @@ export class FlightScene {
     this.origin = { x: 0, y: 0 };
     this.mode = 'flight';
     this.zoom = 1; // player's multiplier on the automatic follow distance
+    this.carry = 1; // what's left of an SOI hand-off, easing back to 1 (#49)
+    this.camSettle = false; // a new world took over and the view's "down" hasn't turned to it yet (#49)
+    this.soiGlow = null; // the map label of the world we just flew into the space of (#49)
     this.mapDist = 1; // map camera distance (absolute)
     this.pan = { x: 0, y: 0 };
     this.mapFocus = null;
@@ -182,6 +188,9 @@ export class FlightScene {
     this.particles.clear();
     this.camUp.set(0, 1, 0);
     this.camUpAngle = undefined;
+    this.carry = 1;
+    this.camSettle = false;
+    this.soiGlow = null;
     this.pause = null;
     this.clock = null;
     // A new flight: no Show me how (the 🧭 toggle is a setting and stays).
@@ -265,7 +274,12 @@ export class FlightScene {
   viewDist() {
     if (this.mode === 'map') return this.mapDist;
     if (this.mode === 'drive') return this.drive.viewDist();
-    return flightDist(flightAutoDist(this.flight.altitude), this.zoom);
+    return flightDist(this.autoDist(), this.zoom);
+  }
+
+  /** The flight camera's automatic follow distance, with what's left of a hand-off (#49). */
+  autoDist(alt = this.flight.altitude) {
+    return flightAutoDist(alt) * this.carry;
   }
 
   setViewDist(d) {
@@ -277,7 +291,7 @@ export class FlightScene {
       this.drive.setViewDist(d);
     } else {
       // Keep it a multiplier so the view still pulls back as we climb.
-      this.zoom = flightZoomFor(flightAutoDist(this.flight.altitude), d);
+      this.zoom = flightZoomFor(this.autoDist(), d);
     }
   }
 
@@ -626,6 +640,23 @@ export class FlightScene {
     if (m.visiting) this.discover(m.visiting);
   }
 
+  /**
+   * A new world took over (an SOI hand-off, #49): the camera doesn't change by itself. The
+   * flight view stays at the same distance (the automatic distance's `carry` makes up the
+   * difference, then eases back when it's calm) and keeps its "down" until it's calm to turn;
+   * the map keeps its focus and zoom, and the new world's label glows for a moment.
+   */
+  keepView(from) {
+    const s = this.flight.state;
+    const rw = this.flight.worldPos(this.tmp3);
+    const fw = from.worldPos(s.t, {});
+    const x = rw.x - fw.x, y = rw.y - fw.y;
+    const before = flightAutoDist(Math.max(0, Math.hypot(x, y) - from.surfaceAt(Math.atan2(y, x))));
+    this.carry = handoffCarry(this.carry, before, flightAutoDist(Math.max(0, this.flight.altitude)));
+    this.camSettle = true;
+    this.soiGlow = { body: s.body, until: this.time + 4 };
+  }
+
   discover() {
     this.discoverUntil = this.time + 40;
     this.app.audio.setMood('discover');
@@ -652,7 +683,7 @@ export class FlightScene {
         } else {
           app.pip(`Back in ${d.to.name}'s space.`, { speak: false, pri: 'chatter' });
         }
-        if (this.mode === 'map') this.focusMapOn(d.to, true);
+        this.keepView(d.from);
         break;
       }
       case 'landed': {
@@ -1429,21 +1460,30 @@ export class FlightScene {
     const cam = this.camera;
     const f = this.flight;
     const s = f.state;
+    const alt = Math.max(0, f.altitude);
+    // After a hand-off (#49) the flight view only settles when it's calm: never mid-burn or low
+    // down. (On the map too, so it's settled when we come back.)
+    const calm = handoffCalm(f.throttle, alt, s.landed);
+    this.carry = easeCarry(this.carry, dt, calm);
     if (this.mode === 'flight') {
       // "Down" points at the world we're near. Far out in space we keep the view steady,
       // and when a new world takes over we turn gently instead of flipping around.
-      const alt = Math.max(0, f.altitude);
       const up = Math.atan2(s.y, s.x);
       const near = alt < s.body.radius * 2.5 || s.landed;
       if (this.camUpAngle === undefined) this.camUpAngle = up;
       if (near) {
         const diff = Math.atan2(Math.sin(up - this.camUpAngle), Math.cos(up - this.camUpAngle));
         const closeness = 1 - Math.min(1, alt / (s.body.radius * 2.5));
-        const rate = s.landed || alt < 30 ? 6 : 0.4 + 2.5 * closeness;
+        let rate = s.landed || alt < 30 ? 6 : 0.4 + 2.5 * closeness;
+        // A new world's "down" can be far round from the old one's: turn to it gently, when calm.
+        if (this.camSettle) {
+          if (Math.abs(diff) < 0.02) this.camSettle = false;
+          else rate = Math.min(rate, HANDOFF_TURN) * calm;
+        }
         this.camUpAngle += Math.sign(diff) * Math.min(Math.abs(diff), rate * dt, Math.abs(diff) * (1 - Math.exp(-dt * 4)) + 0.001);
       }
       this.camUp.set(Math.cos(this.camUpAngle), Math.sin(this.camUpAngle), 0);
-      const dist = flightDist(flightAutoDist(alt), this.zoom);
+      const dist = flightDist(this.autoDist(alt), this.zoom);
       const axis = new THREE.Vector3(Math.cos(s.angle), Math.sin(s.angle), 0);
       const centre = this.crashed ? new THREE.Vector3() : axis.multiplyScalar(this.rocket.height * 0.5);
       cam.up.copy(this.camUp);
@@ -1687,6 +1727,8 @@ export class FlightScene {
         const el = this.marker(`body-${b.id}`, 'body-label', `<span class="icon">${b.icon}</span><span class="name">${b.name}</span>`);
         if (!el.onclick) el.onclick = (e) => { e.stopPropagation(); this.app.audio.play('tap'); this.setTarget(b); };
         el.classList.toggle('targeted', b === this.target);
+        // We just flew into its space (#49): the map doesn't move, the label glows instead.
+        el.classList.toggle('arrived', b === this.soiGlow?.body && this.time < this.soiGlow.until);
         if (!el.labelSize) {
           // Measured once (full, then icon-only): its text never changes.
           el.classList.remove('mini');

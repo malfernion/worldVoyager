@@ -787,6 +787,21 @@ h1 {
   border-color: var(--ink);
 }
 
+/* We just flew into this world's space (#49): the map stays put and the label glows instead. */
+.body-label.arrived {
+  border-color: var(--glow);
+  animation: arrived-glow 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes arrived-glow {
+  from {
+    box-shadow: 0 0 4px var(--glow);
+  }
+  to {
+    box-shadow: 0 0 18px 4px var(--glow);
+  }
+}
+
 .apsis {
   translate: -50% -50%;
   color: var(--glow);

@@ -46,3 +46,45 @@ export function sliderToDist(v, [lo, hi]) {
 export function distToSlider(d, [lo, hi]) {
   return clamp((Math.log(d / lo) / Math.log(hi / lo)) * 1000, 0, 1000);
 }
+
+// ---- Keeping the view steady when a new world takes over (#49) ----
+//
+// The automatic follow distance comes from the height above the world we're in, so at an SOI
+// hand-off it would jump (entering Pebble: about 1030 m to 210 m in one frame). Instead the
+// hand-off leaves a `carry`, a multiplier on the automatic distance that keeps the camera where
+// it was, and that eases back to 1 only while it's calm: never during a burn or close to the
+// ground, and over a second or two.
+
+/** Below this height (m) the view never eases after a hand-off. */
+export const HANDOFF_LOW = 30;
+/** How fast a hand-off's leftover eases away: its e-folding time in seconds (about 2 s to settle). */
+export const CARRY_TAU = 0.6;
+/** The fastest the view's "down" turns toward a new world after a hand-off (rad/s). */
+export const HANDOFF_TURN = 1.5;
+
+/** The carry that keeps the camera distance the same when the automatic distance goes from `oldAuto` to `newAuto`. */
+export function handoffCarry(carry, oldAuto, newAuto) {
+  return (carry * oldAuto) / newAuto;
+}
+
+/**
+ * How calm it is for the view to settle after a hand-off, 0..1: 0 during a burn or close to
+ * the ground (still landed is calm), slower low down.
+ */
+export function handoffCalm(throttle, alt, landed) {
+  if (landed) return 1;
+  if (throttle > 0 || alt < HANDOFF_LOW) return 0;
+  return Math.min(1, 0.3 + (alt - HANDOFF_LOW) / 150);
+}
+
+/** The fastest the carry eases, in log-distance per second (2: about 3% a frame). */
+export const CARRY_RATE = 2;
+
+/** One frame of the carry easing back to 1, at `calm` speed: exponential, but never faster than CARRY_RATE. */
+export function easeCarry(carry, dt, calm) {
+  if (carry === 1 || !(calm > 0)) return carry;
+  const l = Math.log(carry);
+  const step = Math.min(Math.abs(l) * (1 - Math.exp((-dt * calm) / CARRY_TAU)), CARRY_RATE * calm * dt);
+  const left = l - Math.sign(l) * step;
+  return Math.abs(left) < 1e-3 ? 1 : Math.exp(left);
+}
