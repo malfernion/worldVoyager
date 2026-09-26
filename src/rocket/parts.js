@@ -49,7 +49,15 @@ export function garageOf(design) {
 export const TRAY_ORDER = ['capsule', 'bubble', 'nose', 'tube', 'bigtube', 'engine', 'bigengine', 'fins', 'legs', 'boosters', 'garage', 'lights'];
 
 /** Parts that can hold radial attachments. */
-export const HOLDS_RADIAL = new Set(['tube', 'bigtube', 'capsule']);
+export const HOLDS_RADIAL = new Set(['tube', 'bigtube', 'capsule', 'garage']);
+
+/**
+ * Can this stack part hold that radial part? The garage holds only legs (#42): they stand on
+ * the diagonals, clear of the door, but a fin, booster or light would block it.
+ */
+export function holdsRadial(partType, radialType) {
+  return HOLDS_RADIAL.has(partType) && (partType !== 'garage' || radialType === 'legs');
+}
 
 export function defaultDesign() {
   return {

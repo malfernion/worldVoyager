@@ -1,7 +1,7 @@
 // The campfire workshop: drag (or just tap) parts to build a rocket, tap parts to paint
 // them, drag them off to throw them away.
 import * as THREE from 'three';
-import { PARTS, PAINTS, TRAY_ORDER, HOLDS_RADIAL, BUGGIES, DEFAULT_BUGGY, defaultDesign, randomDesign, rocketStats, garageOf } from '../rocket/parts.js';
+import { PARTS, PAINTS, TRAY_ORDER, holdsRadial, BUGGIES, DEFAULT_BUGGY, defaultDesign, randomDesign, rocketStats, garageOf } from '../rocket/parts.js';
 import { buildRocket, partIndexOf } from '../rocket/rocketMesh.js';
 import { partThumb, buggyThumb } from '../world/thumbs.js';
 import { createSky } from '../world/sky.js';
@@ -225,7 +225,7 @@ export class BuilderScene {
     const def = PARTS[type];
     const paint = def.paint;
     if (def.slot === 'radial') {
-      const holders = stack.map((p, i) => ({ p, i })).filter(({ p }) => HOLDS_RADIAL.has(p.type));
+      const holders = stack.map((p, i) => ({ p, i })).filter(({ p }) => holdsRadial(p.type, type));
       if (!holders.length) {
         this.app.pip(`${def.name} need a tube to hold on to. Add a tube first!`, { speak: true, key: 'build' });
         return false;
@@ -452,7 +452,7 @@ export class BuilderScene {
     trash.classList.remove('over');
     const parts = [...this.rocket.parts].sort((a, b) => a.index - b.index);
     if (d.item.radial) {
-      const holders = parts.filter((p) => HOLDS_RADIAL.has(this.design.stack[p.index].type));
+      const holders = parts.filter((p) => holdsRadial(this.design.stack[p.index].type, d.item.type));
       if (!holders.length) return;
       let best = holders[0], bestD = Infinity;
       for (const p of holders) {
@@ -496,7 +496,7 @@ export class BuilderScene {
       this.design.stack[d.drop.radialOn].radial = { type: it.type, paint: it.paint };
     } else {
       const part = { type: it.type, paint: it.paint };
-      if (it.carried && HOLDS_RADIAL.has(it.type)) part.radial = it.carried;
+      if (it.carried && holdsRadial(it.type, it.carried.type)) part.radial = it.carried;
       if (PARTS[it.type].garage) {
         if (garageOf(this.design)) {
           this.app.pip('One garage is plenty! Tap it to pick your buggy.', { speak: true, key: 'build' });

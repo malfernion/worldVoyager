@@ -311,6 +311,14 @@ A **Garage** section holds one buggy. You choose its type and colour in the work
 Rover (easy), Monster Truck (big bouncy wheels, climbs), or Hopper (light, can jump).
 After landing on solid ground, 🚙 Drive rolls it down a ramp.
 
+- **Legs on the garage** (#42, `holdsRadial()` in `parts.js`). The garage looks like it
+  belongs at the bottom, so it can hold landing legs. Only legs: they stand on the
+  diagonals, clear of the door, but a fin, booster or light would block it. Legs lift the
+  garage about 1.1 m, so the ramp is fitted to the garage's height when the rocket is built
+  (`fitRamp()` in `rocketMesh.js`): it tilts down 20-40° and lengthens as needed so its end
+  reaches the ground. (Before #42 the open ramp tilted 20° *up*; nobody noticed because the
+  buggy glides out in a straight line.)
+
 - **Driving is fully 3D over the globe** (`src/physics/buggy.js`). It's arcade car physics:
   real radial gravity, ground normals taken from the same terrain functions as the planet
   mesh, tyre grip (less on icy Frosty), slower in Homestead's water, and bumping around the

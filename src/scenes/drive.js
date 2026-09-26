@@ -95,7 +95,8 @@ export class DriveMode {
         else r = t;
         o.userData.rampOpen = r;
         o.visible = r > 0.02;
-        o.rotation.x = -Math.PI / 2 + r * (Math.PI / 2 - 0.35);
+        // Folded up (-90°) to open, sloping down to the ground by rampTilt (it used to tilt up, #42).
+        o.rotation.x = -Math.PI / 2 + r * (Math.PI / 2 + (o.userData.rampTilt ?? 0.35));
       }
     });
     this.doorMoving = moving;

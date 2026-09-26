@@ -76,7 +76,7 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   does a helper: while one is flying, tapping the path does nothing. If the path changes so
   it would crash before the ⏰, the ⏰ goes and time slows down.
 - **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
-  its colour). After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
+  its colour). The garage can hold landing legs too, so it can sit at the bottom. After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
   compass points back to your rocket (close by, round to the front of its garage door). To go
   home, drive back up the ramp through the open garage door, or tap 🏠 from anywhere. Bonk!
   Trees, moon rocks and the rocket's sides are in the way: back up and steer around them (or

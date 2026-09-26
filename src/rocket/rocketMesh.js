@@ -278,9 +278,23 @@ export function buildRocket(design) {
   for (const part of parts) {
     part.y0 -= minY;
     part.y1 -= minY;
+    part.group.traverse((o) => o.userData.ramp && fitRamp(o, part.y0));
   }
   for (const e of engines) e.y -= minY;
   return { group, inner, parts, engines, lights, height: y - minY };
+}
+
+/**
+ * The garage ramp reaches down to the ground however high the garage sits (legs lift it
+ * about 1.1 m, #42): steeper, then longer. `floor` is the garage's bottom above the ground.
+ * The drive scene tilts it open to `rampTilt` (radians below level).
+ */
+function fitRamp(ramp, floor) {
+  const L = 1.6; // the plank's own length
+  const drop = floor + ramp.position.y;
+  const tilt = Math.max(0.35, Math.min(0.7, Math.asin(Math.min(1, drop / L))));
+  ramp.userData.rampTilt = tilt;
+  ramp.scale.z = Math.max(1, drop / Math.sin(tilt) / L);
 }
 
 /** Which stack part (index) a raycast hit belongs to. */
