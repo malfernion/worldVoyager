@@ -520,6 +520,10 @@
   "text": "I can hear a harmonica on Pebble."
  },
  {
+  "key": "i can land us or show you how",
+  "text": "I can land us, or show you how!"
+ },
+ {
   "key": "i heard a strange hum on frosty",
   "text": "I heard a strange hum on Frosty."
  },
@@ -544,16 +548,20 @@
   "text": "I'll do this tiny push for you!"
  },
  {
-  "key": "ill fly you watch",
-  "text": "I'll fly, you watch!"
- },
- {
   "key": "ill steer us away from the ground",
   "text": "I'll steer us away from the ground!"
  },
  {
   "key": "ill steer us in",
   "text": "I'll steer us in."
+ },
+ {
+  "key": "ill stop telling you what to do",
+  "text": "I'll stop telling you what to do."
+ },
+ {
+  "key": "ill tell you what to do while you fly",
+  "text": "I'll tell you what to do while you fly."
  },
  {
   "key": "ill tell you when to hold go",
@@ -940,10 +948,6 @@
   "text": "Now Flurry is in our band!"
  },
  {
-  "key": "now ill fly when you tap a helper",
-  "text": "Now I'll fly when you tap a helper!"
- },
- {
   "key": "now lets land together",
   "text": "Now let's land together."
  },
@@ -966,6 +970,10 @@
  {
   "key": "oh",
   "text": "Oh!"
+ },
+ {
+  "key": "okay",
+  "text": "Okay!"
  },
  {
   "key": "on io volcanoes throw plumes way up into space",
@@ -1006,6 +1014,10 @@
  {
   "key": "or tap the swirly button and ill fly",
   "text": "Or tap the swirly button and I'll fly!"
+ },
+ {
+  "key": "or tap the swirly button and ill fly us round for you",
+  "text": "Or tap the swirly button, and I'll fly us round for you!"
  },
  {
   "key": "our rocket is too weak to land here",
@@ -1216,12 +1228,8 @@
   "text": "Tap or drag parts, then press Fly!"
  },
  {
-  "key": "tap the button to fly there",
-  "text": "Tap the button to fly there!"
- },
- {
   "key": "tap the compass",
-  "text": "Tap the compass!"
+  "text": "Tap the compass."
  },
  {
   "key": "tap the house to drive back",
@@ -1376,10 +1384,6 @@
   "text": "This is the best campfire song ever!"
  },
  {
-  "key": "to land point up and hold go to slow down",
-  "text": "To land, point up and hold GO to slow down."
- },
- {
   "key": "toasty loves to watch the warm lava",
   "text": "Toasty loves to watch the warm lava."
  },
@@ -1456,8 +1460,8 @@
   "text": "Vroom!"
  },
  {
-  "key": "want me to show you how to fly",
-  "text": "Want me to show you how to fly?"
+  "key": "want me to tell you what to do",
+  "text": "Want me to tell you what to do?"
  },
  {
   "key": "we drove all the way round again",
@@ -1888,10 +1892,6 @@
   "text": "You flew to Tumble all by yourself!"
  },
  {
-  "key": "you fly ill tell you when",
-  "text": "You fly, I'll tell you when!"
- },
- {
   "key": "you found an old telescope",
   "text": "You found an old telescope!"
  },
@@ -1946,5 +1946,9 @@
  {
   "key": "your first drive in the buggy",
   "text": "Your first drive in the buggy!"
+ },
+ {
+  "key": "youre the pilot",
+  "text": "You're the pilot!"
  }
 ]

@@ -21,27 +21,45 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
 - **Zoom:** pinch, scroll, or the slider on the right. The camera follows further back as you
   climb, but you can always zoom right up to the rocket (about 12 m) or out to see a whole
   world; on the map, from one world up close out to the whole solar system.
-- **🧭 Coach switch** (first of the helper buttons): choose who flies when you tap a helper.
-  It's remembered, and every time you flip it Pip says who flies next.
-  - **On** (green, pushed in, bright green light): "You fly, I'll tell you when!" You fly: an
-    arrow shows where to point, the right turn button glows, and GO says HOLD! / LET GO!.
-    The helper's status chip at the top shows 🧭 while you fly it.
-  - **Off** (grey, light off): Pip flies the helpers for you (the status chip shows 🤖). Flipped with
-    nothing running, Pip says "Now I'll fly when you tap a helper!".
-  On your very first launch Pip offers it ("Tap the compass!"); tapping it then starts a
-  coached launch into orbit. Flipping it while a helper or trip is running hands it over on
-  the spot and it carries on from where you are: on, "You fly, I'll tell you when!"; off,
-  "I'll fly, you watch!".
-- **Helpers:** 🌀 Orbit and 🛬 Land (tap again to stop). The small 🤖 on their corner means Pip
-  does it for you (🚙 Drive has none: you drive the buggy). They sit in a row between the turn buttons and GO (just
-  above them on narrow phones). Only the useful ones show: on the ground that's 🧭, 🌀 Orbit
-  and 🚙 Drive; Land appears once you're flying. The first time Pip flies one for you, she
-  says what it does ("This button flies us all the way round the planet!", "This button lands
-  us nice and softly!", and for the map's 🤖 Take me there, "This button flies us all the way
-  there!"), once, while it already flies. With the coach on, Orbit teaches the launch
-  and Land teaches the landing: point up at the arrow, then HOLD / LET GO to keep the descent
-  gentle (Pip steps in if it gets too fast). After a crash only the three choices show: go
+- **You're the pilot.** Pip only flies when you ask her with a 🤖 button, and she only tells you
+  what to do when you ask for that too. On your very first launch she explains: "You're the
+  pilot! Want me to tell you what to do? Tap the compass. Or tap the swirly button, and I'll
+  fly us round for you!"
+- **🤖 Autopilot buttons:** 🌀 Orbit, 🛬 Land and the map's 🤖 Take me there mean "Pip, do this
+  for me": Pip always flies them (tap 🌀 or 🛬 again to stop). The small 🤖 on their corner
+  says so (🚙 Drive has none: you drive the buggy). They sit in a row between the turn buttons
+  and GO (just above them on narrow phones). Only the useful ones show: on the ground 🌀 Orbit
+  and 🚙 Drive; Land appears once you're flying. The first time Pip flies one for you, she says
+  what it does ("This button flies us all the way round the planet!", "This button lands us
+  nice and softly!", and for 🤖 Take me there, "This button flies us all the way there!"),
+  once, while it already flies (not when she can't do it: there's no landing on a cloudy giant).
+  The chip at the top shows 🤖 while Pip flies. After a crash only the three choices show: go
   back, launch pad, or build.
+- **🧭 Coach, during your first trip:** the compass (first in the helper row) is an on/off
+  switch while you do the first trip's goals. On (green, pushed in, bright green light), Pip
+  says "Okay! I'll tell you what to do while you fly." and coaches each goal as it comes: the
+  launch into orbit (on the pad it starts straight away), the landing at home, the landing on
+  Pebble, and the flight home. You fly: an arrow shows where to point, the right turn button
+  glows, and GO says HOLD! / LET GO!. Pip still does the tiny pushes that are too quick for
+  small thumbs, catches you if a landing gets too fast ("Whoa, too fast! I'll catch us this
+  time.") and does the tricky comet catch. The chip at the top shows 🧭 while she coaches. Off
+  ("Okay! I'll stop telling you what to do. You're the pilot!") stops the coaching wherever it
+  is, even before lift-off, and you just carry on flying. Flying to Pebble isn't coached by the
+  switch: that's the map's choice (below), the same one you use for every trip afterwards.
+  If you tap a 🤖 button while Pip coaches, she goes quiet while she flies, then carries on
+  coaching.
+- **Go somewhere:** open the map and tap a world. Its card has two choices:
+  **🤖 Take me there!** (Pip flies you there; tap it again, ✋ Stop, to stop) and
+  **🧭 Show me how!** (you fly, and Pip coaches you all the way: from the pad that's take-off,
+  getting into orbit, the trip and the landing). Tap the world you're flying round and it means
+  landing there: 🤖 lands you, 🧭 coaches you down. (On its ground, or round a cloudy giant,
+  there's nothing to do there, so Pip just says "We're at …!".) After the first trip, while
+  Show me how coaches you, a lit 🧭 shows in the helper row and the goal chip shows where
+  you're going ("🧭 Fly to Dusty and land!"); when you land there, they go away. Tap the lit 🧭
+  to stop the coaching ("Okay! I'll stop telling you what to do. You're the pilot!"): the world
+  stays picked, so you fly there on your own. To be coached again, tap 🧭 Show me how again.
+  🤖 Take me there in the middle of it means Pip takes you instead. During the first trip,
+  🧭 Show me how turns the coach switch on too.
 - **What are all these icons?** On the map, your path is a bright line, and little icons mark
   it: ▲ the highest you'll go, ▼ the lowest, 💥 where you'd crash, ✨ where you'll meet the
   world you picked (its ghost shows where it will be then), 🎯 where you'll get closest to it,
@@ -57,9 +75,6 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   it away. Turning, GO or the time buttons also stop the trip (you're in charge again), and so
   does a helper: while one is flying, tapping the path does nothing. If the path changes so
   it would crash before the ⏰, the ⏰ goes and time slows down.
-- **Go somewhere:** open the map, tap a world, then the trip button: **🧭 Let's go!** with the
-  coach on (you fly there and land, Pip tells you how) or **🤖 Take me there!** with it off
-  (Pip flies, you watch). Tap it again (✋ Stop) to stop.
 - **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
   its colour). After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
   compass points back to your rocket, and 🏠 takes you home. Bonk! Trees and moon rocks are
@@ -114,7 +129,7 @@ fact again, or a ❓ one for a hint from Pip. Tap a friend in the 🎵 Band to h
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coach-mode flights, buggy (+ its dust), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

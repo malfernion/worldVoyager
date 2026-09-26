@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coach flights (+ the 🧭 switch), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -66,7 +66,9 @@ Only push work that is tested and ready for players.
 
 ```
 src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
-src/progress.js        The starter journey's goals (`GOALS`, `starterDone`, `goalShown()`, older saves' `migrate()`; #36), stickers (incl. discoveries' facts and hints, friends' hellos and hints), saved design + settings (incl. the 🧭 coach switch),
+src/progress.js        The starter journey's goals (`GOALS`, `starterDone`, `goalShown()` incl. a Show me how's destination, older saves' `migrate()`,
+                       the first launch's `FIRST_FLIGHT` / `launchLine()`; #36), stickers (incl. discoveries' facts and hints, friends' hellos and hints),
+                       saved design + settings (incl. the 🧭 toggle, `settings.coach`),
                        which screen markers Pip has explained (#33), which worlds were driven round (#29; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
@@ -79,7 +81,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        the 🎵 compass targets, how loud each friend's part is from where you are, Full Band
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
-  autopilot.js         Helpers (orbit, land, goto) + coach mode + transfer planner (+ comet windows and homing)
+  autopilot.js         Helper programs (orbit, land, goto), each run as the autopilot or coached, + transfer planner (+ comet windows and homing);
+                       `landRefusal()` (why 🛬 can't land here)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets),
                        WorldLap: have we driven all the way round the world? (#29)
   dust.js              Buggy dust (#26): a fixed pool of particles in typed arrays (tyre dust, landing thumps, the Hopper's
@@ -89,8 +92,10 @@ src/world/             three.js visuals: planets (incl. rings), ambient (plumes/
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
-src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
-src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
+src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
+                       `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36), drive.js (buggy mode)
+src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
+                       HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
                        markers.js (pure: what each screen marker means, when it's safe to pause and explain one, label decluttering; #33;
                        what each autopilot button says the first time it flies for us; #36),
@@ -194,8 +199,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   (`src/ui/markers.js`): it's tappable (a 48 px hit area; HUD buttons sit above `#labels`, so
   markers never steal their taps) and glows while Pip explains it. Kinds in `FIRST_SIGHT` pause
   the sim once, the first time they're on screen, but only when `calmToExplain()` says so
-  (Pip quiet, engine off, not steering, no helper burning or at a tricky bit, never in a coach
-  lesson or coached landing, one explanation at a time). The pause only stops the sim and the
+  (Pip quiet, engine off, not steering, no helper burning or at a tricky bit, never in a coached
+  launch or landing, one explanation at a time). The pause only stops the sim and the
   helper stepping; it ends when the line has been said (`afterPip`), on any tap, or after
   `MAX_PAUSE`. Explained kinds are saved in `progress.markers`. Adding a marker kind? Add its
   line (and record it), and decide whether it belongs in `FIRST_SIGHT`. The autopilot buttons
@@ -203,8 +208,9 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   used to fly for us (`BUTTON_LINES`, `buttonExplanation()`, saved as `button-<mode>` in
   `progress.markers`): `FlightScene.explainButton()` queues the line (a helper line, key
   `button`) just before the helper starts, so the helper flies at once and its own opener
-  waits its turn behind it. Not in coach mode. Every button in the helper row that Pip flies is an
-  autopilot action with the small 🤖 badge (class `auto`); the 🧭 switch and 🚙 Drive (the player
+  waits its turn behind it. Not when the helper is only going to say no (`landRefusal()`), nor
+  for 🤖 on the world we're at (it lands). Every button in the helper row that Pip flies is an
+  autopilot action with the small 🤖 badge (class `auto`); the 🧭 and 🚙 Drive (the player
   drives) have none.
 - **The game has one pause** (`FlightScene.pause`): `{ why: 'explain' }` for a marker (#33) or
   `{ why: 'arrived' }` when fast travel gets to its ⏰ (#27). It only stops the sim, the helper
@@ -217,17 +223,31 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   (`clockAllowed`). The travel warp (`travelWarp`) steps down the warp levels as it gets close
   and the last frame steps exactly onto the time; the usual slow-down before a new world or the
   ground still applies on top.
+- **Pip only flies when asked, and only coaches when asked** (#36). 🌀 Orbit, 🛬 Land and 🤖 Take
+  me there always start the autopilot (`FlightScene.helper(mode)` has no coach option). Coaching
+  is a separate *coached action* (`coachWant()`: a 🧭 Show me how, else, during the starter
+  journey with the 🧭 toggle on, the current starter step; never flying to Pebble, which is the
+  map's choice) that `updateCoaching()` starts whenever nothing is flying, as the same program
+  with `{ coach: true }`. Nothing else may start coaching or hand a running helper to the other
+  pilot: the #32 hand-over is gone. While an autopilot button flies, coaching is simply not
+  running (quiet), and picks up again with `resume` (no opener). Turning coaching off stops the
+  coached program with `ap.stop()` and never starts the autopilot. The toggle only shows during
+  the journey; after it the 🧭 shows only while a Show me how coaches (lit; tapping dismisses
+  it), and the goal banner shows its destination through `goalShown()`.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
-  imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
-  safety takeovers (`ap.driving`).
+  imperfect flying still works, and a coached action can start (or pick up again) from wherever
+  the rocket is. Coached, the player flies; Pip only does tiny nudges, the comet catch and
+  safety takeovers (`ap.driving`); keep them.
 
 ## Verifying your work
 
 - **Physics, autopilot and coach:** headless vitest missions in `test/physics.test.js`.
   `test/fastTravel.test.js` taps the path of a real orbit through `FlightScene.tapMap`, travels
-  with `fly()` and checks it pauses right on the ⏰'s time. `test/coachSwitch.test.js` flips the 🧭 switch in each context (idle, a helper or trip in
-  each mode, the first-launch nudge) through the real `FlightScene` methods and a speech queue
-  on a fake clock, and checks what Pip says and who ends up flying.
+  with `fly()` and checks it pauses right on the ⏰'s time. `test/coaching.test.js` plays the coaching through the real `FlightScene` (`fly()`, goals,
+  flight events), a real `Progress` and a speech queue on a fake clock, with a pretend kid on the
+  controls: the 🧭 toggle on each starter step, on / off at the pad and mid-flight, 🧭 Show me
+  how (from the pad, from orbit, landing where we are), dismissing it, arriving, the autopilot
+  buttons during coaching, the first launch's intro, and exactly what Pip says.
   `kidFlies()` simulates a late-reacting child (binary GO, 8-frame lag) following the coach
   cues. Any coach feature should have a test like it. `test/stress.test.js` replays a few trips
   that used to fail; after touching the planner or capture, run the full `npm run stress`
@@ -243,7 +263,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   ```
   Useful: `app.flightScene.toggleMap()`, `.tapMap(x, y)` (a tap on the map; `.screenAt(.segmentFrames(), t)`
   says where the path is at time t), `.focusMapOn(app.system.byId.sizzle)`,
-  `.setTarget(body)`, `.setCoaching(true)` (the 🧭 switch), `.helper('goto', { coach: true })`, `.drive.deploy()`,
+  `.setTarget(body)`, `.helper('goto')` (🤖 Take me there), `.showMeHow()` (🧭 Show me how), `.tapCoach()` (the 🧭 in the helper
+  row: the toggle during the journey, dismiss after it), `.setCoaching(true)`, `.drive.deploy()`,
   `app.newAdventure()`. Watch the console for shader errors.
 - **HUD layout (#22):** at each screen size run `app.hud.layoutProblems()` in the console; it
   lists visible HUD controls that overlap, poke off screen, or are smaller than 56 px (helpers,
@@ -296,19 +317,21 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   `GAP` (0.4 s) after the last ends. Priorities (`pri`):
   - `urgent`: crash, safety takeovers (too fast, too low). Cuts in and drops the queue.
   - `cue`: the coach's in-flight HOLD / LET GO / turn / tiny-push lines (`CUE` in
-    `autopilot.js`), the first-flight "Blast off" (only when you fly it; with Pip flying it waits its turn, #36), the super hop. Jumps the queue and cuts the
+    `autopilot.js`), the first-flight "Blast off" (only when you fly it, not Pip, #36), the super hop. Jumps the queue and cuts the
     current line off, unless it ends within `CUE_WAIT` (2 s). Stale after 3 s.
   - `normal` (default): waits its turn. Stale after 30 s (stickers 60 s).
   - `chatter`: only if Pip is free, else dropped and `pip()` returns false (idle hints, the
     compass hints, bonk, "We're at…"). Once-only hints set their flag from that return value.
-  - The 🧭 switch's line (#32, `FlightScene.setCoaching`) is a `cue` with key `coach-switch`,
-    so it answers the tap at once and a newer flip replaces it. Helper lines are pushed with
-    `from: 'helper'`; handing a helper over calls `app.speech.drop()` on them, so nothing the
-    old pilot was told is said afterwards. The restarted helper gets `{ handover: true }` and
-    skips its opener.
+  - The 🧭's lines (#36, `FlightScene.sayCoach`: "Okay! I'll tell you what to do while you
+    fly." / "Okay! I'll stop telling you what to do. You're the pilot!") are a `cue` with key
+    `coach-switch`, so they answer the tap at once and a newer one replaces an older one. Lines
+    from a coached program are pushed with `from: 'coach'` (the autopilot's with `from:
+    'helper'`); when coaching stops or goes quiet, `app.speech.drop()` drops the waiting coach
+    lines, so nothing it was about to say is said afterwards. A coached action that picks up
+    again gets `{ resume: true }` and skips its opener.
   A `key` groups lines of one kind (`coach`, `goal`, `target`, `build`, `journal`…): a new one
   replaces a waiting one, and a newer `cue` cuts off a playing one of the same key. The first
-  step of a coach lesson (the rocket waits for the player) is `normal` with key `coach`
+  step of a coached action (the rocket waits for the player) is `normal` with key `coach`
   (`COACH`), so it doesn't cut off a sticker line but is dropped if a cue overtakes it. At most
   `CAP` (3) lines wait; the least important, oldest go first, and sticker lines (`keep`) last of all. With the voice off (or no sound
   yet, or speech failing) a line is paced by `estimateDuration()` (fitted to the clips); a line

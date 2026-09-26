@@ -85,7 +85,8 @@ describe('the starter journey (#36)', () => {
       for (const next of p.afterSticker(id)) q.push(next, { key: 'goal' });
     });
     p.earn('home-again');
-    for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+    // The queue's gap is a real (0 ms) timer: wait for timers, not just a few turns of the loop.
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 5));
     expect(said).toEqual([STICKERS['home-again'].say, JOURNEY_DONE]);
   });
 

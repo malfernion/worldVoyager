@@ -47,38 +47,72 @@ borrow the vibe, not the content: all names, worlds and music are original.
    substep is checked (finite, energy kept while coasting) before it is committed; a bad one
    is redone with a small hand integrator, or else falls back to the last good state, rather
    than flinging the rocket off (#30).
-2. **You fly it; Pip helps as much as you want.** There are three levels of help:
+2. **You fly it; Pip helps when you ask** (#36). The player flies. Pip only flies when asked,
+   and coaching helps a child get started and helps when they ask; it isn't a mode that stays
+   on, and it never guesses when to switch on or step in.
    - *Manual:* ⟲ ⟳ to aim, hold **GO** to burn, map, time warp, rewind.
-   Coach or autopilot is one remembered choice, the 🧭 switch on the flight HUD
-   (`settings.coach`), and it applies to every helper: 🌀 Orbit, 🛬 Land and the target card's
-   single trip button ("🧭 Let's go!" / "🤖 Take me there!"). One switch instead of a second
-   button on every helper keeps the choice in one place a 5-year-old can see (green, pushed in,
-   with a glowing green light = you fly and Pip coaches; grey with the light off = Pip flies;
-   green rather than the yellow of a running helper, so it never looks busy), and helpers
-   behave the same way every time. The helper's status chip at the top says who's flying (🧭 you,
-   🤖 Pip). Flipping it mid-helper hands that helper over on the spot (they're closed-loop, so
-   they carry on from wherever the rocket is). Every other button in the helper row is an
-   autopilot action (🌀 Orbit, 🛬 Land), marked with a small 🤖 on its corner: "Pip does
-   this for you" (🚙 Drive on the ground has none, since the player drives the buggy). The old
-   hold-to-burn speed buttons were dropped (#36), since the player flies and Pip only flies when
-   asked. Pip offers the coach once, on the very first launch, with the switch glowing;
-   saying yes starts a coached launch to orbit.
-   Every flip, Pip says **who flies next**, at once (#32): on, "You fly, I'll tell you when!";
-   off with a helper running, "I'll fly, you watch!"; off with nothing running, "Now I'll fly
-   when you tap a helper!". A newer flip's line cuts off an older one, and on a hand-over
-   everything the helper was still saying to the old pilot is dropped (it said "point up and
-   hold GO" after the switch was off, which sounded backwards). The handed-over helper skips
-   its "Let's fly to…" / "Let's land…" opener and only says what to do next.
-   - *Coach*: Pip plans the climb, the transfer, then the landing, and tells you what to do. An arrow shows
-     where to point, the right turn button glows, and GO says **HOLD!** / **LET GO!**. You do the
-     launch, gravity turn, transfer burn, capture brake and landing. The coached landing is: point
-     up at the arrow, then HOLD / LET GO to keep the descent gentle (with hysteresis so cues don't
-     flicker, and a short look-ahead for reaction time). Pip does only the tiny correction nudges,
-     the last little bit of going round and of a capture brake (a late LET GO on a tiny moon is
-     enough to fall out of orbit or fly off), dropping from a high or moon-crossing orbit to a cosy one, emergency
-     ground-avoidance, and takes over a landing that would be too fast.
-   - *Autopilot* (coach off): Pip flies Orbit, Land and trips; watch and learn.
-   Helpers run closed-loop on the real state, so imperfect flying still works out.
+   - *Autopilot* (🤖, "Pip, do this for me"): 🌀 Orbit, 🛬 Land and the map card's 🤖 Take me
+     there. They always fly, whether or not coaching is on, and wear a small 🤖 on their corner
+     (🚙 Drive has none: the player drives the buggy). The hold-to-burn speed buttons were
+     dropped, since the player flies. The status chip at the top shows 🤖 while Pip flies.
+   - *Coach* (🧭, "tell me what to do"): Pip plans the climb, the transfer and the landing and
+     says what to do; the player flies. An arrow shows where to point, the right turn button
+     glows, and GO says **HOLD!** / **LET GO!**. The player does the launch, gravity turn,
+     transfer burn, capture brake and landing. The coached landing is: point up at the arrow,
+     then HOLD / LET GO to keep the descent gentle (with hysteresis so cues don't flicker, and a
+     short look-ahead for reaction time). Pip does only the tiny correction nudges, the last
+     little bit of going round and of a capture brake (a late LET GO on a tiny moon is enough to
+     fall out of orbit or fly off), dropping from a high or moon-crossing orbit to a cosy one,
+     the comet catch, emergency ground-avoidance, and takes over a landing that would be too
+     fast ("Whoa, too fast! I'll catch us this time."). The status chip shows 🧭.
+   Coaching and the autopilot are separate things that run the same closed-loop programs
+   (`autopilot.js`, `coach: true` or not), so imperfect flying still works out. How coaching
+   starts depends on where the child is:
+   - *During the starter journey*, the 🧭 in the helper row is an on/off toggle
+     (`settings.coach`, remembered): green, pushed in, with a glowing green light when on; grey
+     with the light off when off (green rather than the yellow of a running helper, so it never
+     looks busy). While it's on, Pip coaches each starter step as it comes: the launch into
+     orbit (on the pad it starts at once, waiting for the child's GO), the landing at home (from
+     the pad, after a crash: up, round and down), the landing on Pebble (once round Pebble), and
+     the flight home. **Flying to Pebble isn't coached by the toggle**: it's the map's choice, so
+     the journey teaches the choice used for the rest of the game (tapping the toggle on then,
+     Pip adds "Open the map and tap Pebble."). On: "Okay! I'll tell you what to do while you
+     fly." Off: "Okay! I'll stop telling you what to do. You're the pilot!", and coaching stops
+     wherever it is, even before lift-off; the rocket carries on under the child's control and
+     the autopilot never takes over. Both lines are a cue keyed `coach-switch`, so they answer
+     the tap at once and a newer one replaces an older one.
+   - *On the very first launch* Pip explains the choice once, after the first goal: "You're the
+     pilot! Want me to tell you what to do? Tap the compass. Or tap the swirly button, and I'll
+     fly us round for you!" (`FIRST_FLIGHT`, `Progress.launchLine()`), with the 🧭 glowing.
+   - *Every trip* (and, after the journey, the only way in): the map card offers **🤖 Take me
+     there** and **🧭 Show me how**. Show me how coaches the whole action: from a pad, take-off,
+     getting into orbit, the trip and the landing; from orbit, the trip and the landing. Picking
+     the world you're flying round means landing on it (🤖 lands with the autopilot, 🧭 coaches
+     you down); on its ground, or round a gas giant, there's nothing to do there, so it isn't
+     picked and Pip says "We're at …!". During the journey Show me how also turns the toggle
+     on (the child asked to be coached), and it stays on after arriving. After the journey, while
+     Show me how coaches, the 🧭 shows lit in the helper row and the goal banner shows where
+     we're going ("🧭 Fly to Dusty and land!", from `goalShown()`). Tapping the lit 🧭 dismisses
+     the coach for good ("Okay! I'll stop telling you what to do. You're the pilot!"); the world
+     stays picked, so the child flies there alone, and only a new Show me how coaches again.
+     Landing there ends it by itself ("You landed all by yourself! Great flying!"), and the 🧭
+     and the banner go. A crash or rewind doesn't end it (it picks up again from where the
+     rocket is, launch pad included); going back to the workshop does.
+   - *Autopilot during coaching:* tapping 🌀 or 🛬 makes coaching go quiet (no cues, arrow or
+     glow) while Pip flies, then it picks up again, towards the same place, without its opener.
+     🤖 Take me there ends a Show me how: Pip is taking us there now. Driving the buggy is quiet
+     too.
+   - *In orbit with nothing picked* (and the toggle off, or after the journey), the coach does
+     nothing: it never starts by itself.
+   How: `FlightScene.coachWant()` says what to coach now (a Show me how, else the toggle's
+   starter step), and `updateCoaching()` starts it every frame there's nothing flying, so a
+   quieted action simply starts again (`resume`, no opener) when the autopilot is done. An action
+   that ended by itself isn't restarted until something changes (`coachSpent`). A new one waits
+   for Pip to finish what she's saying (a sticker, "Next: …"), up to 20 s, so its first cue
+   doesn't cut them off; on the ground it doesn't wait for the "Okay!", since the rocket waits
+   for GO anyway. This replaced #32's single switch that turned every helper into a lesson and
+   handed a running helper over when flipped: a child couldn't ask Pip to fly one thing while
+   being coached on another, and "who flies" changed under them.
 3. **Failure is funny and cheap.** Crashes are cartoon explosions with bouncing parts. **↺ Rewind**
    goes back 5 seconds, or you can go back to the pad or the workshop.
 4. **Readable without reading.** Emoji icons, a height meter with a space line, a spoken narrator
@@ -96,12 +130,14 @@ borrow the vibe, not the content: all names, worlds and music are original.
    The first time a kind shows, the game pauses gently: the marker glows (and the map glides it
    out from under Pip's bubble), Pip says one short line, and play carries on by itself when
    she's done, or at any tap. Only when nothing urgent is happening: never over a coach cue, a
-   safety takeover, a burn, the first lesson or a coached landing; otherwise it waits. Each kind
+   safety takeover, a burn, a coached launch or a coached landing; otherwise it waits. Each kind
    is explained once (saved); after that, tapping a marker says it again, without pausing.
    The autopilot buttons explain themselves once too (#36), the first time Pip flies one for
    you: "This button flies us all the way round the planet!" (🌀), "This button lands us nice
    and softly!" (🛬), "This button flies us all the way there!" (🤖 Take me there). No pause:
-   the helper starts flying at once and its own first line follows the explanation.
+   the helper starts flying at once and its own first line follows the explanation. Not when the
+   helper is only going to say no (🛬 over a gas giant), nor for 🤖 on the world we're at (it
+   lands; it explains itself on a real trip).
    ▲ ▼ are only drawn where we are now and at the world we picked (one pair per path piece made
    a trip a clutter of triangles). The coach's arrow isn't tappable or explained this way: the
    coach's own cues already say "follow the arrow". World labels on the map keep out of each
@@ -256,8 +292,8 @@ and banner go away, and Pip no longer says "Next: …" or reads a goal on the pa
   aren't goals. Discoveries (#15) and friends (#16) are unchanged.
 - *One source of truth:* `Progress.starterDone` (the last goal, `STARTER_END`, is done).
   `currentGoal` is null after it, and `goalShown()` in `progress.js` decides what the builder's
-  chip and the flight banner show (the current starter goal, else nothing), so a later rule, a
-  coached trip's destination, goes in that one place.
+  chip and the flight banner show: the current starter goal, and after the journey only the
+  destination of a 🧭 Show me how while it coaches (`goalShown(progress, showing)`).
 - *Older saves:* `migrate()` in `progress.js`. A save that landed on Pebble **and** has any other
   world's visit or landing sticker explored beyond Pebble, so it has finished the journey
   (`home-again` is set, dated as its Pebble landing) and goes straight into the open game. A

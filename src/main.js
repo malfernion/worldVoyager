@@ -188,7 +188,7 @@ class App {
    * Pip says something (#31): it waits its turn in the speech queue, and the bubble shows it
    * while it's said. `pri`: 'urgent' (crash, safety), 'cue' (the coach's HOLD / LET GO),
    * 'normal', or 'chatter' (dropped if Pip is busy). `key`: lines of one kind replace each other.
-   * `duration`: keep the bubble up at least this long (ms). `from`: who said it ('helper'), so
+   * `duration`: keep the bubble up at least this long (ms). `from`: who said it ('helper': the autopilot, 'coach': a coached program), so
    * those lines can be dropped when they no longer apply. Returns false if dropped.
    */
   pip(text, { speak = false, duration, pri = 'normal', key = null, stale, onStart, keep, from } = {}) {
