@@ -83,6 +83,9 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   and you can see them from orbit). Lava is much too hot to land on: touching it is a sizzling,
   smoky crash, and Pip's helpers and coaching land on solid ground beside it ("Oops, lava!
   I'll fly us over to solid ground.").
+- **Methane lakes:** Misty has dark, still lakes of liquid methane, mostly round its poles
+  (two cross the rocket's path). Rockets can't land on them either (an amber splash); Pip's
+  helpers land on the ground beside them ("Oops, a lake! I'll fly us over to dry land.").
 - **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
   its colour). The garage can hold landing legs too, so it can sit at the bottom. After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
   compass points back to your rocket (close by, round to the front of its garage door). To go
@@ -98,7 +101,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   it), and out again the other side, splash! Lava is too hot to drive into: the buggy slows
   down as it gets near, stops at the edge with a sizzle and a puff of steam, and is nudged
   back ("Too hot!"). Steer along the shore or back up; a hop that comes down over the lava
-  is popped back onto the shore. (Psst: on tiny Nibble, drive the Hopper really fast, then jump and
+  is popped back onto the shore. Misty's methane lakes are driven through like the sea (a bit
+  less floaty), and under one everything goes a murky dark amber. (Psst: on tiny Nibble, drive the Hopper really fast, then jump and
   hold it…)
 - **Keyboard:** ←/→ or A/D turn, Space/↑/W fire (hold **Shift** too for a gentle tenth of the
   thrust, for careful burns), M map, time speed `+`/`-` (or `]`/`[`, `.`/`,`), `0` or `/` normal speed, `1`–`7` pick a
@@ -110,6 +114,10 @@ The farthest world is **Tumble**, a sideways ice giant. Its moon **Flip** goes r
 way, so to catch it you have to go round Tumble backwards too (Pip turns you round if you
 don't).
 
+**Misty** is Ringo's big outer moon, like Titan: wrapped in a thick orange haze (down on the
+ground the sky is hazy orange, even in the daytime), with long dark dunes and lakes of liquid
+methane.
+
 **Ducky** is a comet shaped like a rubber duck, on a long, stretched orbit: it zooms in close
 to Ember (and grows a tail that always points away from it), then drifts slowly out past
 Ringo. It's tiny and hard to catch, so Pip waits for a good moment to set off, and when you
@@ -119,7 +127,7 @@ get close Pip steers you in. Drive over its fizzy gas jets and they'll bounce yo
 science: an old observatory on a hill near home, footprints and a flag and a shiny laser mirror
 on Pebble, a sleepy rover and swirly dust devils on Dusty, Nibble's giant crater, the gap
 between Ringo and its rings, Sizzle's biggest volcano, Frosty's glowing cracks (park by one
-at night), Ember's solar flares (fly close, not too close), Flip's dark geyser streaks and a
+at night), a little probe that floated down on a parachute by one of Misty's lakes, Ember's solar flares (fly close, not too close), Flip's dark geyser streaks and a
 little lander hiding in the shade on Ducky. While you drive, a ✨ next to the rocket compass
 points to the nearest secret still to find on that world, and grows and twinkles as you get
 close. Finding one plays a chime, pops a sticker and Pip tells you the real fact.
@@ -149,7 +157,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

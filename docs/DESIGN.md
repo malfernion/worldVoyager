@@ -34,6 +34,7 @@ borrow the vibe, not the content: all names, worlds and music are original.
 | Ringo | Saturn | rings of ice; light enough to float |
 | Sizzle | Io | the most volcanic place in the solar system |
 | Frosty | Europa | a hidden ocean under the ice |
+| Misty | Titan | a thick orange haze; lakes and rain made of methane |
 | Tumble | Uranus (and Neptune) | an ice giant tipped on its side, rolling round the Sun |
 | Flip | Triton | a moon that goes round backwards; icy geysers |
 | Ducky | comet 67P (where Philae landed) | a rubber-duck comet whose tail always points away from the Sun |
@@ -290,7 +291,7 @@ and banner go away, and Pip no longer says "Next: …" or reads a goal on the pa
 - *Why end:* a long checklist (it used to go on through every world) turned the open solar
   system into chores, and a child who wanted Ringo was told to go to Dusty. After Pebble they
   know every step of a trip (launch, orbit, fly there, land, come back), so the rest is theirs.
-- *The later worlds* (Dusty, Nibble, Ringo, Sizzle, Frosty, Tumble, Flip, Ducky) keep their
+- *The later worlds* (Dusty, Nibble, Ringo, Sizzle, Frosty, Misty, Tumble, Flip, Ducky) keep their
   visit and landing stickers, with the same ids, so they're still there to collect; they just
   aren't goals. Discoveries (#15) and friends (#16) are unchanged.
 - *One source of truth:* `Progress.starterDone` (the last goal, `STARTER_END`, is done).
@@ -326,7 +327,7 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   mesh, tyre grip (less on icy Frosty), driving along the seabed through Homestead's seas (slower and floaty; see Liquids), and bumping around the
   parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
 - **Trees and rocks are things to bump into** (#6). Homestead's ~900 trees and the moons'
-  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Flip 60, one
+  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Misty 90 (small ice cobbles), Flip 60, one
   InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours; Ducky 36) are
   circle colliders: trunk (or most of a bush's / rock's width) plus the buggy's `reach` from
   `BUGGIES`. Rocks keep a narrower strip in front of the flight plane clear than trees do
@@ -496,8 +497,8 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
 
 ## Liquids (#44)
 
-Homestead's seas are real water, Sizzle has lava pools (#45, below), and the same system is
-meant for a Titan-like moon's methane lakes (#46).
+Homestead's seas are real water, Sizzle has lava pools (#45, below), and Misty, a Titan-like
+moon, has methane lakes (#46, below).
 
 - **What a liquid is.** A world's terrain (`terrain.js`) can have `liquid: { kind, level }`:
   what it is (`'water'`; later `'lava'`, `'methane'`) and its surface in metres above the
@@ -540,7 +541,7 @@ meant for a Titan-like moon's methane lakes (#46).
   buggy deep in a sea, since looking down through deep water it'd be lost), the scene's fog
   closes in to the liquid's colour, a tint covers the view, the stars hide, and the music and
   sound effects (not Pip) go through a low-pass. Near a sea, gentle lapping swells and fades.
-- **A new kind** (#46) is: `liquid: { kind, level }` in its terrain, a `LOOKS` entry in
+- **A new kind** (as #46's methane was) is: `liquid: { kind, level }` in its terrain, a `LOOKS` entry in
   `liquid.js` (colours, see-through, waves, underwater fog), a crash line in `FlightScene` (a
   new kind's crash falls back to "Kaboom!"), a line for the coach's fly-over in
   `glideToLand()`, and any buggy rules it needs.
@@ -603,6 +604,55 @@ meant for a Titan-like moon's methane lakes (#46).
   (on the flight plane's great circle, which crosses two pools, and a tilted one) by steering
   left for a moment whenever the lava stops them.
 
+### Methane lakes on Misty (#46)
+
+- **The moon.** Misty goes round Ringo like Titan round Saturn, out past Frosty (orbit 6200,
+  SOI 700: 450 m of space between its SOI and Frosty's, well inside Ringo's 9000). Radius 160,
+  gravity 2.6 (a big moon, but low gravity, so trips and landings stay easy). The map's
+  limits didn't need to move (Ringo's default view is its whole SOI), and its label is a moon's,
+  so it hides behind Ringo or shrinks to its icon when crowded (#33). The stress sweep, the
+  mission tests and Round the World all include it.
+- **The ground.** Tan-brown plains, brighter uplands, and a belt of long, dark, parallel dunes
+  round the middle (ridges about 16 m apart, bent a little by noise). Its mesh is detail 56
+  (about 63,000 triangles, like Homestead's) so the dune crests and lake shores are smooth.
+- **The lakes** are carved like Sizzle's lava (`MISTY_LAKES`, `makePools()`): one methane
+  level 5 m below the base radius (the natural ground never dips below about -3.1 m), and ten
+  basins 2.2 to 3.8 m deep, with gentle banks (0.2, so the buggy drives in and out). Like
+  Titan's, most are round the poles (here z = ±1: the northern ones face the camera from
+  orbit): a long northern sea with a southern arm, a round one, a small one right by the pole,
+  little ones further out, and a long southern lake. Two cross the flight plane (about 4.5% of
+  it, in two runs), so a rocket can come down in one and the helpers have something to avoid;
+  94% of the flight plane is landable, never more than 19 m from where the rocket would stop.
+  Around 4% of the whole moon is lake. The shores are dark and damp.
+- **The look.** A `methane` entry in `LOOKS`, drawn by the water shader with a few new knobs
+  (water's values are unchanged): dark brown to nearly black, mostly solid (a little
+  see-through at the edge), tiny slow waves (2 cm), faint ripples, hardly a glint, no foam,
+  and the orange haze mirrored at a slant (a Fresnel term). Under it a dark amber murk (the
+  fog, and the `#underwater.amber` overlay). Splashes and the buggy's spray are amber, and the
+  lapping is faint. One mesh, about 4,500 triangles (only those at or below a metre above the
+  level).
+- **The haze** (only the look; real atmospheres are #12). `haze` on the body makes its
+  atmosphere shell thicker: further out (1.22 × radius), and tinting the whole face (`fill`),
+  not only the rim, so Misty reads as a hazy orange ball from orbit with its dark lakes
+  showing through. Near the ground (`FlightScene.updateHaze()`, `HAZE`): full up to 30 m above
+  the ground, gone by 200 m, the scene's background turns hazy orange (dimmer on the night
+  side), the stars go, the always-there fog (#44) closes in to 18–280 m in the haze's colour,
+  and the shell fades (seen from so close it would only glare). No material changes, nothing
+  allocated per frame; under a lake the underwater fog wins.
+- **The rocket** crashes on a lake (reason `methane`): an amber splash and "Splash! That lake is
+  made of methane. Let's land on the ground!". The helpers land beside the lakes as by the sea;
+  coached, "Oops, a lake! I'll fly us over to dry land." (tested from 48 points round the orbit,
+  autopilot and coached, and after whole trips there from the pad).
+- **The buggy** drives through them like water (`METHANE` in `buggy.js`: `WATER` with less
+  buoyancy, 0.2 instead of 0.45, since liquid methane is less than half as heavy as water, and a
+  little less drag). Every buggy crosses every lake and climbs out; laps round Misty cross
+  them. The drive camera dives after a buggy all under: it may skim closer to the bed while
+  diving (the lakes are only a few metres deep), and it now works out its height from 1.2 m up
+  the buggy's own up (it used to add that along z).
+- **Huygens** (#15): the probe sits on ice pebbles by the flight plane's big lake, behind the
+  flight plane, with its parachute spread out. No friend on Misty (a new friend needs a look,
+  an instrument and a music part; five is the band).
+
 ## Discoveries (#15)
 
 Small secrets tucked round the solar system, in the spirit of Outer Wilds: curiosity is
@@ -621,6 +671,7 @@ world's picture), and Pip says the fact in short sentences.
 | Ringo | the gap between the clouds and the inner edge of the rings | the rocket crossing the ring plane there, still flying 4 s later | 🤿 Ring Diver (Cassini's 22 dives) |
 | Sizzle | the biggest vent's plume | buggy within 9 m | 💨 Plume Chaser |
 | Frosty | fresh cracks with a faint blue glow, only at night | parked within 6 m of a crack where Ember is below the horizon | 🐙 Ocean Spotter (Europa's ocean) |
+| Misty | Huygens, a gold saucer-shaped probe on ice pebbles about 12 m from the flight plane's big lake, its orange-and-white parachute spread behind it | buggy within 6 m | 🪂 Probe Finder (Huygens landed on Titan in 2005 and saw pebbles of ice) |
 | Ember | a solar flare: a loop of glowing gas that rises for 50 s every 150 s of flight time | the rocket within 6 × Ember's radius while it flares | 🌞 Flare Watcher (auroras) |
 | Flip | the dark streaks the geysers' dust leaves downwind | buggy within 8 m of one | 🌬️ Streak Spotter (Voyager 2 at Triton) |
 | Ducky | Philae, tipped over in a shady hollow by a big boulder | buggy within 6 m | 📡 Lander Finder |
@@ -670,7 +721,7 @@ keeps who they are:
 | Sizzle | Toasty, a lava-watcher who likes it warm (sunglasses) | double bass | a plucked (Karplus-Strong) walking line |
 | Frosty | Flurry, an ice-fisher (bobble hat, fishing hole) | tin whistle | a little two-bar tune |
 
-Flip, Ducky and Tumble have no friend: five is a band a child can find, and Tumble has no ground.
+Flip, Ducky, Misty and Tumble have no friend: five is a band a child can find, and Tumble has no ground.
 
 - **Same key, same chords.** Every friend's note is a chord tone of the sequencer's current chord
   (the moods' progressions are all in G), so any mix of friends fits. A test plays minutes of

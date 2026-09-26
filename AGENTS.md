@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -78,7 +78,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        `shoreDist()`: metres to the nearest pool's shore, #45)
   terrain.js           Height + colour functions per world (shared by physics and meshes), each world's liquid (`liquid: { kind, level }`,
                        the seabed shape `seabedDepth()`; #44), pools carved below a liquid's level (`makePools()`, Sizzle's lava
-                       `SIZZLE_LAVA`; #45), gas giants' spin axes, vents, geysers and the comet's gas jets,
+                       `SIZZLE_LAVA`; #45; Misty's methane lakes and dunes `MISTY_LAKES`; #46), gas giants' spin axes, vents, geysers and the comet's gas jets,
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
                        the ring gap, flares), and the ✨ compass's targets
@@ -90,7 +90,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        landings pick dry land (`landSite()`, `steerDown()`, coached `glideToLand()`; #44);
                        `landRefusal()` (why 🛬 can't land here)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets,
-                       driving along the seabed under a sea: `WATER`, `soak()`; #44; lava's soft wall and steam cushion:
+                       driving along the seabed under a sea: `WATER`, `soak()`; #44; Misty's lakes the same, less floaty:
+                       `METHANE`, `Buggy.sea`; #46; lava's soft wall and steam cushion:
                        `LAVA`, `lavaEdge()`, `shoreOut()`; #45),
                        WorldLap: have we driven all the way round the world? (#29), driving back in through the garage door
                        (#37: `GARAGE`, `atGarage()`, `Garage`, and `homeAim()` for the compass), `groundHeading()`: which way
@@ -99,14 +100,15 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js;
                        in a sea (#44) spray, a splash going in or out, a bow wave, and bubbles (`FLOAT_*`: they pop at the surface);
                        at lava's edge (#45) `steam()` puffs and `wisp()`s
-src/world/             three.js visuals: planets (incl. rings), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
-                       lava's own glowing crust shader, #45), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
+src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
+                       lava's own glowing crust shader, #45; methane: the water shader, dark and still, mirroring the haze, #46), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
-                       landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares; the friends' campfires
+                       landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
-                       `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36), drive.js (buggy mode)
+                       `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; under a sea `updateUnderwater()`, #44;
+                       Misty's orange haze near its ground `updateHaze()`, #46), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
                        HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
@@ -126,6 +128,8 @@ test/                  vitest suites; missions.js has the shared headless flight
                        liquid.test.js: the seas (#44): terrain, surfaces, splash crashes, dry landings from all round, buggies in the sea;
                        lava.test.js: Sizzle's lava (#45): placement, the crash, landings beside it from all round, the buggy's
                        edge from every side (never in, never stuck), hops over it, laps round Sizzle;
+                       misty.test.js: Misty (#46): its orbit, the lakes' placement, the crash, landings beside them from all round
+                       and after trips there (🤖 and 🧭), every buggy through every lake, laps across one
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
 ```
@@ -158,7 +162,7 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   natural ground and `makePools()` carves basins down through it; nothing else may dip below
   it. `Body.shoreDist()` comes from those pools. Keep pools clear of vents, discoveries,
   campfires and the x = 0 great circle, and keep most of the flight plane dry
-  (`test/lava.test.js`).
+  (`test/lava.test.js`, `test/misty.test.js`).
 - **Lava is a wall, never a sea** (#45, `LAVA` in `buggy.js`). The buggy never wades into
   it (`soak()` ignores lava): it's braked on the way to the shore, stopped `LAVA.edge` short
   and nudged back, and steering works there even when stopped; anything that comes down over
@@ -169,7 +173,7 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   pick where the rocket would stop; if that isn't `landableAt()` (dry, with 4 m of dry ground
   either side) they steer to `nearestLandable()` (the autopilot drifts over on the way down,
   staying up until it's nearly there; coached, Pip flies us over and hands back 15 m up). The
-  launch pad is on land. `test/liquid.test.js` and `test/lava.test.js` land from all round the
+  launch pad is on land. `test/liquid.test.js`, `test/lava.test.js` and `test/misty.test.js` land from all round the
   orbit.
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map
   focus. Never put raw world coordinates (up to ~65 km, out to Tumble) into three.js positions.
@@ -513,7 +517,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   pushed out to 1e9 m until the camera goes under a sea. Adding or removing `scene.fog` changes
   every material's shader program, which would stall phones on each dive. Custom shaders that
   should fog (the sea) include the fog chunks and set `fog: true`; the stars have `fog: false`,
-  so the sky is hidden under water instead.
+  so the sky is hidden under water instead. Misty's haze (#46, `updateHaze()`) uses the same fog
+  (colour, near, far only); under a lake the underwater fog wins.
+- **The drive camera's spot in the world's frame** (`DriveMode.updateCamera`) must add the 1.2 m
+  lift along the buggy's up, like the camera itself; it used to add it along z, so on shallow
+  lakes (#46) the "dive after the buggy" check thought the camera was 1.2 m lower than it was.
 - **Speed-dependent steering fights a wall** (#45): the buggy only turns while rolling
   (`roll` in `substep`), and a wall's nudge back makes it roll backwards, which turns the
   steering the other way. Pressed against lava with GO and a steer, it barely turned. At the
