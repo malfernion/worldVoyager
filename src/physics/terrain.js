@@ -369,11 +369,11 @@ export const MISTY_LAKES = {
   level: -5, // below all of Misty's natural ground (its lowest dip is about -3.1 m)
   radius: 160, // Misty's (bodies.js; a test checks they match)
   pools: [
-    { a: dirOf(2.55, 0.0), r: 14, deep: 2.6, bank: 0.22 }, // across the flight plane: Huygens is on its shore
+    { a: dirOf(2.55, 0.0), r: 15, deep: 3.4, bank: 0.22 }, // across the flight plane: Huygens is on its shore
     { a: dirOf(5.3, 0.1), b: dirOf(5.45, 0.02), r: 8, deep: 2.2, bank: 0.22 }, // a narrow one across the plane, on the camera's side
-    { a: dirOf(0.2, 0.86), b: dirOf(1.4, 0.9), r: 22, deep: 3, bank: 0.2 }, // the big northern sea (Kraken Mare)...
+    { a: dirOf(0.2, 0.86), b: dirOf(1.4, 0.9), r: 22, deep: 3.8, bank: 0.2 }, // the big northern sea (Kraken Mare)...
     { a: dirOf(1.9, 0.8), b: dirOf(2.4, 0.72), r: 16, deep: 2.8, bank: 0.2 }, // ...and its southern arm
-    { a: dirOf(3.3, 0.86), r: 19, deep: 2.8, bank: 0.2 }, // a round northern sea (Ligeia Mare)
+    { a: dirOf(3.3, 0.86), r: 19, deep: 3.6, bank: 0.2 }, // a round northern sea (Ligeia Mare)
     { a: dirOf(4.6, 0.93), r: 12, deep: 2.4, bank: 0.2 }, // a small one right by the pole (Punga Mare)
     { a: dirOf(5.6, 0.7), r: 9, deep: 2.2, bank: 0.22 }, // little lakes further south
     { a: dirOf(4.1, 0.66), r: 8, deep: 2.2, bank: 0.22 },
@@ -402,18 +402,15 @@ function makeMisty() {
       return pools.carve(x, y, z, h);
     },
     color(x, y, z, h) {
-      // Tan-orange plains, brighter uplands (like Titan's Xanadu), dark brown dune fields.
+      // Brown-orange plains, brighter uplands (like Titan's Xanadu), dark brown dune fields.
       const n = fbm(x * 5 + 2, y * 5, z * 5, 3);
-      let c = mix(rgb(0x9a6a3c), rgb(0x86592f), n + 0.5);
-      c = mix(c, rgb(0xc49a62), smooth(0.9, 2.2, h) * 0.8);
+      let c = mix(rgb(0x84552c), rgb(0x6c4322), n + 0.5);
+      c = mix(c, rgb(0xb07c44), smooth(0.9, 2.2, h) * 0.8);
       const d = dune(x, y, z);
-      c = mix(c, rgb(0x3f2a1c), (1 - smooth(0.25, 0.55, Math.abs(z))) * (0.55 + 0.35 * d));
-      // Round the lakes: dark wet shores, then a pale rim of dried-up lake bed.
+      c = mix(c, rgb(0x3a2512), (1 - smooth(0.25, 0.55, Math.abs(z))) * (0.55 + 0.35 * d));
+      // Round the lakes: dark, damp shores.
       const s = pools.shoreDist(x, y, z);
-      if (s < 10) {
-        c = mix(c, rgb(0xb89c78), (1 - smooth(3, 10, s)) * smooth(0.5, 3, s) * 0.7);
-        c = mix(c, rgb(0x2a1e16), 1 - smooth(0, 2.5, s));
-      }
+      if (s < 6) c = mix(c, rgb(0x2e2114), 1 - smooth(0, 6, s));
       return c;
     },
   };

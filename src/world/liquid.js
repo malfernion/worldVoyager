@@ -26,9 +26,9 @@ export const LOOKS = {
   // hardly a glint, no foam), mirroring the orange haze at a slant; a little see-through at
   // the edge. Underneath, a dark amber murk.
   methane: {
-    shallow: 0x5a3c1e, deep: 0x140d08, depth: 2, foam: 0x5a3c1e, foamK: 0,
-    alpha: [0.6, 0.94], waves: 0.02, speed: 0.35, glow: 0, fog: 0x3b2410, fogFar: 14, tint: 'amber', shore: 1,
-    ripple: 0.025, glint: 0.25, sky: 0xe09a4a, skyK: 0.45,
+    shallow: 0x3d2a18, deep: 0x0d0906, depth: 2, foam: 0x3d2a18, foamK: 0,
+    alpha: [0.7, 0.96], waves: 0.02, speed: 0.35, glow: 0, fog: 0x3b2410, fogFar: 14, tint: 'amber', shore: 1,
+    ripple: 0.025, glint: 0.4, sky: 0xc07a3a, skyK: 0.35,
   },
   // Lava (#45): glows by itself (the sun doesn't light it, so it shines at night too): molten
   // orange-red with plates of dark crust drifting slowly, bright yellow cracks between them and

@@ -64,7 +64,7 @@ describe('Misty\'s methane lakes (#46)', () => {
     for (const d of WET) expect(misty.shoreDist(d.x, d.y, d.z)).toBeLessThan(0.5);
     for (const p of MISTY_LAKES.pools) {
       expect(misty.liquidDepth(p.a.x, p.a.y, p.a.z)).toBeGreaterThan(2);
-      expect(misty.liquidDepth(p.a.x, p.a.y, p.a.z)).toBeLessThan(3.5);
+      expect(misty.liquidDepth(p.a.x, p.a.y, p.a.z)).toBeLessThan(4);
     }
   });
 
