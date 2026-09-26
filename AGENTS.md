@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -115,7 +115,8 @@ src/ui/                flightHud.js (controls, readouts, gestures, which helpers
                        markers.js (pure: what each screen marker means, when it's safe to pause and explain one, label decluttering; #33;
                        what each autopilot button says the first time it flies for us; #36),
                        fastTravel.js (pure: tapping the map's path for a ⏰, where it may go, the travel warp that lands on it; #27),
-                       zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
+                       zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping;
+                       the SOI hand-off's `carry` and when it may settle, #49)
                        pageZoom.js (#39: the *page* never stays zoomed: blocks WebKit's page pinch / double-tap, and if the page
                        is zoomed anyway resets it, then fits #ui into the visual viewport with the 🔍 zoom-out button; pure `zoomAction()`)
 src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
@@ -204,6 +205,18 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
   multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range
   depends only on the focused world and the screen, never on `fitMap()`'s default view.
+- **The camera never changes by itself at an SOI hand-off** (#49). The flight camera's
+  automatic distance comes from the height above the world we're in, so on the `soi` event
+  `FlightScene.keepView()` sets `carry` (a multiplier on the automatic distance, part of
+  `autoDist()`) that keeps the distance where it was; the player's `zoom` is untouched. The
+  carry eases back to 1 and the view's "down" turns to the new world (`camSettle`, at most
+  `HANDOFF_TURN`) only while it's calm (`handoffCalm()` in `zoom.js`: never mid-burn or below
+  `HANDOFF_LOW`, about 2 s). The camera stays on the rocket, so there's no frame to switch in
+  the flight view. The map keeps its focus, centre and zoom (even if it was on the world we
+  left: the rocket must not move on screen); the new world's label glows (`.arrived`) for 4 s,
+  and 🎯 re-centres on our world. `test/soiCamera.test.js` flies real hand-offs (and every
+  world's SOI edge, in and out, coasting and burning) and checks each frame's distance, aim,
+  up and the rocket's place on screen. Nothing else may refocus the map or re-zoom on an event.
 - **The sim never commits a broken state** (#30). `Flight.step()` checks every substep
   (finite numbers, coasting keeps its orbital energy, not absurdly far away). If Kepler
   propagation fails the check, that substep is integrated by hand (`leapfrog()`) so the rocket

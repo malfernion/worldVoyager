@@ -279,6 +279,17 @@ map goes from about 3× the focused world's radius out to the whole solar system
 Tumble, `SYSTEM_EXTENT`; Ember's default view shows every planet's orbit); re-fitting
 picks a new default view inside that range without changing it.
 
+**The camera holds still when a new world takes over (#49).** Flying into Pebble's space used
+to snap the flight camera from about 1 km to 200 m in one frame (the automatic distance is
+worked out from the height above the world you're in), and the map jumped to centre and zoom
+on the new world, just when a child needed a steady view to land on a small, fast moon. Now
+nothing moves: the hand-off leaves a `carry` on the automatic distance that keeps the camera
+where it was, and it eases back (with the view's "down" turning to the new world) only while
+it's calm, never during a burn or within 30 m of the ground, over about two seconds. The map
+keeps its focus and zoom, even if it was centred on the world we just left: easing it over to
+the new world would slide the rocket across the screen, and following a different world is a
+choice the child makes (tap a world, or 🎯). Instead the new world's label glows for a moment.
+
 ## The starter journey (#36)
 
 A new player gets a short run of goals, one at a time, that teaches the whole game: 🚀 fly up
