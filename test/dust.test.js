@@ -166,7 +166,7 @@ describe('buggy dust (#26)', () => {
     let wet = null;
     for (let k = 0; k < 400 && !wet; k++) {
       const d = vec.norm([Math.sin(k * 1.3), Math.cos(k * 0.7), Math.sin(k * 2.9)]);
-      if (home.terrainFn.height(...d) <= home.terrainFn.sea) wet = d;
+      if (home.liquidDepth(...d) > 0) wet = d;
     }
     expect(wet).not.toBeNull();
     dustColor(home, ...wet, out);

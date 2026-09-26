@@ -57,6 +57,19 @@ export function dirOf(a, z) {
 // on a little flat top so it stands level.
 export const OBSERVATORY = dirOf(1.13, -0.095);
 
+// Liquids (#44): a world can have one liquid layer, separate from its solid ground. `kind` says
+// what it is ('water' on Homestead; lava and methane are for later worlds) and `level` is its
+// surface in metres above the world's base radius. The ground keeps its real shape underneath:
+// the buggy drives on that, while a rocket touching the liquid's surface crashes. How each kind
+// looks is in src/world/liquid.js; how the physics surfaces use it is in bodies.js.
+
+/**
+ * How deep the seabed lies for ground that would be `d` metres below the liquid: a little
+ * shallower than the raw shape near the shore (gentle beaches the buggy can climb out of),
+ * getting steeper further out, so seas are a few metres deep by the coast and deeper in the middle.
+ */
+export const seabedDepth = (d) => 0.6 * d + 0.08 * d * d;
+
 function makeHome() {
   const { fbm, noise } = makeNoise(11);
   const sea = -1.5;
@@ -69,19 +82,21 @@ function makeHome() {
   const hill = raw(obs.x, obs.y, obs.z);
   const OBS_COS = Math.cos(0.035);
   return {
-    sea,
+    liquid: { kind: 'water', level: sea },
     height(x, y, z) {
       let h = raw(x, y, z);
       const d = Math.acos(Math.min(1, x * LAUNCH_DIR.x + y * LAUNCH_DIR.y + z * LAUNCH_DIR.z));
       h = h + (2.5 - h) * (1 - smooth(0.035, 0.12, d));
       const o = x * obs.x + y * obs.y + z * obs.z;
       if (o > OBS_COS) h = h + (hill - h) * (1 - smooth(0.015, 0.035, Math.acos(Math.min(1, o))));
-      return Math.max(h, sea);
+      return h < sea ? sea - seabedDepth(sea - h) : h;
     },
     color(x, y, z, h) {
-      if (h <= sea + 0.01) {
-        const deep = raw(x, y, z);
-        return mix(rgb(0x3f93b8), rgb(0x245a8a), smooth(-2, -14, deep));
+      if (h < sea) {
+        // The seabed: sand by the shore, then weedy green, then dark blue-grey far down.
+        const d = sea - h;
+        const floor = mix(rgb(0x7f9a6a), rgb(0x3c5a66), smooth(2.5, 8, d));
+        return mix(rgb(0xd9c68e), floor, smooth(0.3, 2.5, d));
       }
       const grass = mix(rgb(0x6fa045), rgb(0x4a7e3a), noise(x * 9, y * 9, z * 9) * 0.5 + 0.5);
       let c = mix(rgb(0xd9c68e), grass, smooth(sea + 0.2, sea + 2.5, h));

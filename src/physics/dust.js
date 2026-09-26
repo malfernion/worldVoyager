@@ -29,6 +29,13 @@ export const DUST = {
 export const DUST_KIND = 0;
 export const FLAME_KIND = 1;
 
+// In a sea (#44): bubbles rise and pop at the surface; spray thrown up out of it vanishes
+// back in when it falls through the surface. Other particles ignore the liquid.
+export const FLOAT_NONE = 0;
+export const FLOAT_BUBBLE = 1;
+export const FLOAT_SPRAY = 2;
+const BUBBLE_COL = { r: 0.86, g: 0.95, b: 1 };
+
 const smooth = (e0, e1, x) => {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
@@ -59,7 +66,7 @@ export function dustRate(speed, slip = 0, push = 0) {
 export function dustColor(body, x, y, z, out) {
   const t = body.terrainFn;
   const h = t ? t.height(x, y, z) : 0;
-  out.water = !!t && t.sea !== undefined && h <= t.sea + 1e-3;
+  out.water = !!body.liquid && body.liquidDepth(x, y, z) > 0;
   if (out.water) {
     out.r = 0.86; out.g = 0.95; out.b = 1;
     return out;
@@ -95,6 +102,7 @@ export class DustPool {
     this.floor = new Float64Array(capacity); // ground radius under it (+ DUST.lift)
     this.spin = new Float32Array(capacity);
     this.kind = new Uint8Array(capacity);
+    this.float = new Uint8Array(capacity); // FLOAT_*: how it meets a sea's surface
     this.landed = new Uint8Array(capacity);
     this.live = new Int32Array(capacity); // indices of live particles, [0, count)
     this.free = new Int32Array(capacity); // a stack of free slots, [0, nFree)
@@ -109,6 +117,7 @@ export class DustPool {
     this.body = body;
     this.mu = body.mu;
     this.airy = hasAir(body);
+    this.top = body.liquid ? body.liquidR : 0; // the sea's surface, for bubbles and spray (#44)
     this.clear();
   }
 
@@ -132,7 +141,7 @@ export class DustPool {
    * A new particle at (x, y, z) moving at (vx, vy, vz), with colour (r, g, b). Returns its slot,
    * or -1 when the pool is full (then it's simply not made). `o`: { size, grow (end size in
    * times the start size), life, alpha, grav (times the world's gravity), drag (added to the
-   * air's), kind, spin }; kept out of any hot allocation by passing one reused object.
+   * air's), kind, spin, float (FLOAT_*) }; kept out of any hot allocation by passing one reused object.
    */
   spawn(x, y, z, vx, vy, vz, r, g, b, o) {
     if (this.nFree === 0 || !this.body) return -1;
@@ -156,6 +165,7 @@ export class DustPool {
     this.grav[i] = o.grav ?? 1;
     this.drag[i] = (o.drag ?? 0) + (air && dust ? DUST.air : 0);
     this.spin[i] = o.spin ?? 0;
+    this.float[i] = o.float ?? FLOAT_NONE;
     this.landed[i] = 0;
     const floor = this.groundAt(x, y, z) + DUST.lift;
     this.floor[i] = floor;
@@ -194,6 +204,12 @@ export class DustPool {
         }
         x += v[j] * dt; y += v[j + 1] * dt; z += v[j + 2] * dt;
         r = Math.hypot(x, y, z) || 1;
+        // Bubbles pop at the surface; spray falling back into the sea is gone.
+        const fl = this.float[i];
+        if (fl && (fl === FLOAT_BUBBLE ? r > this.top : r < this.top && x * v[j] + y * v[j + 1] + z * v[j + 2] < 0)) {
+          this.kill(n);
+          continue;
+        }
       }
       if (!this.landed[i] && checks > 0 && (r - this.floor[i] < DUST.near || (n + this.cursor) % this.count < DUST.resample)) {
         this.floor[i] = this.groundAt(x, y, z) + DUST.lift;
@@ -260,7 +276,13 @@ export class BuggyDust {
     this.colAt = new Float64Array(wheels.length * 3); // where each wheel's colour was sampled
     this.cols = wheels.map(() => ({ r: 1, g: 1, b: 1, water: false, fresh: false }));
     this.under = { r: 1, g: 1, b: 1, water: false };
-    this.opts = { size: 0.5, grow: undefined, life: undefined, alpha: 0.9, grav: 1, drag: 0, kind: DUST_KIND, spin: 0 };
+    this.opts = { size: 0.5, grow: undefined, life: undefined, alpha: 0.9, grav: 1, drag: 0, kind: DUST_KIND, spin: 0, float: FLOAT_NONE };
+    this.spray = { float: FLOAT_SPRAY };
+    this.bubbleOpts = { grav: -0.3, drag: 2.5, life: 2.4, grow: 1.4, alpha: 0.75, float: FLOAT_BUBBLE };
+    this.wasIn = buggy.inWater;
+    this.splashed = 0; // how fast we just crossed a sea's surface (m/s), for the scene's sound
+    this.bubbleAcc = 0;
+    this.bowAcc = 0;
     this.lastV = new Float64Array(3);
     this.lastVf = 0;
     this.push = 0; // smoothed forward acceleration (m/s²)
@@ -297,14 +319,86 @@ export class BuggyDust {
     op.grav = o.grav ?? 1;
     op.drag = o.drag ?? 0;
     op.kind = o.kind ?? DUST_KIND;
+    op.float = o.float ?? FLOAT_NONE;
     op.spin = this.rand() * 6.28;
     return this.pool.spawn(x, y, z, vx, vy, vz, r, g, bl, op);
   }
 
-  /** A grain of ground-coloured dust, slightly varied. */
+  /** A grain of ground-coloured dust, slightly varied (spray over a sea: it vanishes back in). */
   grain(x, y, z, vx, vy, vz, col, size, o) {
     const k = 0.9 + this.rand() * 0.2;
-    return this.emit(x, y, z, vx, vy, vz, Math.min(1, col.r * k), Math.min(1, col.g * k), Math.min(1, col.b * k), size, o);
+    return this.emit(x, y, z, vx, vy, vz, Math.min(1, col.r * k), Math.min(1, col.g * k), Math.min(1, col.b * k), size, o ?? (col.water ? this.spray : undefined));
+  }
+
+  /** Under a sea the buggy's middle is under the surface: bubbles instead of dust (#44). */
+  get submerged() {
+    return this.b.depth > 0.3;
+  }
+
+  /** A bubble at (x, y, z), drifting up (it pops at the surface). */
+  bubble(x, y, z, vx, vy, vz, size) {
+    const c = BUBBLE_COL;
+    return this.emit(x, y, z, vx, vy, vz, c.r, c.g, c.b, size * (0.7 + this.rand() * 0.6), this.bubbleOpts);
+  }
+
+  /** A few bubbles around the buggy (from under the wheels when `low`). */
+  bubbles(n, spread = 1, low = true) {
+    const b = this.b, U = this.U, rn = this.rand;
+    const d = low ? b.kind.ride : -0.4;
+    for (let k = 0; k < n; k++) {
+      const jx = (rn() - 0.5) * spread, jy = (rn() - 0.5) * spread, jz = (rn() - 0.5) * spread;
+      const up = 0.4 + rn() * 0.8;
+      if (this.bubble(b.p[0] - U[0] * d + jx, b.p[1] - U[1] * d + jy, b.p[2] - U[2] * d + jz,
+        U[0] * up + jx * 0.5, U[1] * up + jy * 0.5, U[2] * up + jz * 0.5, 0.22 * this.scale) < 0) break;
+    }
+  }
+
+  /**
+   * Going into or out of a sea (#44): a ring of spray thrown up from where the buggy crosses
+   * the surface, bigger the faster it goes.
+   */
+  splash(speed) {
+    const b = this.b, U = this.U, R = this.R, F = this.F, rn = this.rand;
+    const top = this.pool.top;
+    const r = Math.hypot(b.p[0], b.p[1], b.p[2]) || 1;
+    const k = (top + 0.05) / r;
+    const cx = b.p[0] * k, cy = b.p[1] * k, cz = b.p[2] * k;
+    const n = Math.round(Math.min(40, 10 + speed * 3));
+    const col = BUBBLE_COL;
+    for (let i = 0; i < n; i++) {
+      const a = ((i + rn() * 0.8) / n) * Math.PI * 2;
+      const c = Math.cos(a), s = Math.sin(a);
+      const ox = R[0] * c + F[0] * s, oy = R[1] * c + F[1] * s, oz = R[2] * c + F[2] * s;
+      const sp = (0.8 + rn()) * (1 + speed * 0.25);
+      const up = 2 + rn() * 2.5 + speed * 0.3;
+      if (this.emit(cx + ox, cy + oy, cz + oz, ox * sp + U[0] * up + b.v[0] * 0.3, oy * sp + U[1] * up + b.v[1] * 0.3, oz * sp + U[2] * up + b.v[2] * 0.3,
+        col.r, col.g, col.b, (0.45 + rn() * 0.3) * this.scale, this.spray) < 0) break;
+    }
+  }
+
+  /** Driving through shallow water: a bow wave peeling off both sides of the nose. */
+  bowWave(dt, vf) {
+    const b = this.b, U = this.U, R = this.R, F = this.F, rn = this.rand;
+    const speed = Math.abs(vf);
+    if (speed < 1.5) {
+      this.bowAcc = 0;
+      return;
+    }
+    this.bowAcc += dt * Math.min(30, speed * 4);
+    const top = this.pool.top;
+    const r = Math.hypot(b.p[0], b.p[1], b.p[2]) || 1;
+    const k = (top + 0.05) / r;
+    const nose = Math.sign(vf) * 1.4;
+    const col = BUBBLE_COL;
+    while (this.bowAcc >= 1) {
+      this.bowAcc -= 1;
+      const side = rn() < 0.5 ? -1 : 1;
+      const ox = R[0] * side * 0.8 + F[0] * nose, oy = R[1] * side * 0.8 + F[1] * nose, oz = R[2] * side * 0.8 + F[2] * nose;
+      const out = 0.8 + rn() * 0.8 + speed * 0.2, up = 1 + rn() * 1.2 + speed * 0.1;
+      this.emit(b.p[0] * k + ox, b.p[1] * k + oy, b.p[2] * k + oz,
+        R[0] * side * out + U[0] * up + F[0] * vf * 0.4, R[1] * side * out + U[1] * up + F[1] * vf * 0.4, R[2] * side * out + U[2] * up + F[2] * vf * 0.4,
+        col.r, col.g, col.b, (0.35 + rn() * 0.25) * this.scale, this.spray);
+    }
   }
 
   /** The dust colour right under the buggy. */
@@ -340,6 +434,25 @@ export class BuggyDust {
     else this.acc.fill(0);
     this.hopperJets(dt, input);
 
+    // Seas (#44): a splash going in or out, a bow wave in the shallows, bubbles all under.
+    this.splashed = 0;
+    if (b.inWater !== this.wasIn) {
+      const speed = Math.hypot(v[0], v[1], v[2]);
+      if (speed > 0.8) {
+        this.splash(speed);
+        this.splashed = speed;
+      }
+    }
+    this.wasIn = b.inWater;
+    if (b.inWater && !this.submerged) this.bowWave(dt, vf);
+    if (this.submerged) {
+      this.bubbleAcc += dt * 3;
+      if (this.bubbleAcc >= 1) {
+        this.bubbleAcc -= 1;
+        this.bubbles(1, 1.2, false);
+      }
+    }
+
     this.lastV[0] = v[0]; this.lastV[1] = v[1]; this.lastV[2] = v[2];
     this.wasGrounded = b.grounded;
   }
@@ -356,7 +469,8 @@ export class BuggyDust {
     }
     const ride = b.kind.ride;
     const water = b.inWater;
-    const rate = base * (water ? 1.6 : 1);
+    const under = this.submerged;
+    const rate = base * (under ? 0.5 : water ? 1.6 : 1);
     const pool = this.pool;
     const sgn = vf >= 0 ? 1 : -1;
     // Braking (pushing against the way we roll) sprays forwards; speeding up flings it back.
@@ -374,6 +488,14 @@ export class BuggyDust {
       }
       this.acc[w] += rate * dt;
       if (this.acc[w] < 1) continue;
+      if (under) {
+        // Under the sea the wheels stir up bubbles, not dust.
+        for (; this.acc[w] >= 1; this.acc[w] -= 1) {
+          const rn = this.rand;
+          this.bubble(x, y, z, (rn() - 0.5) * 0.8 + U[0] * 0.5, (rn() - 0.5) * 0.8 + U[1] * 0.5, (rn() - 0.5) * 0.8 + U[2] * 0.5, 0.2 * this.scale);
+        }
+        continue;
+      }
       const col = this.wheelColour(w, x, y, z);
       while (this.acc[w] >= 1) {
         this.acc[w] -= 1;
@@ -413,6 +535,10 @@ export class BuggyDust {
    */
   ring(n, speed, up, size, drop = 0) {
     const b = this.b, U = this.U, R = this.R, F = this.F;
+    if (this.submerged) {
+      this.bubbles(Math.ceil(n / 2), 1.5);
+      return;
+    }
     const col = this.colourUnder();
     const rn = this.rand;
     const d = b.kind.ride + drop;

@@ -226,6 +226,8 @@ export class Flight {
 
     if (body.kind === 'star') return this.crash('star', speed);
     if (body.gas) return this.crash('gas', speed);
+    // Rockets can't float (#44): touching a sea (or lava, or a methane lake) is a splash crash.
+    if (body.wetAt(up)) return this.crash(body.liquid.kind, speed);
 
     const gentle = speed < this.stats.safeSpeed;
     const upright = tilt < this.stats.maxTilt || speed < 1.5;
@@ -235,8 +237,7 @@ export class Flight {
       s.landAngle = up;
       s.angle = up;
       this.placeOnSurface();
-      const splash = !!body.water && body.surfaceAt(up) <= body.radius - 1.4;
-      this.emit('landed', { body, splash, speed, afterFlight: s.flightTime > 3 });
+      this.emit('landed', { body, speed, afterFlight: s.flightTime > 3 });
     } else {
       this.crash(gentle ? 'tipped' : 'fast', speed);
     }

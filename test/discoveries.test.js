@@ -57,8 +57,7 @@ describe('discoveries (#15)', () => {
         const body = sys.byId[d.world];
         const p = onGround(body, s);
         expect(vec.len(p)).toBeCloseTo(body.radius + body.terrainFn.height(s.x, s.y, s.z), 6);
-        const sea = body.terrainFn.sea;
-        if (sea !== undefined) expect(body.terrainFn.height(s.x, s.y, s.z)).toBeGreaterThan(sea + 2);
+        if (body.liquid) expect(body.liquidDepth(s.x, s.y, s.z)).toBeLessThan(-2);
       }
     }
   });

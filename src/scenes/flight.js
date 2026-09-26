@@ -646,7 +646,6 @@ export class FlightScene {
         this.burst(b, 'dust');
         if (this.autopilot.coachSession) this.goLatched = true;
         if (!d.afterFlight) break;
-        if (d.splash) app.progress.earn('splash');
         const id = `land-${b.id}`;
         if (b === this.system.home && !app.progress.has('space')) {
           app.pip('Bump! Try flying higher next time!', { speak: true });
@@ -671,11 +670,13 @@ export class FlightScene {
         this.crashed = true;
         this.clearClock();
         this.warpIndex = 0;
-        app.audio.play('crash');
         const s = this.flight.state;
+        // Into a sea (#44): a big splash instead of a fireball.
+        const wet = !!s.body.liquid && d.reason === s.body.liquid.kind;
+        app.audio.play(wet ? 'bigSplash' : 'crash');
         this.debris.explode(this.rocket, s.body, { x: s.x, y: s.y }, s.angle, Math.atan2(s.y, s.x));
         this.rocketHolder.visible = false;
-        this.burst(s.body, 'explosion');
+        this.burst(s.body, wet ? 'splash' : 'explosion');
         // A crash makes anything Pip was about to say old news.
         app.hush();
         const first = !app.progress.has('kaboom');
@@ -684,10 +685,14 @@ export class FlightScene {
           star: 'Yikes, too hot! Ember is a star!',
           fast: 'Kaboom! Too fast! Slow down before landing.',
           tipped: 'Oops, we tipped over! Land standing up straight.',
+          water: 'Splash! Rockets can\'t float. Let\'s land on the ground!',
         };
-        if (!first) app.pip(lines[d.reason] || 'Kaboom!', { speak: true, pri: 'urgent' });
+        // The first splash says it with its sticker.
+        const splashFirst = d.reason === 'water' && !app.progress.has('splash');
+        if (!first && !splashFirst) app.pip(lines[d.reason] || 'Kaboom!', { speak: true, pri: 'urgent' });
         // Stickers after the crash line, so it doesn't cut their lines off.
         if (d.reason === 'gas') app.progress.earn('dive');
+        if (d.reason === 'water') app.progress.earn('splash');
         app.progress.earn('kaboom');
         setTimeout(() => this.crashed && app.hud.showCrash(), 1400);
         break;
@@ -773,7 +778,21 @@ export class FlightScene {
     const s = this.flight.state;
     const up = Math.atan2(s.y, s.x);
     const ux = Math.cos(up), uy = Math.sin(up);
-    const n = kind === 'confetti' ? 70 : kind === 'explosion' ? 40 : kind === 'sparkle' ? 30 : 14;
+    const n = kind === 'confetti' ? 70 : kind === 'explosion' ? 40 : kind === 'splash' ? 60 : kind === 'sparkle' ? 30 : 14;
+    if (kind === 'splash') {
+      // A tall white column and a ring of spray thrown out sideways, falling back in (#44).
+      const g = body.mu / (body.radius * body.radius);
+      const top = body.surfaceAt(up);
+      for (let i = 0; i < n; i++) {
+        const col = i % 2 === 0;
+        const a = up + (Math.random() - 0.5) * (col ? 0.5 : 2.6);
+        const sp = col ? 10 + Math.random() * 12 : 5 + Math.random() * 8;
+        const vz = (Math.random() - 0.5) * (col ? 4 : sp * 1.6);
+        this.particles.spawn('puff', body, ux * top + Math.cos(a) * 0.5, uy * top + Math.sin(a) * 0.5, (Math.random() - 0.5) * 2,
+          Math.cos(a) * sp, Math.sin(a) * sp, vz, { size: col ? 2.2 : 1.6, grow: 1.8, life: 1.6 + Math.random() * 0.8, drag: 0.6, gravity: g, color: i % 3 ? 0xeaf7ff : 0x9fd6ee });
+      }
+      return;
+    }
     for (let i = 0; i < n; i++) {
       const a = up + (Math.random() - 0.5) * (kind === 'dust' ? 3 : 5);
       const sp = kind === 'confetti' ? 6 + Math.random() * 10 : kind === 'explosion' ? 3 + Math.random() * 9 : 2 + Math.random() * 3;

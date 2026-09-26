@@ -51,6 +51,10 @@ const WHISTLE = [
 // Filter cutoff for brightness 0 (muffled, from orbit) to 1 (right by the campfire).
 export const cutoffFor = (bright) => 500 * Math.pow(16, Math.max(0, Math.min(1, bright)));
 
+// The muffle filter's cutoff in the open and under a sea (#44), Hz.
+const OPEN_AIR = 20000;
+const UNDERWATER = 650;
+
 export class AudioEngine {
   constructor() {
     this.ctx = null;
@@ -107,19 +111,28 @@ export class AudioEngine {
     this.reverb.buffer = this.makeImpulse(3.2);
     const wet = ctx.createGain();
     wet.gain.value = 0.32;
-    this.reverb.connect(wet).connect(this.master);
+
+    // Under a sea (#44) the music and sounds (not Pip's voice) are muffled: everything but the
+    // voice goes through this low-pass, wide open until then.
+    this.muffle = ctx.createBiquadFilter();
+    this.muffle.type = 'lowpass';
+    this.muffle.frequency.value = OPEN_AIR;
+    this.muffle.Q.value = 0.7;
+    this.muffle.connect(this.master);
+    this.reverb.connect(wet).connect(this.muffle);
 
     this.music = ctx.createGain();
     this.music.gain.value = this.musicOn ? 0.5 : 0;
-    this.music.connect(this.master);
+    this.music.connect(this.muffle);
     this.music.connect(this.reverb);
 
     this.sfx = ctx.createGain();
     this.sfx.gain.value = this.sfxOn ? 0.8 : 0;
-    this.sfx.connect(this.master);
+    this.sfx.connect(this.muffle);
     const sfxVerb = ctx.createGain();
     sfxVerb.gain.value = 0.25;
     this.sfx.connect(sfxVerb).connect(this.reverb);
+    if (this.underwater) this.setUnderwater(true, true);
 
     // Pip's voice: its own channel, not affected by the music/sound switches.
     this.voice = ctx.createGain();
@@ -171,6 +184,51 @@ export class AudioEngine {
   setSfx(on) {
     this.sfxOn = on;
     if (this.sfx) this.sfx.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.1);
+  }
+
+  /** Under a sea (#44): muffle the music and sounds (Pip stays clear). Cheap to call every frame. */
+  setUnderwater(on, force = false) {
+    if (on === this.underwater && !force) return;
+    this.underwater = on;
+    if (!this.muffle) return;
+    this.muffle.frequency.setTargetAtTime(on ? UNDERWATER : OPEN_AIR, this.ctx.currentTime, on ? 0.05 : 0.15);
+  }
+
+  /**
+   * Gentle lapping of the waves (#44): `level` 0 (far from any sea) to 1 (right by it, or in it).
+   * A looped, filtered noise that swells and fades slowly; made the first time it's needed, and
+   * only touched when the level really changes.
+   */
+  setLapping(level) {
+    level = Math.max(0, Math.min(1, level));
+    if (!this.ctx || (this.lapLevel ?? 0) === level || (!this.lap && level <= 0)) return;
+    if (this.lap && Math.abs(level - this.lapLevel) < 0.03 && level > 0) return;
+    this.lapLevel = level;
+    const ctx = this.ctx;
+    if (!this.lap) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 520;
+      f.Q.value = 0.6;
+      // Slow swells: a wave every few seconds.
+      const swell = ctx.createGain();
+      swell.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.23;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.45;
+      lfo.connect(depth).connect(swell.gain);
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      src.connect(f).connect(swell).connect(gain).connect(this.sfx);
+      src.start();
+      lfo.start();
+      this.lap = gain;
+    }
+    this.lap.gain.setTargetAtTime(level * 0.16, ctx.currentTime, 0.4);
   }
 
   setMood(mood) {
@@ -695,6 +753,16 @@ export class AudioEngine {
         this.noiseBurst(1.2, 400, { vol: 0.9, type: 'lowpass' });
         this.noiseBurst(0.5, 1800, { vol: 0.3 });
         this.tone(900, 0.7, { vol: 0.2, slide: 0.15, type: 'square', delay: 0.15 });
+        break;
+      case 'splash': // the buggy going into or out of a sea (#44): a sploosh and a bloop
+        this.noiseBurst(0.45, 900, { vol: 0.35, type: 'lowpass' });
+        this.noiseBurst(0.3, 2600, { vol: 0.08, q: 0.7, delay: 0.03 });
+        this.tone(320, 0.18, { vol: 0.12, slide: 1.8, delay: 0.05 });
+        break;
+      case 'bigSplash': // a rocket crashing into a sea (#44): a huge sploosh, then drips
+        this.noiseBurst(1.4, 700, { vol: 0.9, type: 'lowpass' });
+        this.noiseBurst(0.9, 2400, { vol: 0.25, q: 0.6, delay: 0.05 });
+        [0.5, 0.75, 0.95, 1.2].forEach((d, i) => this.tone(500 + i * 130, 0.14, { vol: 0.1, slide: 1.9, delay: d }));
         break;
       case 'boing':
         this.tone(220, 0.4, { vol: 0.3, slide: 2.5, type: 'triangle' });

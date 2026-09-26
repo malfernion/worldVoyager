@@ -75,7 +75,8 @@ export const STICKERS = {
   'land-flip': { icon: '⛲', name: 'Geyser Jumper' },
   'visit-ducky': { icon: '☄️', name: 'Comet Catcher', say: 'You caught a comet! When it zooms close to Ember it grows a tail, and the tail always points away from Ember.' },
   'land-ducky': { icon: '🦆', name: 'Comet Lander' },
-  splash: { icon: '🌊', name: 'Splashdown!', say: 'Splash! You landed in the ocean!' },
+  // Earned by crashing into a sea (#44: rockets can't float); same id, so old saves keep it.
+  splash: { icon: '🌊', name: 'Splashdown!', say: 'Splash! Rockets can\'t float. Let\'s land on the ground!' },
   dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Giant planets are all clouds, there is no ground to land on!' },
   sun: { icon: '☀️', name: 'Sunburnt', say: 'That is close enough to Ember! Stars are super hot.' },
   drive: { icon: '🚙', name: 'Off-Roader', say: 'Vroom! Your first drive in the buggy! Steer with the arrows and hold GO to drive.' },

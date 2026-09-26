@@ -317,9 +317,9 @@ describe('buggy', () => {
     let sea = null;
     for (let i = 0; i < 4000 && !sea; i++) {
       const d = vec.norm([Math.sin(i * 1.3), Math.cos(i * 0.7), Math.sin(i * 0.37)]);
-      if (body.terrainFn.height(...d) <= body.terrainFn.sea + 1e-3) {
+      if (body.liquidDepth(...d) > 1.5) {
         const d2 = vec.norm(vec.add(d, [0.02, 0, 0]));
-        if (body.terrainFn.height(...d2) <= body.terrainFn.sea + 1e-3) sea = d;
+        if (body.liquidDepth(...d2) > 1.5) sea = d;
       }
     }
     expect(sea).not.toBeNull();

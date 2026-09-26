@@ -25,6 +25,19 @@ export const vec = { add, sub, mul, dot, cross, len, norm, rotate };
 
 const STEP = 1 / 120;
 
+// Driving through a sea (#44): the buggy drives along the seabed at any depth. The deeper in
+// it is (0 with the wheels just wet, 1 all under), the more the water drags it back, holds it
+// up (floaty hops) and slows its motor. The buoyancy stays well under its weight, so it never
+// floats off, and it can still climb every beach and seabed slope back out.
+export const WATER = {
+  cap: 0.5, // top speed, times the land top speed, all under
+  accel: 0.65, // motor, times the land one, all under
+  lift: 0.45, // buoyancy, as a fraction of gravity, all under
+  drag: 0.6, // extra drag (1/s) on every way of moving, all under
+  stop: 1.5, // rolling to a stop without GO (1/s; 0.5 on land)
+  deep: 1.4, // metres of water over the wheels' bottom that counts as all under
+};
+
 // The Nibble orbit secret: going fast, a jump on Nibble is a super hop that leaps forward
 // at nearly orbit speed; then holding jump (or tapping it) fires the jets, which steer
 // gently towards a round, low orbit until we're falling all the way round.
@@ -296,7 +309,9 @@ export class Buggy {
     this.f = [0, 1, 0]; // forward (kept tangent to the ground)
     this.n = [1, 0, 0]; // ground normal under the wheels
     this.grounded = true;
-    this.inWater = false;
+    this.inWater = false; // wheels in a liquid (#44)
+    this.wet = 0; // how deep in: 0 dry .. 1 all under
+    this.depth = -Infinity; // metres of liquid above the buggy's middle (negative: above the surface)
     this.distance = 0; // for spinning the wheels
     this.speed = 0;
     this.jumpCooldown = 0;
@@ -333,9 +348,24 @@ export class Buggy {
     return this.body.radius + (t ? t.height(dir[0], dir[1], dir[2]) : 0);
   }
 
+  /** Is there liquid over the ground at direction `dir` (#44)? */
   isWater(dir) {
-    const t = this.body.terrainFn;
-    return t && t.sea !== undefined && t.height(dir[0], dir[1], dir[2]) <= t.sea + 1e-3;
+    return this.body.liquidDepth(dir[0], dir[1], dir[2]) > 0;
+  }
+
+  /** How deep in the liquid we are at radius r in direction u: sets depth, wet and inWater. */
+  soak(r, u) {
+    const body = this.body;
+    if (!body.liquid || !this.isWater(u)) {
+      this.depth = -Infinity;
+      this.wet = 0;
+      this.inWater = false;
+      return;
+    }
+    this.depth = body.liquidR - r;
+    const overWheels = this.depth + this.kind.ride; // above the bottom of the wheels
+    this.wet = Math.max(0, Math.min(1, overWheels / WATER.deep));
+    this.inWater = overWheels > 0.05;
   }
 
   /** Ground normal from the terrain around `dir`, using forward `f` for the sample axes. */
@@ -402,8 +432,11 @@ export class Buggy {
     const g = body.mu / (r * r);
     this.jumpCooldown = Math.max(0, this.jumpCooldown - h);
 
-    // Gravity always pulls toward the middle of the world.
-    this.v = add(this.v, mul(u, -g * h));
+    // Gravity always pulls toward the middle of the world (a little less under water: it holds us up).
+    this.soak(r, u);
+    const w = this.wet;
+    this.v = add(this.v, mul(u, -g * (1 - WATER.lift * w) * h));
+    if (w > 0) this.v = mul(this.v, Math.exp(-WATER.drag * w * h));
 
     const ground = this.groundRadius(u) + k.ride;
     // Just after a super hop we're still touching the ground; don't let the tyres grab us back.
@@ -429,7 +462,6 @@ export class Buggy {
     }
     // Sticky tyres: on low-gravity moons, don't float off every little bump (real jumps still fly).
     if (!this.grounded && !this.flying && r - ground < 2.5) this.v = add(this.v, mul(u, -Math.max(0, 5 - g) * h));
-    this.inWater = this.grounded && this.isWater(u);
 
     if (this.grounded) {
       const n = this.normalAt(u, this.f);
@@ -446,15 +478,15 @@ export class Buggy {
       let vf = dot(this.v, fg);
       let vs = dot(this.v, sg);
 
-      let cap = this.topSpeed * (this.inWater ? 0.45 : 1);
+      let cap = this.topSpeed * (1 - (1 - WATER.cap) * w);
       const slope = 1 - dot(n, u);
-      const accel = k.accel * (1 + (k.climb || 0) * Math.min(1, slope * 6)) * (this.inWater ? 0.6 : 1);
+      const accel = k.accel * (1 + (k.climb || 0) * Math.min(1, slope * 6)) * (1 - (1 - WATER.accel) * w);
       if (input.throttle) {
         const target = input.throttle > 0 ? cap : -cap * 0.5;
         const want = target - vf;
         vf += Math.sign(want) * Math.min(Math.abs(want), accel * h);
       } else {
-        vf *= Math.exp(-(this.inWater ? 1.5 : 0.5) * h); // gently roll to a stop
+        vf *= Math.exp(-(this.inWater ? WATER.stop : 0.5) * h); // gently roll to a stop
       }
       if (Math.abs(vf) > cap) vf = Math.sign(vf) * cap;
       // Tyres stop sideways sliding (ice is slippery!).
@@ -483,7 +515,7 @@ export class Buggy {
         this.lap = 0;
         this.jumped = true;
         this.superHop = true;
-      } else if (input.jump && k.jump && this.jumpCooldown === 0 && !this.inWater) {
+      } else if (input.jump && k.jump && this.jumpCooldown === 0) {
         this.v = add(this.v, mul(n, k.jump));
         this.jumpCooldown = 0.6;
         this.flying = true;

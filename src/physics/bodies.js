@@ -11,7 +11,7 @@ export const BODY_DEFS = [
   {
     id: 'homestead', name: 'Homestead', parent: 'ember', orbitRadius: 12000, phase: -0.45,
     radius: 300, gravity: 10, soi: 2400, spaceLine: 70, terrain: 'home', atmosphere: 0x9fd4ff,
-    color: 0x6fa045, icon: '🏡', water: true,
+    color: 0x6fa045, icon: '🏡',
     blurb: 'Homestead is home! Trees, oceans and a cosy campfire. It is like our Earth.',
   },
   {
@@ -80,6 +80,10 @@ export const BODY_DEFS = [
 ];
 
 const SURFACE_SAMPLES = 2048;
+// A liquid this far above the ground counts as on top (m): a rocket touching it splashes (#44).
+const WET_EPS = 0.02;
+// How much dry ground a rocket wants either side of where it lands (m).
+const DRY_ROOM = 4;
 const TWO_PI = Math.PI * 2;
 
 export class Body {
@@ -99,7 +103,18 @@ export class Body {
     this.ks = { x: 0, y: 0, vx: 0, vy: 0 };
     this.terrainFn = def.kind === 'star' ? null : makeTerrain(def.terrain);
     this.solid = !def.gas && def.kind !== 'star';
+    // The liquid layer (#44, terrain.js): { kind, level } or null. `liquidR` is its surface's
+    // distance from the middle.
+    this.liquid = this.terrainFn?.liquid ?? null;
+    this.liquidR = this.liquid ? def.radius + this.liquid.level : 0;
+    // Along the flight plane (z = 0): `ground` is the solid ground (the seabed under a liquid),
+    // `liquidTop` the liquid's surface where there is some (0 where there isn't), and `surface`
+    // what a rocket touches: the higher of the two. Touching down where the liquid is on top
+    // is a crash (`wetAt`).
     this.surface = new Float32Array(SURFACE_SAMPLES + 1);
+    this.ground = new Float32Array(SURFACE_SAMPLES + 1);
+    this.liquidTop = new Float32Array(SURFACE_SAMPLES + 1);
+    this.dry = new Uint8Array(SURFACE_SAMPLES + 1); // a rocket can stand here: dry, with room either side
     this.maxSurface = def.radius;
     this.minSurface = def.radius;
     this.setSurfaceFromFn();
@@ -110,9 +125,43 @@ export class Body {
     for (let i = 0; i <= SURFACE_SAMPLES; i++) {
       const a = (i / SURFACE_SAMPLES) * Math.PI * 2;
       const h = this.terrainFn ? this.terrainFn.height(Math.cos(a), Math.sin(a), 0) : 0;
-      this.surface[i] = this.radius + h;
+      this.ground[i] = this.radius + h;
+      this.liquidTop[i] = this.liquid && this.ground[i] < this.liquidR ? this.liquidR : 0;
     }
+    this.combineSurface();
+  }
+
+  /**
+   * The rocket's surface from the ground and the liquid (#44): whichever is on top. Call after
+   * changing `ground` or `liquidTop` (planets.js sets both from the meshes' z = 0 slices).
+   */
+  combineSurface() {
+    const N = SURFACE_SAMPLES;
+    for (let i = 0; i <= N; i++) this.surface[i] = Math.max(this.ground[i], this.liquidTop[i]);
+    // Where a rocket may land: dry, and dry for a few metres either side (its legs, and a
+    // little room to spare for the helpers aiming at it).
+    const room = Math.ceil((DRY_ROOM / this.radius) * (N / (Math.PI * 2)));
+    let wetRun = Infinity; // samples since the last wet one, going round twice to wrap
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < N; i++) {
+        wetRun = this.wetSample(i) ? 0 : wetRun + 1;
+        if (pass) this.dry[i] = wetRun > room ? 1 : 0;
+      }
+    }
+    // ...and the other way, so both sides have room.
+    wetRun = Infinity;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = N - 1; i >= 0; i--) {
+        wetRun = this.wetSample(i) ? 0 : wetRun + 1;
+        if (pass && wetRun <= room) this.dry[i] = 0;
+      }
+    }
+    this.dry[N] = this.dry[0];
     this.updateSurfaceBounds();
+  }
+
+  wetSample(i) {
+    return this.liquidTop[i] > this.ground[i] + WET_EPS;
   }
 
   updateSurfaceBounds() {
@@ -127,12 +176,67 @@ export class Body {
 
   /** Radius of the ground at a planar angle. */
   surfaceAt(angle) {
+    return this.tableAt(this.surface, angle);
+  }
+
+  /** Radius of the solid ground (the seabed under a liquid) at a planar angle. */
+  groundAt(angle) {
+    return this.tableAt(this.ground, angle);
+  }
+
+  tableAt(table, angle) {
     let f = (angle / (Math.PI * 2)) % 1;
     if (f < 0) f += 1;
     const x = f * SURFACE_SAMPLES;
     const i = Math.floor(x);
     const t = x - i;
-    return this.surface[i] * (1 - t) + this.surface[Math.min(i + 1, SURFACE_SAMPLES)] * t;
+    return table[i] * (1 - t) + table[Math.min(i + 1, SURFACE_SAMPLES)] * t;
+  }
+
+  /** Is the liquid on top here (touching down is a splash crash)? */
+  wetAt(angle) {
+    if (!this.liquid) return false;
+    let f = (angle / (Math.PI * 2)) % 1;
+    if (f < 0) f += 1;
+    const x = f * SURFACE_SAMPLES;
+    const i = Math.floor(x);
+    // Either neighbouring sample wet counts: a leg over the water's edge is in the water.
+    return this.wetSample(i) || this.wetSample(Math.min(i + 1, SURFACE_SAMPLES));
+  }
+
+  /**
+   * How deep the liquid is over the ground in unit direction (x, y, z), in metres (#44):
+   * positive over a sea, negative (or -Infinity with no liquid at all) on dry land.
+   */
+  liquidDepth(x, y, z) {
+    if (!this.liquid) return -Infinity;
+    return this.liquid.level - this.terrainFn.height(x, y, z);
+  }
+
+  /** Can a rocket land here: dry, with a few metres of dry ground either side? */
+  landableAt(angle) {
+    if (!this.liquid) return true;
+    let f = (angle / (Math.PI * 2)) % 1;
+    if (f < 0) f += 1;
+    return !!this.dry[Math.round(f * SURFACE_SAMPLES)];
+  }
+
+  /**
+   * The nearest planar angle to `angle` where a rocket can land (itself if it already can), or
+   * null if nowhere can. Used by the helpers to keep landings out of the sea (#44).
+   */
+  nearestLandable(angle) {
+    if (this.landableAt(angle)) return angle;
+    const N = SURFACE_SAMPLES;
+    const step = (Math.PI * 2) / N;
+    let f = (angle / (Math.PI * 2)) % 1;
+    if (f < 0) f += 1;
+    const i0 = Math.round(f * N);
+    for (let k = 1; k <= N / 2; k++) {
+      if (this.dry[(i0 + k) % N]) return angle + k * step;
+      if (this.dry[(((i0 - k) % N) + N) % N]) return angle - k * step;
+    }
+    return null;
   }
 
   /**

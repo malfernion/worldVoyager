@@ -163,9 +163,11 @@ export class Debris {
         // Bounce!
         const ux = nx / Math.hypot(nx, ny), uy = ny / Math.hypot(nx, ny);
         const vr = d.vx * ux + d.vy * uy;
-        d.vx = (d.vx - 1.6 * vr * ux) * 0.6;
-        d.vy = (d.vy - 1.6 * vr * uy) * 0.6;
-        d.spin.multiplyScalar(0.7);
+        // A sea (#44) doesn't bounce bits much: they bob about on it.
+        const wet = d.body.wetAt(Math.atan2(ny, nx));
+        d.vx = (d.vx - (wet ? 1.15 : 1.6) * vr * ux) * (wet ? 0.35 : 0.6);
+        d.vy = (d.vy - (wet ? 1.15 : 1.6) * vr * uy) * (wet ? 0.35 : 0.6);
+        d.spin.multiplyScalar(wet ? 0.5 : 0.7);
       } else {
         d.x = nx;
         d.y = ny;
