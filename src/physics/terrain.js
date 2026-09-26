@@ -77,6 +77,9 @@ export const seabedDepth = (d) => 0.6 * d + 0.08 * d * d;
 // line to the shore (wobbled by noise so it isn't a perfect circle). In it the floor is a
 // bowl `deep` metres below the level in the middle; outside, a bank rises from the shore at
 // `bank` (metres up per metre out) until it meets the natural ground.
+const WOBBLE = 0.2; // how much a pool's shore wobbles in and out (times its r)
+const NEAR = 15;
+
 export function makePools(defs, radius, level, seed) {
   const { noise } = makeNoise(seed);
   const list = defs.map((d) => {
@@ -92,16 +95,16 @@ export function makePools(defs, radius, level, seed) {
     const ml = Math.hypot(m[0], m[1], m[2]);
     return { ...d, a, b, ab, ab2, len, mid: { x: m[0] / ml, y: m[1] / ml, z: m[2] / ml }, cos: Math.cos(reach + len / 2 / radius) };
   });
-  // Distance (m, along the ground, near enough) from p to a pool's middle line, and its shore's
-  // distance from that line there.
-  const measure = (p, x, y, z) => {
+  // Distance (m, along the ground, near enough) from p to a pool's middle line.
+  const dist = (p, x, y, z) => {
     let t = 0;
     if (p.ab2 > 0) t = Math.max(0, Math.min(1, ((x - p.a.x) * p.ab[0] + (y - p.a.y) * p.ab[1] + (z - p.a.z) * p.ab[2]) / p.ab2));
     const qx = p.a.x + p.ab[0] * t, qy = p.a.y + p.ab[1] * t, qz = p.a.z + p.ab[2] * t;
-    const d = Math.hypot(x - qx, y - qy, z - qz) * radius;
-    const shore = p.r * (1 + 0.2 * noise(x * 7 + p.seed, y * 7, z * 7));
-    return { d, shore };
+    const dx = x - qx, dy = y - qy, dz = z - qz;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz) * radius;
   };
+  // The shore's distance from that line there (the noise is the costly bit: only near a pool).
+  const shoreAt = (p, x, y, z) => p.r * (1 + WOBBLE * noise(x * 7 + p.seed, y * 7, z * 7));
   return {
     list,
     level,
@@ -109,7 +112,9 @@ export function makePools(defs, radius, level, seed) {
     carve(x, y, z, h) {
       for (const p of list) {
         if (x * p.mid.x + y * p.mid.y + z * p.mid.z < p.cos) continue;
-        const { d, shore } = measure(p, x, y, z);
+        const d = dist(p, x, y, z);
+        if (d > p.r * (1 + WOBBLE) + (h - level) / p.bank) continue;
+        const shore = shoreAt(p, x, y, z);
         if (d > shore + (h - level) / p.bank) continue;
         const s = d / shore;
         const bowl = s < 1 ? level - p.deep * (1 - s * s) : level + (d - shore) * p.bank;
@@ -117,13 +122,17 @@ export function makePools(defs, radius, level, seed) {
       }
       return h;
     },
-    /** How far (m) the nearest pool's shore is from (x, y, z): negative in a pool, Infinity far away. */
+    /**
+     * How far (m) the nearest pool's shore is from (x, y, z): negative in a pool, Infinity far
+     * away. Exact within `NEAR` metres of a pool (the buggy's lava wall, the banks' colour,
+     * rocks), roughly further out.
+     */
     shoreDist(x, y, z) {
       let best = Infinity;
       for (const p of list) {
         if (x * p.mid.x + y * p.mid.y + z * p.mid.z < p.cos) continue;
-        const { d, shore } = measure(p, x, y, z);
-        best = Math.min(best, d - shore);
+        const d = dist(p, x, y, z);
+        best = Math.min(best, d - p.r * (1 + WOBBLE) > NEAR ? d - p.r : d - shoreAt(p, x, y, z));
       }
       return best;
     },
