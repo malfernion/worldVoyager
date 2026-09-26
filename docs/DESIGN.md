@@ -545,7 +545,11 @@ world's picture), and Pip says the fact in short sentences.
 
 Like Outer Wilds' travellers: a warm, musical reason to visit every world. Pip plays the banjo
 (the sequencer's banjo is Pip's part), and five friends are camped by little campfires, each
-with an instrument, a look of their own (round critters in Pip's style) and a campfire prop:
+with an instrument, a look of their own and a campfire prop. Since #43 they're little space
+travellers in the Outer Wilds mood (`src/world/friendMesh.js`): a padded suit with a chest
+panel, a backpack with Pip's antenna and bobble on top, their helmet off and set down by their
+boots (so a child sees their faces), both hands on their instrument, and a hat or face that
+keeps who they are:
 
 | World | Friend | Instrument | Their part in the music |
 |---|---|---|---|
@@ -596,8 +600,11 @@ Flip, Ducky and Tumble have no friend: five is a band a child can find, and Tumb
   just load with none found. Not goals: no checklist. The sticker book's 🎵 Band section shows Pip
   and each friend (or their world and a ❓, with a spoken hint), then Full Band.
 - **Cheap:** each campfire's logs, stones and prop join the world's merged landmark mesh; each
-  friend is one merged vertex-coloured mesh plus ink and a waving arm (4 draw calls); glows are
-  sprites (no extra lights, which would recompile every material).
+  friend is one merged vertex-coloured body (instrument and helmet included) plus two arms, each
+  with its ink: 6 draw calls and about 8-9k triangles (twice that with ink; a test keeps it under
+  10k). Their arms are posed by a little two-bone reach to where the instrument wants the hands;
+  saying hello swaps in a raised arm (hidden otherwise). Glows are sprites (no extra lights,
+  which would recompile every material).
 
 ## Ideas for later
 
