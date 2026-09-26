@@ -178,7 +178,7 @@ borrow the vibe, not the content: all names, worlds and music are original.
 src/physics/   pure, headless, unit-tested
   orbit.js       universal-variable propagation, elements, conic geometry
   bodies.js      the solar system (on-rails orbits, round or stretched, SOIs, surfaces)
-  terrain.js     terrain height + colour functions shared by physics and meshes
+  terrain.js     terrain height + colour functions shared by physics and meshes, and each world's liquid
   sim.js         Flight: thrust, patched-conic stepping, landing/crash, rewind snapshots
   predict.js     multi-patch trajectory prediction (impact / escape / encounter)
   autopilot.js   helpers: orbit, land, goto (planner + coach mode)
@@ -194,7 +194,9 @@ Key techniques:
 - **Floating origin.** Every frame the world is drawn relative to the rocket (or the map focus),
   so float32 precision holds from 1 m to the ~65 km out to Tumble.
 - **Physics surface = visible mesh.** After meshing a planet we slice the mesh at z = 0 and use
-  that exact outline as the ground, so legs touch what you see.
+  that exact outline as the ground, so legs touch what you see. A world with a liquid has two
+  meshes, each sliced: the seabed for the buggy, the liquid's surface for the rocket (see
+  Liquids below).
 - **Transfer planner.** For each leg (up to a parent, across to a sibling, or down to a moon) it
   estimates a Hohmann window, then grid-searches burn time × burn size with the real predictor,
   refines, and scores arrivals. Low periapsis, arriving past periapsis, hitting a moon first, going
@@ -321,7 +323,7 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
 
 - **Driving is fully 3D over the globe** (`src/physics/buggy.js`). It's arcade car physics:
   real radial gravity, ground normals taken from the same terrain functions as the planet
-  mesh, tyre grip (less on icy Frosty), slower in Homestead's water, and bumping around the
+  mesh, tyre grip (less on icy Frosty), driving along the seabed through Homestead's seas (slower and floaty; see Liquids), and bumping around the
   parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
 - **Trees and rocks are things to bump into** (#6). Homestead's ~900 trees and the moons'
   boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Flip 60, one
@@ -468,8 +470,8 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
     comes down (with a soft `thump` sound and a little shake above 3 m/s).
   - **What colour.** `dustColor()` asks `terrain.js` for the same colour the ground mesh is
     painted with (no reading pixels), a little paler as fine dust is, and paler still on dark
-    ground so it reads. Grass throws up some earth too. Homestead's seas splash blue-white
-    instead. Each wheel samples again once it has moved half a metre, and each grain varies a
+    ground so it reads. Grass throws up some earth too. Homestead's seas splash blue-white spray
+    instead (and bubbles under water, #44). Each wheel samples again once it has moved half a metre, and each grain varies a
     little. The billboards are lit by the sun like the ambient puffs, so dust dims at night.
   - **How it falls.** Each grain feels mu / r² towards the middle, so it hangs in slow, clean
     arcs on Pebble (2 m/s²) and Nibble (0.9) and drops at once on Homestead (10). Airless worlds
@@ -491,6 +493,57 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
     keeps 30-150 alive; the sim costs a few hundredths of a millisecond a frame on a laptop.
     (Falling leaves and the whoosh-home sparkles still use the flight scene's sprite
     particles: they're rare.)
+
+## Liquids (#44)
+
+Homestead's seas are real water now, and the same system is meant for Sizzle's lava (#45) and
+a Titan-like moon's methane lakes (#46).
+
+- **What a liquid is.** A world's terrain (`terrain.js`) can have `liquid: { kind, level }`:
+  what it is (`'water'`; later `'lava'`, `'methane'`) and its surface in metres above the
+  world's base radius. That's all the physics needs. The ground keeps its real shape under it:
+  Homestead's seabed is the raw terrain made a little shallower near the shore and deeper
+  further out (`seabedDepth()`), so beaches are gentle (every buggy climbs out of every sea)
+  and the seas are a few metres deep by the coast and about 7 m in the middle. Trees,
+  landmarks, the pad and the campfire all stand on dry land.
+- **Two surfaces, one rule each.** The **buggy** drives on the solid ground at any depth. The
+  **rocket** touches whatever is on top along the flight plane: `Body.surface` is the higher of
+  the ground (`ground`, sliced from the terrain mesh) and the liquid (`liquidTop`, sliced from
+  the liquid's own mesh). Touching down where the liquid is on top (`wetAt()`) is a crash whose
+  reason is the liquid's kind, so predict's 💥 lands on the water, rewind works as for any
+  crash, and a new kind needs no new physics. Rockets can't float: there's no landing on a
+  sea. The first splash earns the 🌊 Splashdown! sticker ("Splash! Rockets can't float. Let's
+  land on the ground!"; the same id, so older saves keep theirs).
+- **Landing on dry land.** The helpers work out where the rocket would come to a stop
+  (sideways speed and braking); if that isn't `landableAt()` (dry with 4 m to spare either
+  side) they aim for `nearestLandable()`. The autopilot's descent drifts over to it, not coming
+  down before it's nearly there and never below 6 m over the liquid; a coached landing has Pip
+  fly us over ("Oops, water! I'll fly us over to dry land.", like the tiny pushes), staying
+  15 m up so the child still has room for the HOLD / LET GO down, and leans towards the
+  spot's middle on the way down. Closed-loop, so a late kid or a weak rocket still ends dry
+  (tested from 48 points round the orbit each way, with quick and lazy kids).
+- **The buggy in a sea.** `Buggy.soak()` works out how deep in it is (0 wheels just wet, 1 all
+  under: `WATER.deep` = 1.4 m above the wheels' bottom). The deeper, the more drag, the lower
+  the top speed (half) and motor (65%), and the more buoyancy (up to 45% of its weight, so hops
+  float higher and come back down; never enough to float off). Driving in and out is a
+  splash of spray and a sound; in the shallows a bow wave peels off the nose; all under, the
+  tyres stir up bubbles instead of dust, and bubbles rise from the buggy and pop at the surface
+  (spray falling back through the surface is gone). All in the one dust pool. Laps round the
+  world (#29) cross seas like anywhere else.
+- **Seeing it.** One mesh per world (`src/world/liquid.js`): an icosphere at the liquid's
+  level with only the triangles near or under it (the rest would sit under the land), and each
+  vertex's depth baked in. A small shader bobs gentle waves (a few cm, none at the shore),
+  colours shallow to deep, draws wobbling foam along the shore and glints of sun on moving
+  ripples; see-through in the shallows, nearly solid far out, so it reads from orbit too. One
+  extra draw call, no per-frame CPU work. From underneath it's a bright ceiling.
+- **Under it.** When the camera is below the surface (driving: the chase camera dives after a
+  buggy deep in a sea, since looking down through deep water it'd be lost), the scene's fog
+  closes in to the liquid's colour, a tint covers the view, the stars hide, and the music and
+  sound effects (not Pip) go through a low-pass. Near a sea, gentle lapping swells and fades.
+- **A new kind** (#45, #46) is: `liquid: { kind, level }` in its terrain, a `LOOKS` entry in
+  `liquid.js` (colours, see-through, waves, `glow` for lava, underwater fog), a crash line in
+  `FlightScene` (a new kind's crash falls back to "Kaboom!"), and any buggy rules it needs
+  (lava might not let a buggy in at all: that's the place to decide).
 
 ## Discoveries (#15)
 

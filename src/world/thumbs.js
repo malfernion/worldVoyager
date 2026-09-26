@@ -37,6 +37,8 @@ export function planetThumb(visual, size = 160) {
     obj.add(glow);
   } else {
     obj.add(new THREE.Mesh(visual.mesh.geometry, visual.mesh.material));
+    // Homestead's seas (#44) are their own mesh.
+    if (visual.liquid) obj.add(new THREE.Mesh(visual.liquid.mesh.geometry, visual.liquid.mesh.material));
     for (const child of visual.group.children) {
       if (child.geometry && child.geometry.type === 'RingGeometry') obj.add(child.clone());
     }

@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -73,7 +73,10 @@ src/progress.js        The starter journey's goals (`GOALS`, `starterDone`, `goa
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
   bodies.js            The solar system: on-rails orbits (round, or Ducky the comet's Kepler ellipse), SOIs, per-world surfaces
-  terrain.js           Height + colour functions per world (shared by physics and meshes), gas giants' spin axes, vents, geysers and the comet's gas jets,
+                       (along z = 0: `ground`, the liquid's `liquidTop`, the rocket's `surface` = the higher; `wetAt()`,
+                       `landableAt()` / `nearestLandable()` for dry landings, `liquidDepth()`, `nearLiquid()`; #44)
+  terrain.js           Height + colour functions per world (shared by physics and meshes), each world's liquid (`liquid: { kind, level }`,
+                       the seabed shape `seabedDepth()`; #44), gas giants' spin axes, vents, geysers and the comet's gas jets,
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
                        the ring gap, flares), and the ✨ compass's targets
@@ -82,14 +85,17 @@ src/physics/           Pure, headless, unit-tested; no three.js here
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
   autopilot.js         Helper programs (orbit, land, goto), each run as the autopilot or coached, + transfer planner (+ comet windows and homing);
+                       landings pick dry land (`landSite()`, `steerDown()`, coached `glideToLand()`; #44);
                        `landRefusal()` (why 🛬 can't land here)
-  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets),
+  buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets,
+                       driving along the seabed under a sea: `WATER`, `soak()`; #44),
                        WorldLap: have we driven all the way round the world? (#29), driving back in through the garage door
                        (#37: `GARAGE`, `atGarage()`, `Garage`, and `homeAim()` for the compass), `groundHeading()`: which way
                        round the world the compasses point (#41)
   dust.js              Buggy dust (#26): a fixed pool of particles in typed arrays (tyre dust, landing thumps, the Hopper's
-                       jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js
-src/world/             three.js visuals: planets (incl. rings), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
+                       jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js;
+                       in a sea (#44) spray, a splash going in or out, a bow wave, and bubbles (`FLOAT_*`: they pop at the surface)
+src/world/             three.js visuals: planets (incl. rings), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
@@ -112,6 +118,7 @@ public/voice/          Pip's recorded lines (one clip per sentence) + manifest.j
 tools/voice/           Recording pipeline for Pip's voice (see below)
 test/                  vitest suites; missions.js has the shared headless flights (autopilot, pretend kid, trips, tours);
                        roundWorld.test.js drives real buggies round (and not round) the worlds (#29);
+                       liquid.test.js: the seas (#44): terrain, surfaces, splash crashes, dry landings from all round, buggies in the sea;
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
 ```
@@ -131,7 +138,18 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   of the ground, and the airborne cap (75% of circular speed) still applies, so they float
   back down.
 - **The physics ground is the visible mesh.** Planet meshes come from `terrain.js`, then the
-  physics surface is rebuilt from the mesh's z = 0 slice (`surfaceFromMesh`).
+  physics surface is rebuilt from the mesh's z = 0 slice (`surfaceFromMesh`). With a liquid
+  (#44) there are two meshes and two rules: the **buggy** drives on the solid ground (the seabed
+  mesh; the terrain keeps its real shape under the liquid, never clamped to its level), and the
+  **rocket** touches the liquid's surface, sliced from the liquid's own mesh (`liquidTop`). The
+  rocket's `surface` is the higher of the two at each angle; where the liquid is on top a
+  touchdown is a crash (`wetAt()`, reason = the liquid's kind). The water shader only bobs a
+  few centimetres, and not at the shore, so the drawn surface stays on the sliced one.
+- **Helpers never land in a liquid** (#44). 🛬, 🤖 Take me there and every coached landing
+  pick where the rocket would stop; if that isn't `landableAt()` (dry, with 4 m of dry ground
+  either side) they steer to `nearestLandable()` (the autopilot drifts over on the way down,
+  staying up until it's nearly there; coached, Pip flies us over and hands back 15 m up). The
+  launch pad is on land. `test/liquid.test.js` lands from all round the orbit, both ways.
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map
   focus. Never put raw world coordinates (up to ~65 km, out to Tumble) into three.js positions.
 - **Orbits can go either way.** `Body.orbitDir` is -1 (clockwise) for almost everything and +1
@@ -154,7 +172,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   never by looping over all of them each step. Every buggy particle effect (tyre dust, jumps,
   jets, landing, fizz) goes into the one fixed `DustPool` (#26, `src/physics/dust.js`): no
   per-particle objects or materials, two draw calls. Add new buggy effects there, not as
-  sprites in the flight scene's `Particles`.
+  sprites in the flight scene's `Particles`. A liquid is one mesh per world (only the triangles
+  near or under it), with depth baked per vertex: no per-frame CPU work for it.
 - **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
   multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range
@@ -468,5 +487,12 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   triggers; desktop trackpad pinch does (and gets the same rescue). Headless Chromium can't pinch
   the page like WebKit; test it by stubbing `visualViewport.scale` / `offsetLeft` / `offsetTop`
   and dispatching `resize` on it.
+- **Underwater fog is always there** (#44): `FlightScene` keeps a `THREE.Fog` on the scene,
+  pushed out to 1e9 m until the camera goes under a sea. Adding or removing `scene.fog` changes
+  every material's shader program, which would stall phones on each dive. Custom shaders that
+  should fog (the sea) include the fog chunks and set `fog: true`; the stars have `fog: false`,
+  so the sky is hidden under water instead.
+- A custom `ShaderMaterial` isn't converted to the output colour space by itself; add
+  `#include <colorspace_fragment>` (the sea's colours came out wrong without it).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

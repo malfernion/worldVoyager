@@ -75,6 +75,10 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   it away. Turning, GO or the time buttons also stop the trip (you're in charge again), and so
   does a helper: while one is flying, tapping the path does nothing. If the path changes so
   it would crash before the ⏰, the ⏰ goes and time slows down.
+- **Water:** Homestead has seas. Rockets can't float, so touching the water is a big splash
+  crash (and the 🌊 Splashdown! sticker); land on the ground. Pip's 🛬 Land, 🤖 Take me there
+  and her coaching always pick dry land ("Oops, water! I'll fly us over to dry land."), and
+  the path shows 💥 where it would hit the water.
 - **Buggy:** add a **Garage** to your rocket and pick a Rover, Monster Truck or Hopper (and
   its colour). The garage can hold landing legs too, so it can sit at the bottom. After landing, tap 🚙 **Drive** to roll out and explore the whole world. The
   compass points back to your rocket (close by, round to the front of its garage door). To go
@@ -85,7 +89,9 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   you've driven round gets a 🌍 in the sticker book). Your tyres kick up dust the colour of
   the ground, and it floats down slowly on little moons and falls fast at home; the Hopper's
   jets puff when it jumps, and **holding jump in the air** fires them for a boost that goes
-  further. (Psst: on tiny Nibble, drive the Hopper really fast, then jump and
+  further. On Homestead the buggy can drive right into the sea: down the beach, along the
+  seabed as deep as it goes (slower and floaty, with bubbles, and the camera dives in after
+  it), and out again the other side, splash! (Psst: on tiny Nibble, drive the Hopper really fast, then jump and
   hold it…)
 - **Keyboard:** ←/→ or A/D turn, Space/↑/W fire (hold **Shift** too for a gentle tenth of the
   thrust, for careful burns), M map, time speed `+`/`-` (or `]`/`[`, `.`/`,`), `0` or `/` normal speed, `1`–`7` pick a
@@ -136,7 +142,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

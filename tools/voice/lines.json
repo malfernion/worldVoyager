@@ -548,6 +548,10 @@
   "text": "I'll do this tiny push for you!"
  },
  {
+  "key": "ill fly us over to dry land",
+  "text": "I'll fly us over to dry land."
+ },
+ {
   "key": "ill steer us away from the ground",
   "text": "I'll steer us away from the ground!"
  },
@@ -812,6 +816,10 @@
   "text": "Let's land on Sizzle together!"
  },
  {
+  "key": "lets land on the ground",
+  "text": "Let's land on the ground!"
+ },
+ {
   "key": "lets try again",
   "text": "Let's try again!"
  },
@@ -992,6 +1000,10 @@
   "text": "One garage is plenty!"
  },
  {
+  "key": "oops water",
+  "text": "Oops, water!"
+ },
+ {
   "key": "oops we missed",
   "text": "Oops, we missed!"
  },
@@ -1094,6 +1106,10 @@
  {
   "key": "ringo is made of clouds theres no ground to land on",
   "text": "Ringo is made of clouds, there's no ground to land on!"
+ },
+ {
+  "key": "rockets cant float",
+  "text": "Rockets can't float."
  },
  {
   "key": "round and round we go",
@@ -1902,10 +1918,6 @@
  {
   "key": "you landed all by yourself",
   "text": "You landed all by yourself!"
- },
- {
-  "key": "you landed in the ocean",
-  "text": "You landed in the ocean!"
  },
  {
   "key": "you landed on ducky",
