@@ -124,7 +124,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   comes back down. The one deliberate exception is the Nibble orbit secret (#5, `ORBIT` in
   `buggy.js`): only the Hopper on Nibble can super hop into orbit, and there speed is capped
   by energy so the orbit stays bound (highest point ≤ 2 × `ORBIT.maxA` = 100, SOI 170) and
-  sags back down after a lap once the jets stop. Keep both caps if you touch buggy speeds.
+  sags back down after a lap once the jets stop. The Hopper's air boost (#40, `BOOST`) is
+  fuel-limited and stays under the ordinary airborne cap. Keep all the caps if you touch buggy speeds.
   Ducky's gas jets (#13, `JETS` in `buggy.js`) push buggies up, but only within a few metres
   of the ground, and the airborne cap (75% of circular speed) still applies, so they float
   back down.

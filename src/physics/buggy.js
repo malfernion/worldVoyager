@@ -48,6 +48,16 @@ export const ORBIT = {
   sag: 0.01, // after a full lap, with the jets off, the orbit slowly sags back down
 };
 
+// The Hopper's jets on any world: holding jump in the air fires them for a short boost,
+// forwards and a little up, refilled on landing. The air speed cap still applies, so a
+// boost can never reach orbit (only the Nibble super hop can).
+export const BOOST = {
+  time: 1.2, // seconds of jets per hop
+  push: 2.5, // forwards, m/s²
+  lift: 1.3, // upwards, as a fraction of the world's gravity (a bit more than cancels it)
+  wait: 0.35, // held from the ground, the jets start once the jump's cooldown (0.6 s) is down to this: a tap stays a hop
+};
+
 // Ducky's gas jets (#13): driving over a vent, the fizzing gas pushes the buggy up and off to
 // the side. The push fades out `height` metres above the ground and the airborne speed cap
 // still holds (Ducky's gravity is tiny, but 75% of circular speed can never climb higher
@@ -274,8 +284,11 @@ export class Buggy {
     this.jumpCooldown = 0;
     this.jumpWasDown = false;
     this.orbiting = false; // in a super hop (the Nibble secret)
-    this.jets = false; // the Hopper's jets are firing (in a super hop)
+    this.jets = false; // the Hopper's jets are firing (a boost, or in a super hop)
     this.jetTime = 0; // a tap keeps the jets going this much longer (s)
+    this.airFuel = 0; // seconds of boost left in this hop (the Hopper's jets, see BOOST)
+    this.hopSpeed = 0; // forward speed as we last left the ground
+    this.boosting = false; // jets on since this press (held jump keeps them going)
     this.lap = 0; // how far round the world we've flown since the super hop (radians)
     this.round = new WorldLap(); // how far round the world we've driven (#29)
     this.obstacles = []; // [{ p: [x,y,z], r, top }] e.g. the parked rocket (r: its own radius, top: its height)
@@ -435,6 +448,8 @@ export class Buggy {
       const roll = Math.min(1, Math.abs(vf) / 2) * Math.sign(vf || 1);
       if (input.steer) this.f = rotate(this.f, n, input.steer * k.turn * h * roll);
 
+      this.airFuel = BOOST.time;
+      this.hopSpeed = vf;
       const hop = press || (input.jump && this.jumpCooldown === 0);
       if (hop && this.canOrbit && vf > this.topSpeed * ORBIT.trigger && !this.inWater) {
         // Super hop: going fast, so leap sideways nearly fast enough to fall around Nibble.
@@ -461,6 +476,30 @@ export class Buggy {
 
     this.braking = false;
     this.jets = false;
+    if (!input.jump || this.grounded) this.boosting = false;
+    if (!this.grounded && !this.orbiting && k.superHop && input.jump) {
+      if (this.canOrbit && this.hopSpeed > this.topSpeed * ORBIT.trigger && this.jumpCooldown === 0) {
+        // Flying fast off a bump on Nibble (it's lumpy: we're in the air half the time), jump
+        // still works: the same super hop as from the ground.
+        const ahead = Math.sqrt(body.mu / r) * ORBIT.hopAhead;
+        this.v = add(mul(this.f, ahead), mul(u, Math.max(dot(this.v, u), ORBIT.hopUp)));
+        this.jumpCooldown = 0.6;
+        this.flying = true;
+        this.orbiting = true;
+        this.lap = 0;
+        this.jumped = true;
+        this.superHop = true;
+      } else if (this.airFuel > 0 && (press || this.jumpCooldown <= BOOST.wait || this.boosting)) {
+        // Boost: forwards and a little up, until this hop's jets run out. Held from a jump on
+        // the ground, the jets wait a moment (BOOST.wait), so a tap stays an ordinary hop.
+        if (press) this.puffed = true;
+        this.boosting = true;
+        this.jets = true;
+        this.flying = true;
+        this.airFuel -= h;
+        this.v = add(this.v, add(mul(this.f, BOOST.push * h), mul(u, BOOST.lift * g * h)));
+      }
+    }
     if (this.orbiting) {
       // Jets: hold jump (or tap it) to steer towards a round orbit; hold reverse to come down.
       if (press && !this.grounded) {

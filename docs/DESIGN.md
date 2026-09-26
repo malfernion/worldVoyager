@@ -386,6 +386,10 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   - **Always comes back.** After one full lap, with the jets off, the orbit slowly sags
     (1%/s), so it lands about half a minute later unless the kid keeps the jets going.
     🏠 works from orbit too.
+  - **Jump works mid-bounce** (#40). At full speed Nibble's lumps throw the Hopper into the
+    air about half the time, and a press used to count only on the ground, so a kid's jump
+    was ignored half the time. Now, if the Hopper left the ground fast enough
+    (`hopSpeed`), pressing jump in the air is the same super hop.
   - **A lap takes about 62-72 s** from the super hop. That's real physics: a circular orbit
     at r = 46 around Nibble takes 2π√(46³/810) ≈ 70 s (it was about 75 s from higher up).
     A 45-55 s lap would need r ≈ 37-41, below the highest lumps, or flying faster than a
@@ -396,6 +400,15 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
     that actually passes below its nose (it used to stretch 12 m up).
   - Only the Hopper (`superHop` in `BUGGIES`) on Nibble can do it; every other buggy and
     world keeps the caps.
+- **The Hopper's jets** (#40, `BOOST` in `buggy.js`). On any world, holding jump in the air
+  fires the jets: forwards at 2.5 m/s² and up at 1.3 × the local gravity (so it gently
+  rises), for 1.2 s per hop, refilled on landing. Flames and a whoosh come out of the jets.
+  Held from a jump on the ground, the jets wait a quarter of a second (`BOOST.wait`), so a
+  tap is exactly the old hop: jets mark the buggy as flying, which turns off the extra
+  pull that keeps ordinary hops low, so even two frames of jets used to double a hop.
+  The ordinary airborne cap (75% of circular speed) still holds, so a boost never reaches
+  orbit. On Nibble, holding jump from a slow start boosts the Hopper up to speed and then
+  into the super hop: the "keep boosting into orbit" a kid tries first.
 - **Getting home.** 🏠 drives back into the garage when close, or whisks you back with
   sparkles when far. A HUD compass always points to the rocket.
 - **Driving all the way round the world** (#29; `WorldLap` in `buggy.js`). The worlds are

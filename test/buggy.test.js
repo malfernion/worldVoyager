@@ -54,6 +54,46 @@ describe('buggy', () => {
     });
   }
 
+  describe('the Hopper\'s jets', () => {
+    for (const world of ['homestead', 'pebble', 'dusty', 'frosty', 'flip']) {
+      it(`holding jump in the air on ${world} boosts it further, then the jets run out and it comes down`, () => {
+        const hop = (hold) => {
+          const sys = createSystem();
+          const b = new Buggy(sys.byId[world], BUGGIES.hopper);
+          b.spawn([0, 1, 0], [1, 0, 0]);
+          const start = b.p;
+          let jetFrames = 0, i = 0;
+          for (; i < 60 * 2; i++) b.step(1 / 60, { throttle: 1, steer: 0, jump: false });
+          b.step(1 / 60, { throttle: 1, steer: 0, jump: true });
+          let air = 0, spent = false;
+          for (i = 0; i < 60 * 60 && !(air > 5 && b.grounded); i++) {
+            // Hold until the jets run out (held on landing, it would just hop again).
+            spent ||= air > 0 && b.airFuel <= 0;
+            b.step(1 / 60, { throttle: 0, steer: 0, jump: hold && !spent });
+            if (!b.grounded) air++;
+            if (b.jets) jetFrames++;
+          }
+          return { b, air, jetFrames, far: vec.len(vec.sub(b.p, start)) };
+        };
+        const plain = hop(false), boosted = hop(true);
+        expect(plain.jetFrames).toBe(0);
+        expect(boosted.jetFrames).toBeGreaterThan(30);
+        expect(boosted.jetFrames).toBeLessThanOrEqual(Math.ceil(60 * 1.2) + 1); // the jets run out
+        expect(boosted.air).toBeGreaterThan(plain.air);
+        expect(boosted.b.grounded).toBe(true); // and it lands
+        expect(boosted.b.orbiting).toBe(false);
+      });
+    }
+
+    it('only the Hopper has jets', () => {
+      for (const kind of ['rover', 'truck']) {
+        let jets = 0;
+        drive('homestead', kind, 20, (i, b) => { jets += b.jets ? 1 : 0; return { throttle: 1, steer: 0, jump: true }; });
+        expect(jets).toBe(0);
+      }
+    });
+  });
+
   describe('Ducky\'s gas jets (#13)', () => {
     const sys = createSystem();
     const ducky = sys.byId.ducky;
@@ -373,13 +413,40 @@ describe('buggy', () => {
       b.spawn([0, 1, 0], [1, 0, 0]);
       let hopped = false, maxR = 0;
       for (let i = 0; i < 60 * 20; i++) {
-        // Creeping along below the trigger speed, holding jump.
-        b.step(1 / 60, { throttle: b.speed < b.topSpeed * ORBIT.trigger * 0.8 ? 1 : 0, steer: 0, jump: true });
+        // Creeping along below the trigger speed, tapping jump now and then (holding it
+        // boosts us up to speed, see the next test).
+        b.step(1 / 60, { throttle: b.speed < b.topSpeed * ORBIT.trigger * 0.8 ? 1 : 0, steer: 0, jump: i % 180 < 6 });
         hopped ||= !!b.superHop;
         maxR = Math.max(maxR, vec.len(b.p));
       }
       expect(hopped).toBe(false);
       expect(maxR).toBeLessThan(sys.byId.nibble.maxSurface + 15);
+    });
+
+    it('holding jump from a slow start boosts the Hopper up to a super hop', () => {
+      const sys = createSystem();
+      const b = new Buggy(sys.byId.nibble, BUGGIES.hopper);
+      b.spawn([0, 1, 0], [1, 0, 0]);
+      let hopped = false;
+      for (let i = 0; i < 60 * 20 && !hopped; i++) {
+        b.step(1 / 60, { throttle: b.speed < b.topSpeed * ORBIT.trigger * 0.8 ? 1 : 0, steer: 0, jump: true });
+        hopped = !!b.superHop;
+      }
+      expect(hopped).toBe(true);
+    });
+
+    it('jump works while bouncing off a bump: a fast Hopper already in the air super hops', () => {
+      STARTS.forEach(({ dir, fwd }) => {
+        const sys = createSystem();
+        const b = new Buggy(sys.byId.nibble, BUGGIES.hopper);
+        b.spawn(dir, fwd);
+        let i = 0;
+        for (; i < 60 * 3; i++) b.step(1 / 60, { throttle: 1, steer: 0, jump: false });
+        while (b.grounded && i++ < 60 * 30) b.step(1 / 60, { throttle: 1, steer: 0, jump: false });
+        expect(b.grounded).toBe(false);
+        b.step(1 / 60, { throttle: 1, steer: 0, jump: true });
+        expect(b.orbiting).toBe(true);
+      });
     });
 
     for (const world of ['pebble', 'frosty', 'homestead', 'dusty']) {

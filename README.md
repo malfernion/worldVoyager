@@ -84,7 +84,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   cheers at halfway, and the first time you get the 🌍 Round the World sticker (each world
   you've driven round gets a 🌍 in the sticker book). Your tyres kick up dust the colour of
   the ground, and it floats down slowly on little moons and falls fast at home; the Hopper's
-  jets puff when it jumps. (Psst: on tiny Nibble, drive the Hopper really fast, then jump and
+  jets puff when it jumps, and **holding jump in the air** fires them for a boost that goes
+  further. (Psst: on tiny Nibble, drive the Hopper really fast, then jump and
   hold it…)
 - **Keyboard:** ←/→ or A/D turn, Space/↑/W fire (hold **Shift** too for a gentle tenth of the
   thrust, for careful burns), M map, time speed `+`/`-` (or `]`/`[`, `.`/`,`), `0` or `/` normal speed, `1`–`7` pick a

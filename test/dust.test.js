@@ -216,8 +216,8 @@ describe('buggy dust (#26)', () => {
 
     it('the Hopper\'s jump bursts out a ring of dust, jets flash, and the landing thumps', () => {
       const jets = [[-0.55, -0.3, -1], [0.55, -0.3, -1]];
-      // One hop on Pebble: press jump once, from standing still.
-      const hop = run('pebble', 'hopper', 5, (s) => ({ throttle: 0, steer: 0, jump: s < 20 }), jets);
+      // One hop on Pebble: tap jump once, from standing still (holding it would boost, #40).
+      const hop = run('pebble', 'hopper', 5, (s) => ({ throttle: 0, steer: 0, jump: s < 3 }), jets);
       expect(hop.landings).toBeGreaterThanOrEqual(1);
       expect(hop.made).toBeGreaterThan(16 + 4);
       expect(hop.flames).toBeGreaterThan(0);
