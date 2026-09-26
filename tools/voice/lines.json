@@ -1256,6 +1256,10 @@
   "text": "Space starts way up high where the sky turns black."
  },
  {
+  "key": "sparkles show where well meet the world we picked",
+  "text": "Sparkles show where we'll meet the world we picked!"
+ },
+ {
   "key": "splash",
   "text": "Splash!"
  },
@@ -1292,6 +1296,10 @@
   "text": "Tap the compass!"
  },
  {
+  "key": "tap the house to drive back",
+  "text": "Tap the house to drive back."
+ },
+ {
   "key": "tap the landing button to land",
   "text": "Tap the landing button to land!"
  },
@@ -1304,12 +1312,28 @@
   "text": "Tap the landing helper when you are going around Pebble."
  },
  {
+  "key": "that boom shows where we would crash",
+  "text": "That boom shows where we would crash!"
+ },
+ {
   "key": "that is close enough to ember",
   "text": "That is close enough to Ember!"
  },
  {
   "key": "that means you are falling around the planet so fast you keep missing the ground",
   "text": "That means you are falling around the planet so fast you keep missing the ground!"
+ },
+ {
+  "key": "that target shows where well get closest",
+  "text": "That target shows where we'll get closest!"
+ },
+ {
+  "key": "that triangle is the highest well go",
+  "text": "That triangle is the highest we'll go!"
+ },
+ {
+  "key": "that triangle is the lowest well go",
+  "text": "That triangle is the lowest we'll go!"
  },
  {
   "key": "thats ducky",
@@ -1344,6 +1368,10 @@
   "text": "That's Nibble!"
  },
  {
+  "key": "thats our rocket",
+  "text": "That's our rocket!"
+ },
+ {
   "key": "thats pebble",
   "text": "That's Pebble!"
  },
@@ -1360,12 +1388,20 @@
   "text": "That's Tumble!"
  },
  {
+  "key": "the fire shows where well fire the engine",
+  "text": "The fire shows where we'll fire the engine!"
+ },
+ {
   "key": "the hopper",
   "text": "The Hopper!"
  },
  {
   "key": "the light bounces back and tells them how far away the moon is",
   "text": "The light bounces back and tells them how far away the Moon is!"
+ },
+ {
+  "key": "the line shows where well go",
+  "text": "The line shows where we'll go."
  },
  {
   "key": "the monster truck",

@@ -309,7 +309,8 @@ export class FlightHud {
     this.el('alt').textContent = st.landed ? '🛬 landed' : `⬆ ${fmt(alt)}`;
     this.el('spd').textContent = `💨 ${fmt(f.speed)}`;
     const warp = Math.round(s.warp);
-    this.el('warp-label').textContent = `×${warp}`;
+    // ⏸ while Pip pauses to explain a marker (#33).
+    this.el('warp-label').textContent = s.explaining ? '⏸' : `×${warp}`;
     this.el('speed').classList.toggle('fast', warp > 1);
     this.el('normal-btn').classList.toggle('lit', warp <= 1);
     this.syncZoomSlider();

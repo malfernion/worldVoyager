@@ -86,6 +86,22 @@ borrow the vibe, not the content: all names, worlds and music are original.
    older one). Idle hints are dropped if Pip is busy, and the queue stays short, so Pip never
    reads out a backlog of old news. Stickers pop up when Pip gets to them.
 
+5. **Every icon explains itself** (#33). The map's markers each mean one thing: the path line
+   (where we'll go), ▲ highest, ▼ lowest, 💥 where we'd crash, ✨ where we'll meet the world we
+   picked (over its ghost), 🎯 closest we'll get to it, 🔥 where Pip plans to fire the engine,
+   and the orange arrow for the rocket (also in flight when the rocket is too small to see).
+   The first time a kind shows, the game pauses gently: the marker glows (and the map glides it
+   out from under Pip's bubble), Pip says one short line, and play carries on by itself when
+   she's done, or at any tap. Only when nothing urgent is happening: never over a coach cue, a
+   safety takeover, a burn, the first lesson or a coached landing; otherwise it waits. Each kind
+   is explained once (saved); after that, tapping a marker says it again, without pausing.
+   ▲ ▼ are only drawn where we are now and at the world we picked (one pair per path piece made
+   a trip a clutter of triangles). The coach's arrow isn't tappable or explained this way: the
+   coach's own cues already say "follow the arrow". World labels on the map keep out of each
+   other's way: in order of importance (the picked world, where we are, the map's focus,
+   planets and Ducky, Ember, then moons) each is shown in full if it fits, else as just its
+   icon, else hidden until you zoom in.
+
 ## Structure
 
 ```

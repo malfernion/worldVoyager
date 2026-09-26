@@ -15,6 +15,7 @@ import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
 import { landingFinds, ringGapCrossed, flareSeen, sunDirection } from '../physics/discoveries.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
+import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, labelRank, declutterLabels } from '../ui/markers.js';
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
@@ -83,6 +84,22 @@ export class FlightScene {
     this.gapAt = null;
     this.labels = document.getElementById('labels');
     this.markers = new Map();
+    // Markers that explain themselves (#33): which kinds are on screen and for how long, the one
+    // Pip is talking about (it glows), and the pause while Pip explains one for the first time.
+    this.kindsShown = new Set();
+    this.kindTime = {};
+    this.kindAt = {}; // where each kind is: scene x, y and screen sx, sy
+    this.panGlide = null;
+    this.highlight = null;
+    this.explaining = null;
+    this.lastExplain = -Infinity;
+    this.calm = { screen: '', mode: '', crashed: false, speaking: false, throttle: 0, steering: false, sinceLast: 0, helper: null };
+    this.calmHelper = { mode: null, coach: false, throttle: 0, aiming: false, tricky: false };
+    // Any tap carries on from the pause (the line itself still finishes), and leaves the map be.
+    window.addEventListener('pointerdown', () => {
+      this.panGlide = null;
+      if (this.explaining) this.endExplain();
+    }, true);
   }
 
   makeLine(points, color, width, opacity = 1) {
@@ -127,6 +144,7 @@ export class FlightScene {
     this.particles.clear();
     this.camUp.set(0, 1, 0);
     this.camUpAngle = undefined;
+    this.explaining = null;
     this.app.audio.setMood('camp');
   }
 
@@ -160,6 +178,7 @@ export class FlightScene {
 
   toggleMap() {
     if (this.mode === 'drive') return;
+    this.panGlide = null;
     this.mode = this.mode === 'map' ? 'flight' : 'map';
     if (this.mode === 'map') {
       this.mapFocus = this.flight.state.body;
@@ -220,6 +239,7 @@ export class FlightScene {
 
   /** Re-centre the map on a world. With `smooth`, glide there instead of jumping. */
   focusMapOn(body, smooth = false) {
+    this.panGlide = null;
     if (!smooth || !this.mapFocus) {
       this.mapFocus = body;
       this.pan = { x: 0, y: 0 };
@@ -560,6 +580,10 @@ export class FlightScene {
     // Manual controls take over from the helpers (a coach just talks, so you keep flying).
     const manualTurn = (this.input.left ? 1 : 0) - (this.input.right ? 1 : 0);
     const manual = manualTurn !== 0 || this.input.go;
+    // Pausing to explain a marker (#33): steering or GO carries on at once.
+    if (this.explaining && (manual || this.crashed)) this.endExplain();
+    this.updateExplain(dt, manual);
+    const paused = !!this.explaining;
     if (manual && ap.driving && !ap.coachSession) ap.stop();
     // After a coached touchdown, a GO still held from the last pulse mustn't hop us back up.
     if (!this.input.go) this.goLatched = false;
@@ -585,13 +609,13 @@ export class FlightScene {
         }
       }
     }
-    if (!this.crashed) {
+    if (!this.crashed && !paused) {
       ap.update(dt);
       f.step(dt, warp);
     }
 
     // Rewind history.
-    this.snapTimer += dt;
+    if (!paused) this.snapTimer += dt;
     if (this.snapTimer > 0.5 && !this.crashed) {
       this.snapTimer = 0;
       this.snapshots.push(f.snapshot());
@@ -600,18 +624,21 @@ export class FlightScene {
 
     // Predicted path.
     this.predTimer -= dt;
-    if (!s.landed && !this.crashed && (this.predTimer <= 0 || f.throttle > 0)) {
+    if (!s.landed && !this.crashed && !paused && (this.predTimer <= 0 || f.throttle > 0)) {
       this.predTimer = 0.2;
       this.prediction = predict(s, { target: this.target, maxSegments: 4, maxTime: 40000 });
     } else if (s.landed) {
       this.prediction = null;
     }
 
-    this.checkGoals();
+    if (!paused) this.checkGoals();
     this.updateMood();
 
     // Positions.
-    if (this.mode === 'map') this.easeMap(dt);
+    if (this.mode === 'map') {
+      this.easeMap(dt);
+      this.glideMap(dt);
+    }
     const rw = f.worldPos(this.tmp);
     if (this.mode === 'flight') {
       this.origin.x = rw.x;
@@ -630,6 +657,92 @@ export class FlightScene {
     this.updateAtmospheres();
     this.updateMarkers();
     this.app.audio.setEngine(this.crashed ? 0 : f.throttle);
+  }
+
+  /**
+   * First sight of a marker (#33): once one kind has been on screen for a moment and nothing
+   * urgent is going on (the pure rules are in src/ui/markers.js), pause and let Pip explain it.
+   * Each kind only once (saved); the pause ends when Pip has said it, on any tap, or after
+   * MAX_PAUSE at the latest.
+   */
+  updateExplain(dt, steering) {
+    for (const kind of FIRST_SIGHT) this.kindTime[kind] = this.kindsShown.has(kind) ? (this.kindTime[kind] || 0) + dt : 0;
+    const ex = this.explaining;
+    if (ex) {
+      ex.t += dt;
+      if (ex.t > MAX_PAUSE) this.endExplain();
+      return;
+    }
+    const app = this.app;
+    const ap = this.autopilot;
+    const c = this.calm;
+    c.screen = app.screen;
+    c.mode = this.mode;
+    c.crashed = this.crashed;
+    c.speaking = app.speech.busy;
+    c.throttle = this.flight.throttle;
+    c.steering = steering;
+    c.sinceLast = this.time - this.lastExplain;
+    c.helper = null;
+    if (ap.active) {
+      const h = this.calmHelper;
+      h.mode = ap.mode;
+      h.coach = !!ap.coachSession;
+      h.throttle = ap.cmd.throttle;
+      h.aiming = ap.cmd.angle !== null;
+      h.tricky = ap.warp !== null && ap.warp <= 1;
+      c.helper = h;
+    }
+    const kind = pickExplanation(this.kindTime, (k) => app.progress.explained(k), c);
+    if (kind) this.explain(kind, true);
+  }
+
+  /** Pip explains a kind of marker (first sight, with `pause`, or tapped): it glows meanwhile. */
+  explain(kind, pause = false) {
+    const app = this.app;
+    const line = MARKER_LINES[kind];
+    if (!line) return;
+    app.progress.markExplained(kind);
+    // Keyed, so tapping again (or another marker) doesn't stack lines up.
+    const said = app.pip(line, { speak: true, key: 'marker', onStart: () => (this.highlight = kind) });
+    if (!said) return;
+    if (pause) {
+      this.explaining = { kind, t: 0 };
+      this.showKind(kind);
+    }
+    app.afterPip(() => {
+      if (this.highlight === kind) this.highlight = null;
+      if (this.explaining?.kind === kind) this.endExplain();
+    });
+  }
+
+  /**
+   * On the map, glide a marker out from under Pip's bubble or the thumbs to just below the
+   * middle, so the child can see what Pip is talking about.
+   */
+  showKind(kind) {
+    const at = this.kindAt[kind];
+    if (this.mode !== 'map' || !at) return;
+    const W = window.innerWidth, H = window.innerHeight;
+    if (at.sx > W * 0.2 && at.sx < W * 0.8 && at.sy > H * 0.4 && at.sy < H * 0.72) return;
+    const perPx = (2 * this.mapDist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / H;
+    this.mapEase = false;
+    this.panGlide = { x: this.pan.x + at.x, y: this.pan.y + at.y + H * 0.08 * perPx, t: 0 };
+  }
+
+  glideMap(dt) {
+    const g = this.panGlide;
+    if (!g) return;
+    const k = 1 - Math.exp(-dt * 4);
+    this.pan.x += (g.x - this.pan.x) * k;
+    this.pan.y += (g.y - this.pan.y) * k;
+    g.t += dt;
+    if (g.t > 2.5 || this.mode !== 'map') this.panGlide = null;
+  }
+
+  endExplain() {
+    this.explaining = null;
+    this.lastExplain = this.time;
   }
 
   /** Buggy time: the rocket waits on the pad while we drive around. */
@@ -959,7 +1072,8 @@ export class FlightScene {
       }
       line.visible = !this.crashed;
       line.material.opacity = map ? 0.95 : 0.55;
-      line.material.linewidth = map ? 3.5 : 2.5;
+      // Pip is saying "the line shows where we'll go" (#33): make it stand out.
+      line.material.linewidth = (map ? 3.5 : 2.5) * (this.highlight === 'rocket' ? 1.8 : 1);
       line.position.set(f.anchor.x, f.anchor.y, 0);
       if (f.moving) {
         const g = f.at(0, 0, this.ghostTime(seg));
@@ -1001,6 +1115,33 @@ export class FlightScene {
     return el;
   }
 
+  /**
+   * A marker that explains itself (#33): tap it and Pip says what it is; it glows while Pip
+   * does. Placed like placeMarker; notes that its kind is on screen.
+   */
+  kindMarker(key, className, html, kind, x, y, z = 0) {
+    const el = this.marker(key, `${className} tap`, html);
+    el.dataset.kind = kind;
+    if (!el.onclick) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        this.app.audio.play('tap');
+        this.explain(el.dataset.kind);
+      };
+    }
+    el.classList.toggle('explain', this.highlight === kind);
+    const scr = this.placeMarker(el, x, y, z);
+    if (scr && !this.kindsShown.has(kind)) {
+      this.kindsShown.add(kind);
+      const at = (this.kindAt[kind] ??= { x: 0, y: 0, sx: 0, sy: 0 });
+      at.x = x;
+      at.y = y;
+      at.sx = scr.sx;
+      at.sy = scr.sy;
+    }
+    return scr;
+  }
+
   placeMarker(el, x, y, z = 0) {
     const v = new THREE.Vector3(x, y, z).project(this.camera);
     const off = v.z > 1 || Math.abs(v.x) > 1.2 || Math.abs(v.y) > 1.2;
@@ -1016,56 +1157,79 @@ export class FlightScene {
     const map = this.mode === 'map';
     const s = this.flight.state;
     const tmp = this.tmp2;
+    this.kindsShown.clear();
     if (map) {
+      // World labels: tap one to pick it. Where they crowd together (a moon by its planet),
+      // the less important ones shrink to their icon or hide (#33).
+      const crowd = [];
       for (const v of this.visuals) {
         const b = v.body;
         const el = this.marker(`body-${b.id}`, 'body-label', `<span class="icon">${b.icon}</span><span class="name">${b.name}</span>`);
         if (!el.onclick) el.onclick = (e) => { e.stopPropagation(); this.app.audio.play('tap'); this.setTarget(b); };
         el.classList.toggle('targeted', b === this.target);
+        if (!el.labelSize) {
+          // Measured once (full, then icon-only): its text never changes.
+          el.classList.remove('mini');
+          const full = [el.offsetWidth, el.offsetHeight];
+          el.classList.add('mini');
+          el.labelSize = [...full, el.offsetWidth, el.offsetHeight];
+          el.classList.remove('mini');
+        }
         b.worldPos(s.t, tmp);
         const sc = this.mapScale(b);
-        this.placeMarker(el, tmp.x - this.origin.x, tmp.y - this.origin.y - b.radius * sc * 1.05);
+        const scr = this.placeMarker(el, tmp.x - this.origin.x, tmp.y - this.origin.y - b.radius * sc * 1.05);
+        if (!scr) continue;
+        const [w, h, mw, mh] = el.labelSize;
+        crowd.push({ id: b.id, el, rank: labelRank(b, { target: this.target, focus: this.mapFocus, here: s.body }), x: scr.sx, y: scr.sy, w, h, mw, mh });
+      }
+      const how = declutterLabels(crowd);
+      for (const it of crowd) {
+        const h = how.get(it.id);
+        it.el.classList.toggle('mini', h === 'mini');
+        if (h === 'hidden') it.el.style.display = 'none';
       }
       const segs = this.prediction?.segments || [];
       this.segmentFrames().forEach((f, i) => {
         const { seg } = f;
         const el = seg.el;
         const span = seg.t1 - seg.t0;
+        // ▲ ▼ only where we are now and at the world we picked: the ones along the way were clutter.
+        const apsides = i === 0 || seg.body === this.target;
         const radial = !f.moving && nearRadial(seg);
-        const apex = radial ? radialApex(seg) : null;
+        const apex = radial && apsides ? radialApex(seg) : null;
         if (apex) {
           // Straight up: the conic is a line, so find the top of the climb in time instead.
           const q = f.at(apex.x, apex.y, seg.t0 + apex.t);
-          this.placeMarker(this.marker(`ap-${i}`, 'apsis', '▲'), q.x, q.y);
-        } else if (!radial && !f.moving && el.e < 1 && el.ra < seg.body.soi && el.timeToAp !== null && (seg.closed || el.timeToAp < span)) {
+          this.kindMarker(`ap-${i}`, 'apsis', '▲', 'high', q.x, q.y);
+        } else if (apsides && !radial && !f.moving && el.e < 1 && el.ra < seg.body.soi && el.timeToAp !== null && (seg.closed || el.timeToAp < span)) {
           const p = pointAt(el, Math.PI);
           const q = f.at(p.x, p.y, seg.t0 + el.timeToAp);
-          this.placeMarker(this.marker(`ap-${i}`, 'apsis', '▲'), q.x, q.y);
+          this.kindMarker(`ap-${i}`, 'apsis', '▲', 'high', q.x, q.y);
         }
-        if (el.timeToPe !== null && (seg.closed || el.timeToPe < span) && seg.end !== 'impact') {
+        if (apsides && el.timeToPe !== null && (seg.closed || el.timeToPe < span) && seg.end !== 'impact') {
           const p = pointAt(el, 0);
           const q = f.at(p.x, p.y, seg.t0 + el.timeToPe);
-          this.placeMarker(this.marker(`pe-${i}`, 'apsis low', '▼'), q.x, q.y);
+          this.kindMarker(`pe-${i}`, 'apsis low', '▼', 'low', q.x, q.y);
         }
         if (seg.end === 'impact') {
           const q = f.at(seg.endState.x, seg.endState.y, seg.t1);
-          this.placeMarker(this.marker(`impact-${i}`, 'event', '💥'), q.x, q.y);
+          this.kindMarker(`impact-${i}`, 'event', '💥', 'impact', q.x, q.y);
         }
         if (f.moving && seg.body === this.target) {
           const g = f.at(0, 0, this.ghostTime(seg));
-          this.placeMarker(this.marker(`meet-${i}`, 'event meet', `✨ ${seg.body.name}!`), g.x, g.y - seg.body.radius * this.mapScale(seg.body) * 1.4);
+          this.kindMarker(`meet-${i}`, 'event meet', `✨ ${seg.body.name}!`, 'meet', g.x, g.y - seg.body.radius * this.mapScale(seg.body) * 1.4);
         }
       });
       const closest = this.prediction?.closest;
       const meets = segs.some((seg) => seg.body === this.target);
       if (closest && this.target && !meets) {
         const w = closest.body.worldPos(s.t, {});
-        this.placeMarker(this.marker('near', 'event near', '🎯'), w.x - this.origin.x + closest.rocket.x, w.y - this.origin.y + closest.rocket.y);
+        this.kindMarker('near', 'event near', '🎯', 'near', w.x - this.origin.x + closest.rocket.x, w.y - this.origin.y + closest.rocket.y);
       }
       if (this.autopilot.marker) {
         const m = this.autopilot.marker;
         const w = m.body.worldPos(s.t, {});
-        this.placeMarker(this.marker('burn', 'event burn', '<span>🔥</span>'), w.x - this.origin.x + m.x, w.y - this.origin.y + m.y);
+        this.kindMarker('burn', 'event burn', '<span>🔥</span>', 'burn', w.x - this.origin.x + m.x, w.y - this.origin.y + m.y);
       }
     }
     // Coach arrow: which way to point.
@@ -1121,7 +1285,7 @@ export class FlightScene {
       const p = new THREE.Vector3(w.x + foot[0] + up[0] * (this.rocket.height + 3) - this.origin.x, w.y + foot[1] + up[1] * (this.rocket.height + 3) - this.origin.y, foot[2] + up[2] * (this.rocket.height + 3));
       const v = p.clone().project(this.camera);
       const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
-      if (onScreen) this.placeMarker(this.marker('home-pin', 'home-pin', '<span>🚀</span>'), p.x, p.y, p.z);
+      if (onScreen) this.kindMarker('home-pin', 'home-pin', '<span>🚀</span>', 'home', p.x, p.y, p.z);
       // Direction to the rocket for the HUD compass (flipped if it's behind us).
       const sx = v.z > 1 ? -v.x : v.x, sy = v.z > 1 ? -v.y : v.y;
       this.homeCompass = { angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight), visible: onScreen };
@@ -1137,8 +1301,8 @@ export class FlightScene {
     const camDist = this.camera.position.distanceTo(new THREE.Vector3(rel.x, rel.y, 0));
     const tiny = camDist > 900;
     if ((map || tiny) && !this.crashed) {
-      const el = this.marker('rocket', 'rocket-marker', '<div class="arrow"></div>');
-      const scr = this.placeMarker(el, rel.x, rel.y);
+      const scr = this.kindMarker('rocket', 'rocket-marker', '<div class="arrow"></div>', 'rocket', rel.x, rel.y);
+      const el = this.markers.get('rocket');
       if (scr) {
         const ahead = new THREE.Vector3(rel.x + Math.cos(s.angle) * 10, rel.y + Math.sin(s.angle) * 10, 0).project(this.camera);
         const ax = (ahead.x * 0.5 + 0.5) * window.innerWidth - scr.sx;
@@ -1167,7 +1331,11 @@ export class FlightScene {
     const p = new THREE.Vector3(w.x + tp[0] * (1 + lift / l) - this.origin.x, w.y + tp[1] * (1 + lift / l) - this.origin.y, tp[2] * (1 + lift / l));
     const v = p.clone().project(this.camera);
     const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
-    if (onScreen && nearest.dist < 60) this.placeMarker(this.marker('secret-pin', 'secret-pin', `<span>${nearest.target.icon}</span>`), p.x, p.y, p.z);
+    if (onScreen && nearest.dist < 60) {
+      // A secret (✨) or a friend (🎵): tap it and Pip says the compass hint again (#33).
+      const kind = nearest.target.icon === '🎵' ? 'friend' : 'secret';
+      this.kindMarker(`secret-pin-${kind}`, 'secret-pin', `<span>${nearest.target.icon}</span>`, kind, p.x, p.y, p.z);
+    }
     const sx = v.z > 1 ? -v.x : v.x, sy = v.z > 1 ? -v.y : v.y;
     return {
       angle: Math.atan2(sx * window.innerWidth, sy * window.innerHeight),

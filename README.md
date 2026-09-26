@@ -33,6 +33,14 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   and Land teaches the landing: point up at the arrow, then HOLD / LET GO to keep the descent
   gentle (Pip steps in if it gets too fast). After a crash only the three choices show: go
   back, launch pad, or build.
+- **What are all these icons?** On the map, your path is a bright line, and little icons mark
+  it: ▲ the highest you'll go, ▼ the lowest, 💥 where you'd crash, ✨ where you'll meet the
+  world you picked (its ghost shows where it will be then), 🎯 where you'll get closest to it,
+  and 🔥 where Pip plans to fire the engine. The orange arrow is your rocket. The first time
+  each one shows up, the game pauses for a moment (⏸) while it glows and Pip says what it is;
+  it carries on when Pip's done, or as soon as you tap anything. Tap any of them (or the 🚀 and
+  ✨ / 🎵 pins while driving) to hear it again. When worlds crowd together on the map, a
+  moon's label shrinks to its icon or hides until you zoom in.
 - **Go somewhere:** open the map, tap a world, then the trip button: **🧭 Let's go!** with the
   coach on (you fly there and land, Pip tells you how) or **🤖 Take me there!** with it off
   (Pip flies, you watch). Tap it again (✋ Stop) to stop.

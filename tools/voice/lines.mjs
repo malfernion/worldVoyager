@@ -20,7 +20,7 @@ const names = BODY_DEFS.map((b) => b.name);
 const radialNames = Object.values(PARTS).filter((p) => p.slot === 'radial').map((p) => p.name);
 
 // Files that contain spoken lines, and how to spot them.
-const FILES = ['src/main.js', 'src/scenes/flight.js', 'src/scenes/builder.js', 'src/scenes/drive.js', 'src/physics/autopilot.js'];
+const FILES = ['src/main.js', 'src/scenes/flight.js', 'src/scenes/builder.js', 'src/scenes/drive.js', 'src/physics/autopilot.js', 'src/ui/markers.js'];
 // Status text shown on screen but never spoken.
 const NOT_SPOKEN = /^(Flying up|Coasting|Going around!$|Thinking|Waiting|Blast off!$|Flying to|Fixing|Little push|Arriving|Steering away|Slowing down$|Moving closer|Turning around|Getting into orbit|Landing$)/;
 

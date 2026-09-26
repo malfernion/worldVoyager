@@ -164,12 +164,14 @@ export class Progress {
     this.done = d.done || {};
     this.design = d.design || null;
     this.settings = { music: true, sfx: true, voice: true, ...(d.settings || {}) };
+    // Screen markers Pip has already explained (#33): { kind: true }. Older saves have none.
+    this.markers = d.markers || {};
     this.listeners = [];
   }
 
   save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ done: this.done, design: this.design, settings: this.settings }));
+      localStorage.setItem(KEY, JSON.stringify({ done: this.done, design: this.design, settings: this.settings, markers: this.markers }));
     } catch {
       // Storage may be unavailable (private mode); progress just won't persist.
     }
@@ -192,14 +194,27 @@ export class Progress {
     this.listeners.push(fn);
   }
 
+  /** Has Pip explained this kind of screen marker (▲, 💥…) yet? (#33) */
+  explained(kind) {
+    return !!this.markers[kind];
+  }
+
+  /** Remember a marker kind has been explained, so it only pauses the game once. */
+  markExplained(kind) {
+    if (this.markers[kind]) return;
+    this.markers[kind] = true;
+    this.save();
+  }
+
   get currentGoal() {
     return GOALS.find((g) => !this.done[g.id]) || null;
   }
 
-  /** Forget everything about this adventure (stickers, goals, saved rocket). Settings stay. */
+  /** Forget everything about this adventure (stickers, goals, saved rocket, explained markers). Settings stay. */
   reset() {
     this.done = {};
     this.design = null;
+    this.markers = {};
     this.save();
   }
 }

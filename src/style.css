@@ -649,6 +649,67 @@ h1 {
   font-size: 22px;
 }
 
+/* Crowded (a moon right by its planet): just the icon, still tappable (#33). */
+.body-label.mini {
+  padding: 3px 6px;
+}
+
+.body-label.mini .name {
+  display: none;
+}
+
+/* Markers that explain themselves (#33): tap one to hear Pip. At least 48 px to hit, however small the icon. */
+.marker.tap {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* The path's markers sit above the rocket arrow (it's often right by the ▲ or the 💥). */
+.marker.tap:not(.rocket-marker) {
+  z-index: 1;
+}
+
+.marker.tap::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 48px);
+  height: max(100%, 48px);
+  translate: -50% -50%;
+}
+
+/* While Pip explains one, a ring pulses round it. */
+.marker.explain {
+  z-index: 2;
+}
+
+.marker.explain::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 60px;
+  height: 60px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  border: 4px solid var(--glow);
+  box-shadow: 0 0 14px var(--glow), inset 0 0 10px var(--glow);
+  pointer-events: none;
+  animation: explain-pulse 0.7s infinite alternate;
+}
+
+@keyframes explain-pulse {
+  from {
+    scale: 0.85;
+    opacity: 0.6;
+  }
+  to {
+    scale: 1.2;
+    opacity: 1;
+  }
+}
+
 .body-label.targeted {
   background: var(--glow);
   color: var(--ink);

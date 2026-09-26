@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy, discoveries, friends (+ the band's music), speech (+ the speech queue), zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy, discoveries, friends (+ the band's music), speech (+ the speech queue), markers, zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -66,7 +66,8 @@ Only push work that is tested and ready for players.
 
 ```
 src/main.js            App shell: renderer, screens (title / builder / flight), Pip bubbles, stickers, journal, settings
-src/progress.js        Goals, stickers (incl. discoveries' facts and hints, friends' hellos and hints), saved design + settings (incl. the 🧭 coach switch; localStorage)
+src/progress.js        Goals, stickers (incl. discoveries' facts and hints, friends' hellos and hints), saved design + settings (incl. the 🧭 coach switch),
+                       which screen markers Pip has explained (#33; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
   bodies.js            The solar system: on-rails orbits (round, or Ducky the comet's Kepler ellipse), SOIs, per-world surfaces
@@ -87,6 +88,7 @@ src/rocket/            Parts catalogue + stats, procedural rocket and buggy mesh
 src/scenes/            builder.js (workshop), flight.js (flight + map views), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
+                       markers.js (pure: what each screen marker means, when it's safe to pause and explain one, label decluttering; #33),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping)
 src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
 src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): playback audio session, tap-to-resume,
@@ -164,6 +166,16 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   chain lines with `setTimeout` (that's what cut lines off). To do something after Pip's
   current lines (the next sticker), use `app.afterPip(fn)`. Give each new line a priority on
   purpose (see "Pip's voice").
+- **Screen markers explain themselves** (#33). Every marker a child can see over the view is made
+  with `FlightScene.kindMarker(key, class, html, kind, x, y)`, with a line in `MARKER_LINES`
+  (`src/ui/markers.js`): it's tappable (a 48 px hit area; HUD buttons sit above `#labels`, so
+  markers never steal their taps) and glows while Pip explains it. Kinds in `FIRST_SIGHT` pause
+  the sim once, the first time they're on screen, but only when `calmToExplain()` says so
+  (Pip quiet, engine off, not steering, no helper burning or at a tricky bit, never in a coach
+  lesson or coached landing, one explanation at a time). The pause only stops the sim and the
+  helper stepping; it ends when the line has been said (`afterPip`), on any tap, or after
+  `MAX_PAUSE`. Explained kinds are saved in `progress.markers`. Adding a marker kind? Add its
+  line (and record it), and decide whether it belongs in `FIRST_SIGHT`.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works. In coach mode the player flies; Pip only does tiny nudges and
   safety takeovers (`ap.driving`).
@@ -328,6 +340,9 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   resuming from `visibilitychange` alone isn't enough. Decode clips with `decodeAudio()`: older
   WebKit only has the callback form of `decodeAudioData`. Headless Chromium can't check any
   of this; see "Sound on iPad / iPhone" above.
+- **Headless screenshots time out after many stepped frames**: SwiftShader seems to queue every
+  frame's GL work until the screenshot. Stub `app.renderer.render = () => {}` while stepping and
+  put it back just before the shot (#33).
 - **Screen markers: don't animate `scale` on the marker itself.** Markers are placed with
   `transform: translate(...)`, and CSS applies the `scale` property on top of that, so a
   bobbing marker drifted away from its spot by up to 30% of its screen position (the 🚀 pin
