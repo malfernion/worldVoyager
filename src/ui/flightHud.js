@@ -12,6 +12,15 @@ const WARP_KEYS = {
   Slash: 'normal', Digit0: 'normal', Numpad0: 'normal',
 };
 
+/**
+ * The 🧭 in the helper row (#36): during the starter journey an on/off toggle that's always
+ * there; after it, shown (lit) only while a 🧭 Show me how coaches us. Returns { shown, on }.
+ */
+export function coachButton({ starterDone, coachOn, showing }) {
+  if (!starterDone) return { shown: true, on: !!coachOn };
+  return { shown: !!showing, on: !!showing };
+}
+
 export class FlightHud {
   constructor(app) {
     this.app = app;
@@ -42,14 +51,15 @@ export class FlightHud {
     click('rewind-btn', () => this.scene.rewind());
     click('build-btn', () => this.app.toBuilder());
     click('goto-btn', () => this.scene.helper('goto'));
-    click('coach-toggle', () => this.scene.setCoaching(!this.scene.coaching));
+    click('show-btn', () => this.scene.showMeHow());
+    click('coach-toggle', () => this.scene.tapCoach());
     click('target-close', () => this.scene.setTarget(null));
     click('center-btn', () => this.scene.focusMapOn(this.scene.flight.state.body, true));
     click('crash-rewind', () => this.scene.rewind());
     click('crash-pad', () => this.scene.resetToPad());
     click('crash-build', () => this.app.toBuilder());
     this.el('goal-banner').addEventListener('click', () => {
-      const g = goalShown(this.app.progress);
+      const g = goalShown(this.app.progress, this.scene.showing);
       if (g) this.app.pip(g.hint, { speak: true, key: 'goal' });
     });
     this.bindKeys();
@@ -241,7 +251,7 @@ export class FlightHud {
     const s = this.scene;
     const ap = s.autopilot;
     const st = s.flight.state;
-    const on = ap.coachSession && !ap.driving && !s.crashed;
+    const on = ap.coachSession && !ap.driving && !s.crashed && s.mode !== 'drive';
     let turn = 0, hint = '';
     if (on && ap.cmd.angle !== null && !st.landed) {
       const d = Math.atan2(Math.sin(ap.cmd.angle - st.angle), Math.cos(ap.cmd.angle - st.angle));
@@ -289,7 +299,7 @@ export class FlightHud {
     screen.classList.toggle('driving', driving);
     screen.classList.toggle('map', s.mode === 'map');
     screen.classList.toggle('crashed', s.crashed);
-    // Only the helpers that make sense now: on the ground, 🚙 Drive and 🌀 Orbit (plus the 🧭 switch).
+    // Only the helpers that make sense now: on the ground, 🚙 Drive and 🌀 Orbit (plus the 🧭, when it shows).
     document.querySelector('.helper[data-helper="land"]').classList.toggle('hidden', st.landed);
     this.el('drive-btn').classList.toggle('hidden', !s.drive.canDeploy());
     this.el('jump-btn').classList.toggle('hidden', !(driving && s.drive.kind?.jump));
@@ -340,21 +350,30 @@ export class FlightHud {
     meter.querySelector('.fill').style.height = `${Math.min(100, (alt / (b.spaceLine * 1.5)) * 100)}%`;
     this.el('map-btn').textContent = s.mode === 'map' ? '🚀' : '🗺️';
     this.el('map-tools').classList.toggle('hidden', s.mode !== 'map');
-    for (const btn of document.querySelectorAll('.helper')) btn.classList.toggle('active', s.autopilot.mode === btn.dataset.helper);
-    // One trip button; what it does follows the coach switch.
-    const coach = s.coaching;
+    // Lit while Pip flies it (not while she coaches the same program).
+    const ap = s.autopilot;
+    for (const btn of document.querySelectorAll('.helper')) btn.classList.toggle('active', ap.mode === btn.dataset.helper && !ap.coachSession);
+    // The 🧭 (#36): during the starter journey an on/off toggle; after it, only while a Show me
+    // how is coaching, lit (tapping it dismisses the coach).
+    const cb = coachButton({ starterDone: this.app.progress.starterDone, coachOn: s.coachOn, showing: s.showing });
     const toggle = this.el('coach-toggle');
-    toggle.classList.toggle('on', coach);
-    toggle.classList.toggle('coach-glow', !!s.coachNudge && !coach && !this.app.progress.has('space'));
-    toggle.setAttribute('aria-pressed', String(coach));
-    toggle.lastChild.textContent = coach ? 'Coach on' : 'Coach off';
-    this.el('goto-btn').textContent = s.tripRunning ? '✋ Stop' : coach ? '🧭 Let\'s go!' : '🤖 Take me there!';
+    toggle.classList.toggle('hidden', !cb.shown);
+    toggle.classList.toggle('on', cb.on);
+    toggle.classList.toggle('coach-glow', !!s.introGlow && !cb.on && !this.app.progress.has('space'));
+    toggle.setAttribute('aria-pressed', String(cb.on));
+    toggle.lastChild.textContent = cb.on ? 'Coach on' : 'Coach off';
+    // The target card: 🤖 Take me there (✋ Stop while Pip flies us there) and 🧭 Show me how
+    // (hidden while it's already coaching us there).
+    const t = s.target;
+    this.el('goto-btn').textContent = s.tripRunning && ap.target === t ? '✋ Stop' : '🤖 Take me there!';
+    this.el('show-btn').classList.toggle('hidden', !!t && s.showing?.body === t);
     const status = this.el('status-line');
-    status.classList.toggle('hidden', !s.autopilot.status);
+    status.classList.toggle('hidden', !ap.status);
     // Who's flying: 🧭 you (Pip coaches) or 🤖 Pip.
-    status.textContent = s.autopilot.status ? `${s.autopilot.coachSession ? '🧭' : '🤖'} ${s.autopilot.status}` : '';
-    // Only while there's a goal to show (#36): gone after the starter journey.
-    const g = goalShown(this.app.progress);
+    status.textContent = ap.status ? `${ap.coachSession ? '🧭' : '🤖'} ${ap.status}` : '';
+    // Only while there's a goal to show (#36): the starter goal, or after the journey the world
+    // a Show me how is coaching us to.
+    const g = goalShown(this.app.progress, s.showing);
     const banner = this.el('goal-banner');
     banner.classList.toggle('hidden', !g);
     if (g) banner.textContent = `${g.icon} ${g.text}`;

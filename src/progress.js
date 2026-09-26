@@ -17,16 +17,27 @@ export const GOALS = [
 /** The starter journey's last goal: once it's done, the journey is finished (`Progress.starterDone`). */
 export const STARTER_END = GOALS[GOALS.length - 1].id;
 
+/**
+ * The very first launch (#36): after the first goal, Pip explains the choice once. You fly; the
+ * compass (🧭) has Pip tell you what to do; the swirly button (🌀) has her fly.
+ */
+export const FIRST_FLIGHT = 'You\'re the pilot! Want me to tell you what to do? Tap the compass. Or tap the swirly button, and I\'ll fly us round for you!';
+
 /** What Pip says when the starter journey is finished, right after its last sticker line. */
 export const JOURNEY_DONE = 'You can fly anywhere now! Pick a world on the map. I can fly you there, or show you how!';
 
 /**
  * The goal the chip (builder) and banner (flight) show, or null to hide them (#36): the current
- * starter goal during the journey, nothing after it. The one place that decides, so a later
- * rule (e.g. a coached trip's destination) goes here.
+ * starter goal during the journey; after it, only while a 🧭 Show me how is coaching us somewhere
+ * (`showing`: FlightScene's { body, here }), that world. The one place that decides.
  */
-export function goalShown(progress) {
-  return progress.currentGoal;
+export function goalShown(progress, showing = null) {
+  if (!progress.starterDone) return progress.currentGoal;
+  if (!showing) return null;
+  const b = showing.body;
+  const text = showing.here ? `Land on ${b.name}!` : b.solid ? `Fly to ${b.name} and land!` : `Fly to ${b.name}!`;
+  // Tapped, it says what the coach does (the second half of the coach's "Okay!" line).
+  return { id: 'coached', icon: '🧭', text, hint: 'I\'ll tell you what to do while you fly.' };
 }
 
 /**
@@ -257,6 +268,22 @@ export class Progress {
   get currentGoal() {
     if (this.starterDone) return null;
     return GOALS.find((g) => !this.done[g.id]) || null;
+  }
+
+  /**
+   * What Pip says on the pad at launch (#36): the starter goal, with the choice explained after it
+   * the very first time (`FIRST_FLIGHT`, then never again); null after the journey.
+   * Returns { text, first }.
+   */
+  launchLine() {
+    const g = this.currentGoal;
+    if (!g) return null;
+    const st = this.settings;
+    const first = !Object.keys(this.done).length && !st.coachOffered && !st.coach;
+    if (!first) return { text: `${g.text} ${g.hint}`, first };
+    st.coachOffered = true;
+    this.save();
+    return { text: `${g.text} ${g.hint} ${FIRST_FLIGHT}`, first };
   }
 
   /**

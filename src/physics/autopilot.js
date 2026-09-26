@@ -1,6 +1,8 @@
-// Friendly "helpers" that fly the rocket for small hands: get to orbit, land gently,
-// speed up / slow down along the path, and "take me there" transfers between worlds.
-// Each helper is a generator that runs one step per animation frame.
+// Friendly "helpers" that fly the rocket for small hands: get to orbit, land gently, and
+// "take me there" transfers between worlds. Each helper is a generator that runs one step per
+// animation frame. The same programs run as the autopilot (Pip flies: the 🌀 🛬 🤖 buttons) or
+// coached (#36: the player flies and Pip says what to do, with tiny nudges and safety catches);
+// FlightScene decides which (its coaching section).
 import { propagate, elements, wrapPi } from './orbit.js';
 import { predict } from './predict.js';
 
@@ -30,6 +32,18 @@ export function inStableOrbit(flight) {
   if (b.kind === 'star') return el.e < 1 && el.rp > b.radius * 2;
   const floor = b.solid ? b.maxSurface : b.radius;
   return el.e < 1 && el.rp > floor + b.spaceLine * 0.4 && el.ra < b.soi * 0.9;
+}
+
+/**
+ * Why the rocket can't land where it is, as the line Pip says, or null if it can (#36: the 🛬
+ * button doesn't explain itself first when it's only going to say no).
+ */
+export function landRefusal(flight) {
+  const body = flight.state.body;
+  if (body.gas) return `${body.name} is made of clouds, there's no ground to land on! Let's visit one of its moons.`;
+  if (body.kind === 'star') return 'Ember is way too hot to land on!';
+  if (flight.stats.accel < flight.localGravity * 1.05) return 'Our rocket is too weak to land here. Build one with more engines!';
+  return null;
 }
 
 /** Which body to head for next on the way from `cur` to `target`. */
@@ -198,15 +212,15 @@ export class Autopilot {
   }
 
   /**
-   * `handover`: the 🧭 switch just gave a running helper to the other pilot (#32). The switch's
-   * own line says who flies now, so the helper skips its "let's go" line and only says what
-   * to do next.
+   * `coach`: the player flies and Pip coaches (#36). `resume`: coaching picks up again after
+   * something interrupted it (an autopilot button, a rewind, driving), so it skips its opener
+   * ("Let's fly to…", "Let's land…") and only says what to do next.
    */
-  start(mode, target = null, { coach = false, handover = false } = {}) {
+  start(mode, target = null, { coach = false, resume = false } = {}) {
     this.stop();
     this.coach = coach;
     this.coachSession = coach;
-    this.handover = handover;
+    this.resume = resume;
     this.mode = mode;
     this.target = target;
     const programs = {
@@ -244,8 +258,9 @@ export class Autopilot {
     const r = this.program.next();
     if (r.done) {
       const mode = this.mode;
+      const coached = this.coachSession;
       this.stop();
-      this.say('', { done: mode, ok: r.value !== false });
+      this.say('', { done: mode, ok: r.value !== false, coached });
     }
   }
 
@@ -307,7 +322,7 @@ export class Autopilot {
     if (!f.state.landed && f.speed > 5) dir = f.elements().dir;
     const fromGround = f.state.landed;
     if (this.coach && fromGround) this.say('First we fly up high. Point up and hold GO!', COACH);
-    else if (!quiet && !this.handover) this.say('Up, up and away! Let\'s go around!');
+    else if (!quiet && !this.resume) this.say('Up, up and away! Let\'s go around!');
     this.status = 'Flying up';
 
     // 1. Climb and tip over until the high point of our path is in space.
@@ -395,21 +410,14 @@ export class Autopilot {
     const f = this.flight;
     const body = f.state.body;
     if (f.state.landed) return true;
-    if (body.gas) {
-      this.say(`${body.name} is made of clouds, there's no ground to land on! Let's visit one of its moons.`);
-      return false;
-    }
-    if (body.kind === 'star') {
-      this.say('Ember is way too hot to land on!');
-      return false;
-    }
-    if (f.stats.accel < f.localGravity * 1.05) {
-      this.say('Our rocket is too weak to land here. Build one with more engines!');
+    const no = landRefusal(f);
+    if (no) {
+      this.say(no);
       return false;
     }
     this.status = 'Landing';
-    if (this.coach) return yield* this.coachLand(intro ?? (this.handover ? '' : `Let's land on ${body.name} together!`));
-    if (!this.handover) this.say(`Let's land on ${body.name}. Nice and gentle!`);
+    if (this.coach) return yield* this.coachLand(intro ?? (this.resume ? '' : `Let's land on ${body.name} together!`));
+    if (!this.resume) this.say(`Let's land on ${body.name}. Nice and gentle!`);
     return yield* this.descend();
   }
 
@@ -518,7 +526,7 @@ export class Autopilot {
     const pointUp = 'Now point up at the arrow. I\'ll tell you when to hold GO!';
     const stopSide = 'First, point along the arrow and hold GO to stop going sideways.';
     const tinyPush = 'I\'ll do this tiny push for you!';
-    // No intro when the 🧭 switch just handed this landing over (#32): straight to what to do.
+    // No intro when coaching picks up again (#36): straight to what to do.
     const withIntro = (line) => (intro ? `${intro} ${line}` : line);
     let d = this.descent();
     // Only long sideways stops (a second or more of GO) are left to the player.
@@ -622,10 +630,25 @@ export class Autopilot {
     return true;
   }
 
+  /**
+   * Fly to `target` (the map's 🤖 Take me there, or coached: 🧭 Show me how). Coached, a trip to a
+   * world with ground ends with the landing too. Picked while already there, it means "land
+   * here" (#36), both ways: going round it or coming down, straight away; still climbing off it
+   * (or on its ground), up and round first.
+   */
   *gotoProgram(target) {
     const f = this.flight;
     if (!target || target.kind === 'star') return false;
-    if (!this.handover) this.say(`Let's fly to ${target.name}!`);
+    const here = f.state.body === target;
+    if (here && target.solid && !f.state.landed) {
+      const el = f.elements();
+      const up = f.state.x * f.state.vx + f.state.y * f.state.vy > 0;
+      if (el.e < 1 && el.ra < target.soi * 0.9 && (inStableOrbit(f) || !up)) {
+        this.mode = 'land';
+        return yield* this.landProgram();
+      }
+    }
+    if (!here && !this.resume) this.say(`Let's fly to ${target.name}!`);
     let legs = 0;
     // Enough tries for the longest route (Flip to Nibble: up, across, down) with a few retries.
     while (legs++ < 12) {
@@ -646,13 +669,17 @@ export class Autopilot {
         }
       }
       if (cur === target) {
-        if (this.coach && target.solid) {
-          // Carry straight on: now the player lands it too.
+        if (target.solid && (here || this.coach)) {
+          // Carry straight on: now the player lands it too (or Pip lands, asked to land here).
           this.mode = 'land';
-          return yield* this.landProgram(`You flew to ${target.name} all by yourself! Now let's land together.`);
+          return yield* this.landProgram(here ? null : `You flew to ${target.name} all by yourself! Now let's land together.`);
         }
-        this.tip(`We made it to ${target.name}! Tap the landing button to land!`,
-          `You flew to ${target.name} all by yourself! To land, point up and hold GO to slow down. Or tap the landing button.`, { arrived: target });
+        if (!target.solid) {
+          // A world with no ground (a gas giant): going round it is arriving.
+          this.tip(`We made it to ${target.name}!`, `You flew to ${target.name} all by yourself!`, { arrived: target });
+          return true;
+        }
+        this.say(`We made it to ${target.name}! Tap the landing button to land!`, { arrived: target });
         return true;
       }
       const hop = nextHop(cur, target);

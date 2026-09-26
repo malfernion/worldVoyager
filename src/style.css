@@ -1311,8 +1311,9 @@ h1 {
   font-size: 16px;
 }
 
-/* The 🧭 coach switch (#32): it reads without text. On: green, pushed in, with a glowing
-   green light (you fly, Pip coaches). Off: grey, sticking out, light off (Pip flies).
+/* The 🧭 coach (#32, #36): it reads without text. On: green, pushed in, with a glowing green
+   light (Pip tells you what to do). Off: grey, sticking out, light off (you fly on your own).
+   A toggle during the starter journey; after it, shown (lit) only while a Show me how coaches.
    Green, not the yellow of a running helper, so it never looks like a helper that's busy. */
 #coach-toggle {
   position: relative;
@@ -1400,6 +1401,12 @@ h1 {
 
 #target-card .small-go {
   width: 100%;
+}
+
+/* 🧭 Show me how (#36): the coach's green, under Pip's orange 🤖 Take me there. */
+#target-card .small-go.coach {
+  background: #2f9e57;
+  text-shadow: 0 2px 0 #1d6b39;
 }
 
 /* ---------- speed, zoom and velocity ---------- */

@@ -43,7 +43,8 @@ export class DriveMode {
   canDeploy() {
     const fs = this.fs;
     const s = fs.flight?.state;
-    return !!s && !this.active && !fs.crashed && s.landed && s.body.solid && !!garageOf(fs.design) && !fs.autopilot.active;
+    // A coached launch waiting for the player's GO doesn't stop them driving first (#36); Pip flying does.
+    return !!s && !this.active && !fs.crashed && s.landed && s.body.solid && !!garageOf(fs.design) && !fs.autopilot.driving;
   }
 
   /** Where the rocket stands, in the world's own frame. */
@@ -90,6 +91,8 @@ export class DriveMode {
   deploy() {
     if (!this.canDeploy()) return;
     const fs = this.fs;
+    // Coaching is quiet while we drive, and picks up again back at the rocket (#36).
+    fs.quietCoach?.();
     const s = fs.flight.state;
     const body = s.body;
     const choice = garageOf(fs.design).buggy || DEFAULT_BUGGY;

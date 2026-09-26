@@ -556,7 +556,7 @@ describe('coach mode', () => {
     expect(flight.state.landed).toBe(true);
   }, 60000);
 
-  // The 🌀 Orbit helper with the coach switched on: launch to orbit, flown by the kid.
+  // The coached launch into orbit (the 🧭 toggle's first starter step, #36), flown by the kid.
   const orbitCases = [
     ['homestead', stats, {}],
     ['homestead', stats, { lag: 20 }],

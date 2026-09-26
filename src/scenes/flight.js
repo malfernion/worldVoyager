@@ -6,7 +6,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { Flight } from '../physics/sim.js';
 import { predict, segmentPoints, nearRadial, radialApex } from '../physics/predict.js';
-import { Autopilot, inStableOrbit } from '../physics/autopilot.js';
+import { Autopilot, inStableOrbit, landRefusal } from '../physics/autopilot.js';
 import { pointAt, propagate } from '../physics/orbit.js';
 import { buildRocket } from '../rocket/rocketMesh.js';
 import { rocketStats } from '../rocket/parts.js';
@@ -18,11 +18,13 @@ import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/fri
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
 import { TAP_RADIUS, clockAllowed, clockOnPath, clockWindow, pickOnPath, travelWarp, arrived } from '../ui/fastTravel.js';
 import { clamp, flightAutoDist, flightDist, flightZoomFor, fitDist, mapZoomLimits, DRIVE_ZOOM, FLIGHT_ZOOM, SYSTEM_VIEW } from '../ui/zoom.js';
-import { STARTER_END } from '../progress.js';
+import { GOALS, STARTER_END } from '../progress.js';
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
 const CONFETTI = [0xff6b6b, 0xffd166, 0x06d6a0, 0x4cc9f0, 0xf78c6b, 0xc77dff];
+// Longest (real seconds) a new coached action waits for Pip to stop talking (#36).
+const COACH_WAIT = 20;
 
 // Holding Shift on a keyboard fires the engine at a tenth of full power, for careful burns (#28).
 // Keyboard only: there's no touch control for it, to keep the buttons simple for little ones.
@@ -106,6 +108,14 @@ export class FlightScene {
     this.clock = null; // fast travel (#27): { t } while travelling to a ⏰ on the path
     this.calm = { screen: '', mode: '', crashed: false, speaking: false, throttle: 0, steering: false, sinceLast: 0, helper: null };
     this.calmHelper = { mode: null, coach: false, throttle: 0, aiming: false, tricky: false };
+    // Coaching (#36): the Show me how under way ({ body, here }), the coached action last
+    // started and the one that ended by itself (keys from coachWant()), and the first launch's
+    // glowing 🧭.
+    this.showing = null;
+    this.coachKey = null;
+    this.coachSpent = null;
+    this.coachWait = 0;
+    this.introGlow = false;
     // Any tap carries on from the pause (the line itself still finishes), and leaves the map be.
     window.addEventListener('pointerdown', () => {
       this.panGlide = null;
@@ -157,6 +167,9 @@ export class FlightScene {
     this.camUpAngle = undefined;
     this.pause = null;
     this.clock = null;
+    // A new flight: no Show me how (the 🧭 toggle is a setting and stays).
+    this.showing = null;
+    this.coachKey = this.coachSpent = null;
     this.app.audio.setMood('camp');
   }
 
@@ -184,6 +197,7 @@ export class FlightScene {
     this.clock = null;
     this.warpIndex = 0;
     this.mode = 'flight';
+    this.coachSpent = null; // coaching picks up again from the pad
     this.app.hud.hideCrash();
   }
 
@@ -317,6 +331,7 @@ export class FlightScene {
     this.snapshots.length = this.snapshots.length - back;
     this.autopilot.stop();
     this.clearClock();
+    this.coachSpent = null; // coaching picks up again from here
     this.flight.restore(snap);
     this.crashed = false;
     this.debris.clear();
@@ -327,87 +342,260 @@ export class FlightScene {
     this.app.audio.play('rewind');
   }
 
-  /** The 🧭 switch: while it's on, every helper teaches you instead of flying for you. */
-  get coaching() {
+  // ---- coaching (#36) ----------------------------------------------------------
+  //
+  // The player flies; Pip only flies when asked, with an autopilot button (🌀 Orbit, 🛬 Land,
+  // the map's 🤖 Take me there): those always start the autopilot, never coached. Coaching is
+  // separate: a coached action, run through the same helper programs with `coach: true`, that
+  // says what to do (arrow, glowing turn button, HOLD! / LET GO!) and keeps its tiny nudges and
+  // safety catches. Two ways in:
+  // - During the starter journey, the 🧭 toggle (`settings.coach`): while it's on, each starter
+  //   step is coached as it comes (`coachWant()`), except flying to Pebble, which is the map's
+  //   choice like every trip after the journey.
+  // - The map's 🧭 Show me how (`showMeHow()`, `this.showing`): coaches the whole action to the
+  //   picked world, until we land there or the lit 🧭 in the helper row dismisses it.
+  // It never guesses: nothing else starts coaching. While an autopilot button flies (or we drive,
+  // or crashed), coaching is quiet; `updateCoaching()` (every frame) picks it up again afterwards
+  // if there's still something to coach.
+
+  /** The 🧭 toggle (only shown during the starter journey). */
+  get coachOn() {
     return !!this.app.progress.settings.coach;
   }
 
   /**
-   * Flip the 🧭 switch (#32). Pip always says who flies next, straight away (a cue, so it isn't
-   * stuck behind other lines), and a newer flip's line replaces an older one. A running helper
-   * changes hands and carries on from here (helpers are closed-loop); what it was saying to the
-   * old pilot no longer applies, so it's dropped.
+   * What to coach now, or null: { key, mode, body }. A Show me how comes first; otherwise, with
+   * the toggle on during the starter journey, the current starter step, if it's coached from
+   * where we are. `key` names the action, so it can pick up again where it left off.
+   */
+  coachWant() {
+    const app = this.app;
+    const s = this.flight.state;
+    if (this.showing) return { key: `show-${this.showing.body.id}`, mode: 'goto', body: this.showing.body };
+    if (app.progress.starterDone || !this.coachOn) return null;
+    const home = this.system.home;
+    const pebble = this.system.byId.pebble;
+    switch (app.progress.currentGoal?.id) {
+      case 'space':
+      case 'orbit':
+        // The launch into orbit: one lesson for both steps.
+        return s.body === home && !inStableOrbit(this.flight) ? { key: 'launch', mode: 'orbit', body: null } : null;
+      case 'land-homestead':
+        // Landing at home: from orbit or on the way down, the landing; from the pad, up, round and down.
+        return { key: 'land-home', mode: 'goto', body: home };
+      case 'land-pebble':
+        return s.body === pebble ? { key: 'land-pebble', mode: 'goto', body: pebble } : null;
+      case 'home-again':
+        // The flight home and the landing: a coached trip to Homestead.
+        return { key: 'home-again', mode: 'goto', body: home };
+      default:
+        // Flying to Pebble: the map's 🤖 / 🧭 choice, as for every trip after the journey.
+        return null;
+    }
+  }
+
+  /**
+   * Every frame: start (or pick up again) whatever should be coached. Nothing while an autopilot
+   * button flies, after a crash or while driving. A coached action that ended by itself
+   * (`coachSpent`) isn't started again until something changes (a rewind, the pad, the toggle,
+   * a new Show me how). A new one waits (up to `COACH_WAIT`) for Pip to finish what she's saying
+   * (a sticker, "Next: …", "You landed all by yourself!"), so its first cue doesn't cut those
+   * off. The coach's own "Okay!" only holds it up in flight: on the ground the rocket waits for
+   * the player's GO anyway, so turning the coach on at the pad starts the launch at once.
+   */
+  updateCoaching(dt = 0) {
+    const ap = this.autopilot;
+    const s = this.flight.state;
+    // We got there another way (Pip landed us, say): the Show me how is over.
+    if (this.showing && s.landed && s.body === this.showing.body && !ap.coachSession) this.endShowing();
+    if (ap.active || this.crashed || s.crashed || this.drive?.active) return;
+    const want = this.coachWant();
+    if (!want || want.key === this.coachSpent) return;
+    const resume = want.key === this.coachKey;
+    if (!resume && this.pipBusy(s.landed) && (this.coachWait += dt) < COACH_WAIT) return;
+    this.coachWait = 0;
+    this.coachKey = want.key;
+    ap.start(want.mode, want.body, { coach: true, resume });
+  }
+
+  /** Is Pip saying something, or about to? `butCoach`: not counting the coach's own "Okay!". */
+  pipBusy(butCoach = false) {
+    const q = this.app.speech;
+    if (!q?.busy) return false;
+    if (!butCoach) return true;
+    const talk = (l) => l && !l.fn && l.key !== 'coach-switch';
+    return talk(q.current) || q.pending.some(talk);
+  }
+
+  /** Stop the coached program now (the rocket keeps whatever the player is doing), and what it was still going to say. */
+  quietCoach() {
+    const ap = this.autopilot;
+    if (ap.coachSession) ap.stop();
+    this.app.speech?.drop((l) => l.from === 'coach');
+  }
+
+  /** A Show me how is over (we got there, it was dismissed, or 🤖 Take me there took over): the lit 🧭 and the goal chip go. */
+  endShowing() {
+    if (!this.showing) return;
+    this.showing = null;
+    this.quietCoach();
+  }
+
+  /** Pip says the coach is on or off, at once (a cue; a newer one replaces an older one). */
+  sayCoach(on) {
+    const app = this.app;
+    app.speech?.drop((l) => l.key === 'coach-switch');
+    const said = { speak: true, pri: 'cue', key: 'coach-switch' };
+    if (on) app.pip('Okay! I\'ll tell you what to do while you fly.', said);
+    else app.pip('Okay! I\'ll stop telling you what to do. You\'re the pilot!', said);
+  }
+
+  /**
+   * The 🧭 toggle during the starter journey. On: coach the starter step now (on the pad, the
+   * launch starts at once). Off: coaching stops wherever it is (a Show me how too); the rocket
+   * carries on under the player's control, and the autopilot never takes over.
    */
   setCoaching(on) {
     const app = this.app;
     app.progress.settings.coach = on;
     app.progress.save();
-    const ap = this.autopilot;
-    const nudged = this.coachNudge;
-    this.coachNudge = false;
-    const running = ap.active;
-    const handOver = running && ap.coachSession !== on;
-    app.speech.drop((l) => l.key === 'coach-switch' || (handOver && l.from === 'helper'));
-    const said = { speak: true, pri: 'cue', key: 'coach-switch' };
-    if (handOver) ap.start(ap.mode, ap.target, { coach: on, handover: true });
-    // Said yes to "Want me to show you how to fly?" on the pad: start the lesson right away.
-    else if (on && nudged && this.flight.state.landed && !ap.active) this.helper('orbit');
-    if (on) app.pip('You fly, I\'ll tell you when!', said);
-    else app.pip(running ? 'I\'ll fly, you watch!' : 'Now I\'ll fly when you tap a helper!', said);
+    this.introGlow = false;
+    this.showing = null;
+    this.quietCoach();
+    this.coachKey = this.coachSpent = null;
+    this.sayCoach(on);
+    if (!on) return;
+    this.updateCoaching();
+    // Nothing to coach yet on the way to Pebble: that's the map's choice, so say how to make it.
+    const goal = app.progress.currentGoal?.id;
+    if (!this.autopilot.active && !this.coachWant() && (goal === 'visit-pebble' || goal === 'land-pebble')) {
+      app.pip(GOALS.find((g) => g.id === 'visit-pebble').hint, { speak: true, key: 'goal' });
+    }
   }
 
-  /** A trip from the target card is running (including the landing a coached trip ends with). */
+  /**
+   * The 🧭 in the helper row: the toggle during the starter journey; after it, the lit 🧭 of a
+   * Show me how, and tapping that dismisses the coach for good (the world stays picked, so the
+   * player flies there alone). With neither it isn't shown, so a tap does nothing.
+   */
+  tapCoach() {
+    if (!this.app.progress.starterDone) {
+      this.setCoaching(!this.coachOn);
+    } else if (this.showing) {
+      this.endShowing();
+      this.sayCoach(false);
+    }
+  }
+
+  /**
+   * The map card's 🧭 Show me how: the player flies to the picked world and Pip coaches the whole
+   * action, landing included (from a pad: take-off, orbit, the trip, the landing). The world
+   * we're at means landing on it. During the starter journey it turns the toggle on too.
+   */
+  showMeHow() {
+    const app = this.app;
+    const body = this.target;
+    if (!body || this.crashed || this.drive?.active) return;
+    this.clearClock();
+    this.warpIndex = 0;
+    this.manualWarp = false;
+    // Whatever was flying (an autopilot trip, another coached action) makes way, and what Pip
+    // was saying about it, or about the card, no longer applies.
+    this.autopilot.stop();
+    app.speech?.drop((l) => l.from === 'coach' || l.from === 'helper' || l.key === 'target');
+    if (!app.progress.starterDone && !this.coachOn) {
+      app.progress.settings.coach = true;
+      app.progress.save();
+    }
+    this.introGlow = false;
+    this.showing = { body, here: body === this.flight.state.body };
+    this.coachKey = this.coachSpent = null;
+    this.sayCoach(true);
+    this.updateCoaching();
+  }
+
+  /** An autopilot trip from the target card is running (including the landing it can end with). */
   get tripRunning() {
     const ap = this.autopilot;
-    return ap.mode === 'goto' || (ap.mode === 'land' && !!ap.target);
+    return ap.active && !ap.coachSession && (ap.mode === 'goto' || (ap.mode === 'land' && !!ap.target));
   }
 
-  helper(mode, { coach = this.coaching } = {}) {
+  /**
+   * An autopilot button: 🌀 Orbit, 🛬 Land, or the map's 🤖 Take me there (`goto`). Pip always
+   * flies these, coaching or not; tapping a running one again stops it. Coaching goes quiet
+   * meanwhile and picks up again afterwards, except that 🤖 Take me there ends a Show me how
+   * (Pip is taking us there now).
+   */
+  helper(mode) {
     if (this.crashed) return;
     const ap = this.autopilot;
-    // Tapping a running helper again stops it.
-    if (ap.mode === mode || (mode === 'goto' && this.tripRunning)) {
+    const target = mode === 'goto' ? this.target : null;
+    const same = mode === 'goto' ? this.tripRunning && ap.target === target : ap.mode === mode;
+    if (ap.active && !ap.coachSession && same) {
       ap.stop();
       return;
     }
-    if (mode === 'goto' && !this.target) return;
+    if (mode === 'goto' && !target) return;
     // Helpers run the clock themselves: no fast travel alongside one (#27).
     this.clearClock();
     this.warpIndex = 0;
     this.manualWarp = false;
-    this.explainButton(mode, coach);
-    ap.start(mode, mode === 'goto' ? this.target : null, { coach });
+    if (mode === 'goto') this.endShowing();
+    this.quietCoach();
+    this.explainButton(mode, target);
+    ap.start(mode, target);
   }
 
   /**
    * The first time an autopilot button flies for us, Pip says what it does (#36), saved like
    * the markers. Queued before the helper's own first line (which comes on its first step), so
-   * that waits its turn behind it instead of cutting it off; the helper flies meanwhile. It's a
-   * helper line: if the 🧭 switch hands the helper over, it's dropped with the rest.
+   * that waits its turn behind it instead of cutting it off; the helper flies meanwhile. Not
+   * when it's only going to say no (🛬 over a gas giant, too weak a rocket), nor for 🤖 Take me
+   * there picked for the world we're at (that lands; it explains itself on a real trip).
    */
-  explainButton(mode, coach) {
+  explainButton(mode, target) {
     const app = this.app;
-    const ex = buttonExplanation(mode, { coach, explained: (k) => app.progress.explained(k) });
+    const f = this.flight;
+    if (mode === 'land' && landRefusal(f)) return;
+    if (mode === 'goto' && target === f.state.body) return;
+    const ex = buttonExplanation(mode, { explained: (k) => app.progress.explained(k) });
     if (!ex) return;
     app.progress.markExplained(ex.key);
     app.pip(ex.line, { speak: true, key: 'button', from: 'helper' });
   }
 
+  /**
+   * Pick a world on the map (or null): its card offers 🤖 Take me there and 🧭 Show me how (#36).
+   * The world we're flying round means landing on it. Where there's nothing to do (we're on its
+   * ground, or it's all clouds) it isn't picked, and Pip just says where we are.
+   */
   setTarget(body) {
+    const s = this.flight.state;
     if (body && (body === this.target || body.kind === 'star')) body = null;
+    const at = body && body === s.body && (s.landed || !body.solid) ? body : null;
+    if (at) body = null;
     this.target = body;
     this.prediction = null;
     this.app.hud.showTarget(body);
-    if (body) this.app.pip(`That's ${body.name}! Tap the button to fly there!`, { speak: true, key: 'target' });
+    if (at) this.app.pip(`We're at ${at.name}!`, { speak: true, key: 'target' });
+    else if (body === s.body) this.app.pip(`We're at ${body.name}! I can land us, or show you how!`, { speak: true, key: 'target' });
+    else if (body) this.app.pip(`That's ${body.name}! I can fly you there, or show you how!`, { speak: true, key: 'target' });
   }
 
   // ---- events --------------------------------------------------------------
 
   onPilotMessage(m) {
-    // The helper says how urgent each line is (coach cues, safety takeovers, chat).
-    if (m.text) this.app.pip(m.text, { speak: true, pri: m.pri, key: m.key, from: 'helper' });
+    // The helper says how urgent each line is (coach cues, safety takeovers, chat). Coaching
+    // lines are marked, so they can be dropped when coaching stops or goes quiet.
+    if (m.text) this.app.pip(m.text, { speak: true, pri: m.pri, key: m.key, from: this.autopilot.coachSession ? 'coach' : 'helper' });
     // A helper just finished: a GO still held from its last cue mustn't burn on by itself.
     if (m.done) this.goLatched = true;
+    // A coached action ended by itself (we got there, or it couldn't): not again until something
+    // changes, and a Show me how is over (keeping its last line: "You landed all by yourself!").
+    if (m.done && m.coached) {
+      this.coachSpent = this.coachKey;
+      this.showing = null;
+    }
     if (m.visiting) this.discover(m.visiting);
   }
 
@@ -422,9 +610,8 @@ export class FlightScene {
       case 'liftoff':
         if (d.body === this.system.home && this.flight.state.landAngle === Math.PI / 2 && !app.progress.has('space')) {
           // Replaces the goal line (how to blast off): that's being done now. A cue for the
-          // player's GO; when Pip flies there's no GO to time, so it waits its turn rather than
-          // cutting off what she's saying (the 🌀 button's first explanation, #36).
-          app.pip('Blast off! Keep holding GO!', { speak: true, pri: this.autopilot.driving ? 'normal' : 'cue', key: 'goal' });
+          // player's GO, so only when the player flies the launch, not Pip (#36).
+          if (!this.autopilot.driving) app.pip('Blast off! Keep holding GO!', { speak: true, pri: 'cue', key: 'goal' });
         }
         break;
       case 'soi': {
@@ -689,6 +876,7 @@ export class FlightScene {
       }
     }
     if (!this.crashed && !paused) {
+      this.updateCoaching(dt);
       ap.update(dt);
       f.step(dt, warp);
       if (this.clock && arrived(this.clock.t - s.t)) this.arrive();

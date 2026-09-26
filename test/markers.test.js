@@ -127,10 +127,9 @@ describe('autopilot buttons explain themselves once (#36)', () => {
     }
   });
 
-  it('only when Pip flies, and only the first time', () => {
+  it('only the first time for each button', () => {
     const done = new Set();
     const explained = (k) => done.has(k);
-    expect(buttonExplanation('orbit', { coach: true, explained })).toBe(null);
     const ex = buttonExplanation('orbit', { explained });
     expect(ex.line).toBe(BUTTON_LINES.orbit);
     done.add(ex.key);

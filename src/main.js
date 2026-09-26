@@ -169,20 +169,11 @@ class App {
     this.flightScene.start(design);
     this.flightScene.setTarget(null);
     this.show('flight');
-    const g = this.progress.currentGoal;
-    // The very first launch: Pip offers coaching once (the 🧭 switch glows). Never again after.
-    const st = this.progress.settings;
-    const first = !Object.keys(this.progress.done).length && !st.coachOffered && !st.coach;
-    this.flightScene.coachNudge = first;
-    if (first) {
-      st.coachOffered = true;
-      this.progress.save();
-      const offer = 'Want me to show you how to fly? Tap the compass!';
-      this.pip(`${g.text} ${g.hint} ${offer}`, { speak: true, key: 'goal' });
-    } else if (g) {
-      this.pip(`${g.text} ${g.hint}`, { speak: true, key: 'goal' });
-    }
-    // After the starter journey (#36) Pip says nothing on the pad: there's no goal to read.
+    // The starter goal, and the very first time the choice explained after it (#36), with the
+    // 🧭 glowing. After the starter journey Pip says nothing on the pad: there's no goal to read.
+    const line = this.progress.launchLine();
+    this.flightScene.introGlow = !!line?.first;
+    if (line) this.pip(line.text, { speak: true, key: 'goal' });
   }
 
   /** The builder's goal chip: shown only while there's a goal to show (`goalShown`, #36). */

@@ -28,14 +28,14 @@ export const BUTTON_LINES = {
 };
 
 /**
- * The line to say as an autopilot button is used, or null: only when Pip flies (never in coach
- * mode, where the button doesn't fly for you), and only the first time for each button.
- * explained(key) -> bool. Returns { key, line }; the caller saves `key` as explained.
+ * The line to say as an autopilot button is used, or null: only the first time for each button
+ * (they always fly for us, coaching or not, #36). explained(key) -> bool. Returns { key, line };
+ * the caller saves `key` as explained.
  */
-export function buttonExplanation(mode, { coach = false, explained }) {
+export function buttonExplanation(mode, { explained }) {
   const line = BUTTON_LINES[mode];
   const key = `button-${mode}`;
-  if (!line || coach || explained(key)) return null;
+  if (!line || explained(key)) return null;
   return { key, line };
 }
 
@@ -52,7 +52,7 @@ export const MAX_PAUSE = 12; // the game never stays paused longer than this
  * Is it safe to pause the game for an explanation right now? Only when nothing urgent is going on:
  * Pip isn't talking (a coach cue, a safety takeover, a lesson or a sticker), the engine is off and
  * the child isn't steering, no crash, and no helper is at a tricky bit or burning. A coached
- * helper only allows it while coasting on a trip (never in the first lesson or a coached landing).
+ * helper only allows it while coasting on a trip (never in a coached launch or landing).
  *
  * c: { screen, mode, crashed, speaking, throttle, steering, sinceLast,
  *      helper: null | { mode, coach, throttle, aiming, tricky } }

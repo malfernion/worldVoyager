@@ -1,6 +1,7 @@
 // Stress sweep for "take me there": every start world x target world, several start times,
 // plus long tours from the launch pad through several worlds in a row, flown by the
-// autopilot and by the pretend kid (coach mode). Prints failure rates by kind.
+// autopilot (🤖 Take me there) and by the pretend kid (coached: 🧭 Show me how, #36). Prints
+// failure rates by kind.
 //
 //   npm run stress                           # full sweep (a minute or two, uses every core)
 //   npm run stress -- --phases 24 --tours 60 # a bigger sweep
