@@ -6,7 +6,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { Flight } from '../physics/sim.js';
 import { predict, segmentPoints, nearRadial, radialApex } from '../physics/predict.js';
-import { Autopilot, inStableOrbit, landRefusal } from '../physics/autopilot.js';
+import { Autopilot, inStableOrbit, landRefusal, helperWarp, LONG_WAIT } from '../physics/autopilot.js';
 import { pointAt, propagate } from '../physics/orbit.js';
 import { buildRocket } from '../rocket/rocketMesh.js';
 import { rocketStats } from '../rocket/parts.js';
@@ -29,6 +29,7 @@ const WATER_SPLASH = [0xeaf7ff, 0x9fd6ee];
 const AMBER_SPLASH = [0xf4e0bc, 0xb8864a];
 
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
+const SKIP_AGAIN = 30; // real seconds between two of Pip's "tap ⏩" hints (#50)
 const FOG_OFF = 1e9;
 // Misty's haze (#46, updateHaze): full up to `low` metres above the ground, gone by `top`; the
 // fog starts `near` and is solid `far` metres from the camera (divided by how hazy it is).
@@ -342,13 +343,17 @@ export class FlightScene {
     else this.setWarp(Math.min(i, WARP_LEVELS.length - 1) - this.warpIndex);
   }
 
+  /**
+   * The time speed (before the slow-down near a new world or the ground, and fast travel; see
+   * `fly()`). The game only slows time down by itself (#50): a helper's warp caps the player's
+   * own (1 for burns and tricky bits), and only a 🤖 Take me there trip may go faster than the
+   * player's, until the player takes the clock (`manualWarp`).
+   */
   get warp() {
     const ap = this.autopilot;
     const mine = WARP_LEVELS[this.warpIndex];
-    if (!ap?.active || ap.warp === null) return mine;
-    // Helpers always get normal speed for burns and tricky bits.
-    if (ap.warp <= 1) return 1;
-    return this.manualWarp ? mine : ap.warp;
+    if (!ap?.active) return mine;
+    return helperWarp(mine, ap.warp, ap.trip && !this.manualWarp);
   }
 
   rewind() {
@@ -557,8 +562,7 @@ export class FlightScene {
 
   /** An autopilot trip from the target card is running (including the landing it can end with). */
   get tripRunning() {
-    const ap = this.autopilot;
-    return ap.active && !ap.coachSession && (ap.mode === 'goto' || (ap.mode === 'land' && !!ap.target));
+    return this.autopilot.trip;
   }
 
   /**
@@ -1085,13 +1089,15 @@ export class FlightScene {
         const cap = Math.max(1, left / 2.5);
         if (cap < warp) {
           warp = cap;
-          if (!ap.active) this.warpIndex = Math.max(0, WARP_LEVELS.findLastIndex((w) => w <= cap));
+          // It stays slowed down (never raised, though: the warp may be a 🤖 trip's, #50).
+          this.warpIndex = Math.min(this.warpIndex, Math.max(0, WARP_LEVELS.findLastIndex((w) => w <= cap)));
         }
       }
     }
     if (!this.crashed && !paused) {
       this.updateCoaching(dt);
       ap.update(dt);
+      this.updateWait();
       f.step(dt, warp);
       if (this.clock && arrived(this.clock.t - s.t)) this.arrive();
     }
@@ -1114,6 +1120,34 @@ export class FlightScene {
     }
     // The path changed under the ⏰ (a crash now comes first, or we landed): stop there.
     if (this.clock && !clockOnPath(this.prediction?.segments, this.clock.t, s.t)) this.clearClock();
+  }
+
+  /**
+   * A helper waiting (#50: coasting to a burn, a new world, the ground, the next HOLD). A
+   * coached wait longer than LONG_WAIT at the player's speed gets Pip's "tap ⏩" once, and the
+   * ⏩ glows (`skipGlow`) until the player speeds up; the coach still caps it before its next
+   * cue. When a wait ends, so does the speed-up the player chose for it (not on a 🤖 trip,
+   * where the player's clock is theirs): the next wait, they choose again.
+   */
+  updateWait() {
+    const ap = this.autopilot;
+    const left = ap.active ? ap.waitLeft : null;
+    const mine = WARP_LEVELS[this.warpIndex];
+    if (left === null) {
+      if (this.waitBy === 'helper') this.warpIndex = 0;
+      this.waitBy = null;
+      this.skipSaid = false;
+      this.skipGlow = false;
+      return;
+    }
+    this.waitBy = ap.trip ? 'trip' : 'helper';
+    // Worth skipping: coached, and still a long wait at the player's speed.
+    this.skipGlow = ap.coachSession && mine === 1 && left > LONG_WAIT;
+    // Once a wait, and not again straight after the last (a tiny push between two waits).
+    if (this.skipGlow && !this.skipSaid && !(ap.clock - this.skipAt < SKIP_AGAIN)) {
+      this.skipSaid = this.app.pip('Tap the fast button ⏩ to skip ahead!', { speak: true, pri: 'chatter', key: 'skip', from: 'coach' }) !== false;
+      if (this.skipSaid) this.skipAt = ap.clock;
+    }
   }
 
   /**

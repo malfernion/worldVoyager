@@ -19,6 +19,23 @@ const URGENT = { pri: 'urgent' };
 // then Pip homes in on it (catchComet).
 export const CATCH_RANGE = 8000;
 
+// A coached wait (to a burn, a new world, the next HOLD) longer than this (game seconds, which
+// are real seconds at ×1) is worth skipping: Pip suggests ⏩ (#50).
+export const LONG_WAIT = 10;
+
+/**
+ * The time speed while a helper runs (#50). The game only ever slows time down by itself:
+ * `helper` (the helper's `warp`) is the most it allows, so it can only cap the `player`'s own
+ * speed (1 for a burn or a cue; a little more as an event comes closer; null: no say). Only a
+ * 🤖 Take me there trip (`raise`: flown by Pip, not coached, and the player hasn't taken the
+ * clock) may speed time up past the player's own speed, since the child asked Pip to take them.
+ */
+export function helperWarp(player, helper, raise) {
+  if (helper === null || helper === undefined) return player;
+  if (helper <= 1) return 1;
+  return raise ? helper : Math.min(player, helper);
+}
+
 export function parkingRadius(body) {
   const floor = body.solid ? body.maxSurface : body.radius;
   return floor + body.spaceLine * 1.3;
@@ -191,6 +208,7 @@ export class Autopilot {
     this.saidAt = -Infinity;
     this.cuedAt = -Infinity;
     this.goPower = 1; // how hard GO pushes while coaching (gentler for landings)
+    this.waitLeft = null; // game seconds until the next thing, while the program waits (coast())
   }
 
   on(fn) {
@@ -204,6 +222,14 @@ export class Autopilot {
 
   get active() {
     return !!this.program;
+  }
+
+  /**
+   * A 🤖 Take me there trip, flown by Pip (including the landing it can end with): the one
+   * helper that may speed time up by itself (#50, `helperWarp`).
+   */
+  get trip() {
+    return !!this.program && !this.coachSession && (this.mode === 'goto' || (this.mode === 'land' && !!this.target));
   }
 
   /** True while the helper is actually steering (not just coaching). */
@@ -235,6 +261,7 @@ export class Autopilot {
     this.program = null;
     this.mode = null;
     this.warp = null;
+    this.waitLeft = null;
     this.marker = null;
     this.status = '';
     this.cmd = { throttle: 0, angle: null };
@@ -251,6 +278,7 @@ export class Autopilot {
     if (!this.program) return;
     this.dt = realDt;
     this.clock += realDt;
+    this.waitLeft = null; // coast() sets it again if we're still waiting
     if (this.flight.state.crashed) {
       this.stop();
       return;
@@ -284,6 +312,16 @@ export class Autopilot {
   setAngle(a) {
     this.cmd.angle = a;
     if (!this.coach) this.flight.targetAngle = a;
+  }
+
+  /**
+   * A frame of waiting, `left` game seconds before the next thing (a burn, a new world, the
+   * ground, the next HOLD). `want` is how fast time may go meanwhile: on a 🤖 trip it's how fast
+   * it goes; otherwise only a cap on the player's own speed (#50, `helperWarp`).
+   */
+  coast(want, left) {
+    this.warp = this.safeWarp(want);
+    this.waitLeft = Math.max(0, left);
   }
 
   /** Time-warp request, capped so we never zoom straight past a new world or into the ground. */
@@ -363,7 +401,7 @@ export class Autopilot {
       const burnT = Math.max(0, Math.sqrt(body.mu / el.ra) - vAp) / f.stats.accel;
       const wait = el.timeToAp - burnT / 2;
       if (wait < 0.3) break;
-      this.warp = this.safeWarp(wait > 6 ? clamp(wait / 3, 1, 25) : 1);
+      this.coast(wait > 6 ? clamp(wait / 3, 1, 25) : 1, wait);
       yield;
     }
 
@@ -392,6 +430,18 @@ export class Autopilot {
       if (this.coach && need < f.stats.accel * 0.5) {
         this.coach = false;
         this.say(`Let go! We're going around ${body.name}!`, CUE);
+      }
+      if (wasCoach && !this.coach) {
+        // Pip's last bit pushes straight at a round orbit's speed here, the way we're really
+        // going round: after a wobbly launch that can be the other way, or already too fast
+        // (pushing "sideways" then flung us right out of Pebble's pull).
+        const go = Math.sign(s.x * s.vy - s.y * s.vx) || dir;
+        const vc = Math.sqrt(body.mu / r);
+        const ex = (-s.y / r) * go * vc - s.vx, ey = (s.x / r) * go * vc - s.vy;
+        const err = Math.hypot(ex, ey);
+        this.setThrottle(this.aim(Math.atan2(ey, ex), 0.25) ? clamp(err / (f.stats.accel * 0.3), 0.05, 1) : 0);
+        yield;
+        continue;
       }
       this.setThrottle(ok ? clamp(need / (f.stats.accel * 0.5), 0.05, 1) : 0);
       yield;
@@ -503,9 +553,10 @@ export class Autopilot {
       if (f.state.crashed) return false;
       const d = this.descent();
       const vtDes = this.steerDown(d, this.landSite(d));
-      // Speed through long, boring falls.
+      // Long, boring falls may go faster (only on a 🤖 trip by itself, #50).
       const timeToGround = d.alt / Math.max(1, -d.vr);
-      this.warp = this.safeWarp(this.cmd.throttle === 0 && Math.abs(d.vt - vtDes) < 2 && Math.abs(vtDes) < 0.5 && timeToGround > 12 ? clamp(timeToGround / 6, 1, 10) : 1);
+      if (this.cmd.throttle === 0 && Math.abs(d.vt - vtDes) < 2 && Math.abs(vtDes) < 0.5) this.coast(timeToGround > 12 ? clamp(timeToGround / 6, 1, 10) : 1, timeToGround);
+      else this.warp = 1;
       yield;
     }
     this.setThrottle(0);
@@ -699,10 +750,11 @@ export class Autopilot {
         this.cue(hold ? 'Hold GO!' : 'Let go!');
       }
       this.setThrottle(hold && ok ? 1 : 0);
-      // Speed up long falls, but slow back down well before the next HOLD.
+      // Long falls may go faster (if the player taps ⏩, #50), but slow back down well before the next HOLD.
       const vHold = vLand + Math.sqrt(0.8 * brake * Math.max(d.alt - 0.3, 0));
       const tCue = (vHold - down) / (2 * d.g);
-      this.warp = this.safeWarp(!hold && f.throttle === 0 && tCue > 4 ? clamp(tCue / 4, 1, 8) : 1);
+      if (hold) this.warp = 1;
+      else this.coast(f.throttle === 0 && tCue > 4 ? clamp(tCue / 4, 1, 8) : 1, tCue);
       yield;
     }
     this.goPower = 1;
@@ -932,7 +984,7 @@ export class Autopilot {
       const wait = start - f.state.t;
       this.aim(this.prograde() + dir);
       if (this.coach) this.status = `🔥 Burn in ${Math.ceil(wait)}s`;
-      this.warp = this.safeWarp(wait > 5 ? clamp(wait / 2.5, 1, 1000) : 1);
+      this.coast(wait > 5 ? clamp(wait / 2.5, 1, 1000) : 1, wait);
       yield;
     }
     this.status = 'Blast off!';
@@ -1019,7 +1071,7 @@ export class Autopilot {
       }
       this.aim(this.prograde());
       const next = pred ? pred.segments[0].t1 - s.t : 10;
-      this.warp = this.safeWarp(next > 4 ? clamp(next / 3, 1, 1000) : 1);
+      this.coast(next > 4 ? clamp(next / 3, 1, 1000) : 1, next);
       yield;
     }
     return true;
@@ -1146,7 +1198,7 @@ export class Autopilot {
       const vr = (f.state.x * f.state.vx + f.state.y * f.state.vy) / f.radius;
       if (vr > 0 && el.ra > body.soi * 0.9) break;
       this.aim(this.prograde() + Math.PI);
-      this.warp = this.safeWarp(wait > 5 ? clamp(wait / 3, 1, 1000) : 1);
+      this.coast(wait > 5 ? clamp(wait / 3, 1, 1000) : 1, wait);
       yield;
     }
     this.status = 'Slowing down';
@@ -1281,7 +1333,7 @@ export class Autopilot {
         this.setThrottle(0);
         this.aim(Math.atan2(-uy, -ux));
         // Coasting in: speed through the long bit, slowing down for the end.
-        this.warp = this.safeWarp(clamp(Math.abs(gap) / (vIn * 10), 1, 30));
+        this.coast(clamp(Math.abs(gap) / (vIn * 10), 1, 30), Math.abs(gap) / vIn);
       }
       yield;
     }
@@ -1331,7 +1383,7 @@ export class Autopilot {
       const wait = which === 'ap' ? el.timeToAp : el.timeToPe;
       if (wait === null || wait < 0.5 || wait > el.period - 1) break;
       this.aim(this.prograde() + Math.PI);
-      this.warp = this.safeWarp(wait > 5 ? clamp(wait / 3, 1, 1000) : 1);
+      this.coast(wait > 5 ? clamp(wait / 3, 1, 1000) : 1, wait);
       yield;
     }
     this.warp = 1;

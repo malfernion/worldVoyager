@@ -2,7 +2,7 @@
 // the autopilot flying on its own, and a pretend kid following the coach cues.
 import { createSystem } from '../src/physics/bodies.js';
 import { Flight } from '../src/physics/sim.js';
-import { Autopilot, inStableOrbit, parkingRadius } from '../src/physics/autopilot.js';
+import { Autopilot, inStableOrbit, parkingRadius, helperWarp, LONG_WAIT } from '../src/physics/autopilot.js';
 
 export const STATS = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
 export const WORLDS = ['homestead', 'pebble', 'dusty', 'nibble', 'ringo', 'sizzle', 'frosty', 'misty', 'tumble', 'flip', 'ducky'];
@@ -17,7 +17,8 @@ export function mission(stats = STATS) {
     ap.start(mode, target && sys.byId[target]);
     for (let i = 0; i < maxFrames && ap.active; i++) {
       ap.update(1 / 60);
-      flight.step(1 / 60, ap.warp ?? 1);
+      // The player leaves the clock alone: only a 🤖 trip speeds time up (#50).
+      flight.step(1 / 60, helperWarp(1, ap.warp, ap.trip));
       if (flight.state.crashed) break;
     }
     return !ap.active;
@@ -41,7 +42,10 @@ export function parkAt(m, world, t, angle = 0) {
 
 // A pretend kid: turns toward the arrow with the turn buttons, holds GO when told,
 // and reacts a few frames late. `lazy` kids stop pressing GO once they're told to point up.
-export function kidFlies(m, mode, target, { lag = 8, lazy = false, maxFrames = 60 * 60 * 40 } = {}) {
+// The kid also taps ⏩ (all the way up) when a coached wait is long (#50: Pip suggests it, the
+// button glows; as FlightScene.updateWait), unless `patient`; each wait they choose again.
+// `warps` gets the time speed of every frame, `hints` counts the waits Pip would suggest ⏩ in.
+export function kidFlies(m, mode, target, { lag = 8, lazy = false, patient = false, maxFrames = 60 * 60 * 40, warps = null } = {}) {
   const { flight, ap, sys } = m;
   const said = [];
   ap.on((e) => e.text && said.push(e.text));
@@ -49,10 +53,29 @@ export function kidFlies(m, mode, target, { lag = 8, lazy = false, maxFrames = 6
   const queue = [];
   let presses = 0;
   let wasGo = false;
+  let mine = 1; // the kid's own time speed
+  let skipIn = null; // frames until the kid taps ⏩
+  let hinted = false;
+  let hints = 0;
   for (let i = 0; i < maxFrames && ap.active && !flight.state.crashed; i++) {
     ap.update(1 / 60);
     // Touched down: the game ignores a still-held GO until it's let go.
     if (!ap.active) break;
+    if (ap.waitLeft === null) {
+      mine = 1;
+      skipIn = null;
+      hinted = false;
+    } else if (mine === 1 && ap.waitLeft > LONG_WAIT) {
+      if (!hinted) {
+        hinted = true;
+        hints++;
+      }
+      if (!patient) skipIn ??= lag;
+    }
+    if (skipIn !== null && skipIn-- <= 0) {
+      mine = 1000;
+      skipIn = null;
+    }
     const { angle, throttle } = ap.cmd;
     let turn = 0;
     if (angle !== null && !flight.state.landed) {
@@ -67,13 +90,16 @@ export function kidFlies(m, mode, target, { lag = 8, lazy = false, maxFrames = 6
       flight.throttle = act.go ? ap.goPower : 0;
       if (act.go && !wasGo) presses++;
       wasGo = act.go;
+      if (act.go) mine = 1; // GO puts time back to normal (as FlightScene.fly does)
     } else {
       flight.turn = 0;
       queue.length = 0;
     }
-    flight.step(1 / 60, flight.throttle > 0 ? 1 : ap.warp ?? 1);
+    const warp = flight.throttle > 0 ? 1 : helperWarp(mine, ap.warp, false);
+    warps?.push({ warp, mine, helper: ap.warp, left: ap.waitLeft });
+    flight.step(1 / 60, warp);
   }
-  return { flight, ap, said, presses, done: !ap.active };
+  return { flight, ap, said, presses, hints, done: !ap.active };
 }
 
 /**

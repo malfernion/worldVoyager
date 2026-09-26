@@ -344,6 +344,8 @@ export class FlightHud {
     this.el('speed').classList.toggle('fast', warp > 1);
     this.el('speed').classList.toggle('travel', !!s.clock);
     this.el('normal-btn').classList.toggle('lit', warp <= 1);
+    // A long coached wait (#50): Pip never speeds time up herself, so ⏩ glows to say "you can".
+    this.el('warp-btn').classList.toggle('coach-glow', !!s.skipGlow && s.autopilot.active && !s.crashed);
     this.syncZoomSlider();
     const meter = this.el('height-meter');
     meter.classList.toggle('hidden', b.kind === 'star' || s.mode === 'map');
