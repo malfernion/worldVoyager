@@ -87,22 +87,26 @@ export class BuilderScene {
     s.add(moonLight);
 
     // Grassy hill, wooden deck, trees and a campfire.
-    const hill = new THREE.Mesh(new THREE.SphereGeometry(80, 48, 24), toon(0x4f7f3a));
-    hill.position.y = -80.4;
-    hill.scale.set(1.6, 1, 1.6);
+    const HILL_R = 80, HILL_W = 1.6, HILL_Y = -80.4;
+    const hill = new THREE.Mesh(new THREE.SphereGeometry(HILL_R, 48, 24), toon(0x4f7f3a));
+    hill.position.y = HILL_Y;
+    hill.scale.set(HILL_W, 1, HILL_W);
     s.add(hill);
     const deck = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 5.6, 0.8, 24), toon(0xffffff, { map: woodTexture() }));
     deck.position.y = -0.4;
     s.add(withOutline(deck, 0.06));
     const rand = mulberry32(3);
     const spots = [];
-    const up = new THREE.Vector3(0, 1, 0);
     for (let i = 0; i < 60; i++) {
       const a = rand() * Math.PI * 2;
       const r = 16 + rand() * 60;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (z > -12 && Math.abs(x) < 40) continue;
-      spots.push({ position: new THREE.Vector3(x, -0.8 - r * r * 0.0006, z), up, size: 5 + rand() * 7 });
+      // Stand on the hill itself (a squashed sphere), leaning with its curve like trees on a
+      // tiny planet; sunk a little so the faceted mesh never shows a gap under the trunk (#35).
+      const h = HILL_R * Math.sqrt(1 - (r / (HILL_R * HILL_W)) ** 2);
+      const up = new THREE.Vector3(x / HILL_W ** 2, h, z / HILL_W ** 2).normalize();
+      spots.push({ position: new THREE.Vector3(x, HILL_Y + h - 0.4, z), up, size: 5 + rand() * 7 });
     }
     s.add(createForest(spots, rand).group);
     const fire = new THREE.Group();
