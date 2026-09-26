@@ -628,3 +628,13 @@ describe('coach mode', () => {
     expect(said).toContain(rescue);
   }, 60000);
 });
+
+describe('fine thrust (#28)', () => {
+  it('Shift fires the engine at a tenth of the power, including the coach\'s gentler GO', async () => {
+    const { goThrottle, FINE_THRUST } = await import('../src/scenes/flight.js');
+    expect(FINE_THRUST).toBe(0.1);
+    expect(goThrottle(1, false)).toBe(1);
+    expect(goThrottle(1, true)).toBeCloseTo(0.1);
+    expect(goThrottle(0.5, true)).toBeCloseTo(0.05);
+  });
+});

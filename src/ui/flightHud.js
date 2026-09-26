@@ -101,6 +101,7 @@ export class FlightHud {
     };
     const handle = (e, down) => {
       if (this.app.screen !== 'flight') return;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.scene.input.fine = down;
       let k = map[e.code];
       if (this.scene.mode === 'drive' && e.code === 'Space') k = 'jump';
       if (down && e.code === 'KeyB') {
@@ -126,6 +127,8 @@ export class FlightHud {
     };
     window.addEventListener('keydown', (e) => handle(e, true));
     window.addEventListener('keyup', (e) => handle(e, false));
+    // Shift let go in another window never sends keyup here: don't stay stuck on fine thrust.
+    window.addEventListener('blur', () => (this.scene.input.fine = false));
   }
 
   /** Pinch / wheel zoom and map panning on the 3D view. */

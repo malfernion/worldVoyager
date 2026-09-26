@@ -52,7 +52,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   cheers at halfway, and the first time you get the 🌍 Round the World sticker (each world
   you've driven round gets a 🌍 in the sticker book). (Psst: on tiny Nibble, drive the Hopper
   really fast, then jump and hold it…)
-- **Keyboard:** ←/→ or A/D turn, Space/↑/W fire, M map, `.`/`,` warp, `/` normal speed,
+- **Keyboard:** ←/→ or A/D turn, Space/↑/W fire (hold **Shift** too for a gentle tenth of the
+  thrust, for careful burns), M map, `.`/`,` warp, `/` normal speed,
   R rewind, O orbit, L land, B buggy out / home. When driving: ↑/W go, ↓/S reverse,
   Space jump (Hopper).
 

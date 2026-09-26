@@ -22,6 +22,11 @@ export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
 const CONFETTI = [0xff6b6b, 0xffd166, 0x06d6a0, 0x4cc9f0, 0xf78c6b, 0xc77dff];
 
+// Holding Shift on a keyboard fires the engine at a tenth of full power, for careful burns (#28).
+// Keyboard only: there's no touch control for it, to keep the buttons simple for little ones.
+export const FINE_THRUST = 0.1;
+export const goThrottle = (power, fine) => (fine ? power * FINE_THRUST : power);
+
 export class FlightScene {
   constructor(app) {
     this.app = app;
@@ -38,7 +43,7 @@ export class FlightScene {
     this.mapFocus = null;
     this.warpIndex = 0;
     this.target = null;
-    this.input = { left: false, right: false, go: false };
+    this.input = { left: false, right: false, go: false, fine: false };
     this.snapshots = [];
     this.snapTimer = 0;
     this.predTimer = 0;
@@ -590,7 +595,7 @@ export class FlightScene {
     if (!ap.driving) {
       f.turn = manualTurn;
       f.targetAngle = null;
-      f.throttle = this.input.go && !this.goLatched && !this.crashed ? ap.goPower : 0;
+      f.throttle = this.input.go && !this.goLatched && !this.crashed ? goThrottle(ap.goPower, this.input.fine) : 0;
       if (f.throttle > 0) this.warpIndex = 0;
     } else {
       f.turn = 0;
