@@ -1231,7 +1231,9 @@ h1 {
   font-size: 16px;
 }
 
-/* The 🧭 coach switch: dim when Pip flies for you, bright with a green light when Pip coaches. */
+/* The 🧭 coach switch (#32): it reads without text. On: green, pushed in, with a glowing
+   green light (you fly, Pip coaches). Off: grey, sticking out, light off (Pip flies).
+   Green, not the yellow of a running helper, so it never looks like a helper that's busy. */
 #coach-toggle {
   position: relative;
   background: #b9c6d6;
@@ -1242,23 +1244,26 @@ h1 {
 }
 
 #coach-toggle.on {
-  background: var(--glow);
+  background: #9fe8ae;
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--ink);
 }
 
 #coach-toggle::after {
   content: '';
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 10px;
-  height: 10px;
+  top: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 2px solid var(--ink);
-  background: #8a8f9c;
+  background: #5d6270;
 }
 
 #coach-toggle.on::after {
-  background: #5fe07a;
+  background: #3ff06a;
+  box-shadow: 0 0 0 3px rgba(63, 240, 106, 0.45), 0 0 10px #3ff06a;
 }
 
 #coach-toggle.coach-glow {

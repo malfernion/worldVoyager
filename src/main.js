@@ -193,10 +193,11 @@ class App {
    * Pip says something (#31): it waits its turn in the speech queue, and the bubble shows it
    * while it's said. `pri`: 'urgent' (crash, safety), 'cue' (the coach's HOLD / LET GO),
    * 'normal', or 'chatter' (dropped if Pip is busy). `key`: lines of one kind replace each other.
-   * `duration`: keep the bubble up at least this long (ms). Returns false if dropped.
+   * `duration`: keep the bubble up at least this long (ms). `from`: who said it ('helper'), so
+   * those lines can be dropped when they no longer apply. Returns false if dropped.
    */
-  pip(text, { speak = false, duration, pri = 'normal', key = null, stale, onStart, keep } = {}) {
-    return this.speech.push(text, { pri, key, stale, speak, duration, onStart, keep });
+  pip(text, { speak = false, duration, pri = 'normal', key = null, stale, onStart, keep, from } = {}) {
+    return this.speech.push(text, { pri, key, stale, speak, duration, onStart, keep, from });
   }
 
   /** Run fn once Pip has finished what's already queued (e.g. the next sticker after this one). */

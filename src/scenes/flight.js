@@ -290,25 +290,28 @@ export class FlightScene {
     return !!this.app.progress.settings.coach;
   }
 
+  /**
+   * Flip the 🧭 switch (#32). Pip always says who flies next, straight away (a cue, so it isn't
+   * stuck behind other lines), and a newer flip's line replaces an older one. A running helper
+   * changes hands and carries on from here (helpers are closed-loop); what it was saying to the
+   * old pilot no longer applies, so it's dropped.
+   */
   setCoaching(on) {
-    const progress = this.app.progress;
-    progress.settings.coach = on;
-    progress.save();
+    const app = this.app;
+    app.progress.settings.coach = on;
+    app.progress.save();
     const ap = this.autopilot;
     const nudged = this.coachNudge;
     this.coachNudge = false;
-    if (ap.active && ap.mode !== 'faster' && ap.mode !== 'slower' && ap.coachSession !== on) {
-      // A running helper switches over and carries on from here (helpers are closed-loop).
-      // Its own first line says what to do next, so Pip doesn't talk over it.
-      ap.start(ap.mode, ap.target, { coach: on });
-      return;
-    }
+    const running = ap.active && ap.mode !== 'faster' && ap.mode !== 'slower';
+    const handOver = running && ap.coachSession !== on;
+    app.speech.drop((l) => l.key === 'coach-switch' || (handOver && l.from === 'helper'));
+    const said = { speak: true, pri: 'cue', key: 'coach-switch' };
+    if (handOver) ap.start(ap.mode, ap.target, { coach: on, handover: true });
     // Said yes to "Want me to show you how to fly?" on the pad: start the lesson right away.
-    if (on && nudged && this.flight.state.landed && !ap.active) {
-      this.helper('orbit');
-      return;
-    }
-    this.app.pip(on ? 'I\'ll tell you when to hold GO!' : 'I\'ll fly, you watch!', { speak: true, key: 'coach-switch' });
+    else if (on && nudged && this.flight.state.landed && !ap.active) this.helper('orbit');
+    if (on) app.pip('You fly, I\'ll tell you when!', said);
+    else app.pip(running ? 'I\'ll fly, you watch!' : 'Now I\'ll fly when you tap a helper!', said);
   }
 
   /** A trip from the target card is running (including the landing a coached trip ends with). */
@@ -354,7 +357,7 @@ export class FlightScene {
 
   onPilotMessage(m) {
     // The helper says how urgent each line is (coach cues, safety takeovers, chat).
-    if (m.text) this.app.pip(m.text, { speak: true, pri: m.pri, key: m.key });
+    if (m.text) this.app.pip(m.text, { speak: true, pri: m.pri, key: m.key, from: 'helper' });
     // A helper just finished: a GO still held from its last cue mustn't burn on by itself.
     if (m.done) this.goLatched = true;
     if (m.visiting) this.discover(m.visiting);

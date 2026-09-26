@@ -329,7 +329,8 @@ export class FlightHud {
     this.el('goto-btn').textContent = s.tripRunning ? '✋ Stop' : coach ? '🧭 Let\'s go!' : '🤖 Take me there!';
     const status = this.el('status-line');
     status.classList.toggle('hidden', !s.autopilot.status);
-    status.textContent = s.autopilot.status ? `🤖 ${s.autopilot.status}` : '';
+    // Who's flying: 🧭 you (Pip coaches) or 🤖 Pip.
+    status.textContent = s.autopilot.status ? `${s.autopilot.coachSession ? '🧭' : '🤖'} ${s.autopilot.status}` : '';
     const g = this.app.progress.currentGoal;
     this.el('goal-banner').textContent = g ? `${g.icon} ${g.text}` : '🌟 You explored everything! Fly anywhere!';
   }

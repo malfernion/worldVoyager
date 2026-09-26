@@ -52,12 +52,20 @@ borrow the vibe, not the content: all names, worlds and music are original.
    Coach or autopilot is one remembered choice, the 🧭 switch on the flight HUD
    (`settings.coach`), and it applies to every helper: 🌀 Orbit, 🛬 Land and the target card's
    single trip button ("🧭 Let's go!" / "🤖 Take me there!"). One switch instead of a second
-   button on every helper keeps the choice in one place a 5-year-old can see (bright with a
-   green light = Pip coaches, dim = Pip flies), and helpers behave the same way every time.
-   Flipping it mid-helper restarts that helper in the other mode (they're closed-loop, so they
-   carry on from wherever the rocket is). ⏫ Faster / ⏬ Slower are hold-to-burn and always
+   button on every helper keeps the choice in one place a 5-year-old can see (green, pushed in,
+   with a glowing green light = you fly and Pip coaches; grey with the light off = Pip flies;
+   green rather than the yellow of a running helper, so it never looks busy), and helpers
+   behave the same way every time. The helper's status chip at the top says who's flying (🧭 you,
+   🤖 Pip). Flipping it mid-helper hands that helper over on the spot (they're closed-loop, so
+   they carry on from wherever the rocket is). ⏫ Faster / ⏬ Slower are hold-to-burn and always
    fly for you. Pip offers the coach once, on the very first launch, with the switch glowing;
    saying yes starts a coached launch to orbit.
+   Every flip, Pip says **who flies next**, at once (#32): on, "You fly, I'll tell you when!";
+   off with a helper running, "I'll fly, you watch!"; off with nothing running, "Now I'll fly
+   when you tap a helper!". A newer flip's line cuts off an older one, and on a hand-over
+   everything the helper was still saying to the old pilot is dropped (it said "point up and
+   hold GO" after the switch was off, which sounded backwards). The handed-over helper skips
+   its "Let's fly to…" / "Let's land…" opener and only says what to do next.
    - *Coach*: Pip plans the climb, the transfer, then the landing, and tells you what to do. An arrow shows
      where to point, the right turn button glows, and GO says **HOLD!** / **LET GO!**. You do the
      launch, gravity turn, transfer burn, capture brake and landing. The coached landing is: point

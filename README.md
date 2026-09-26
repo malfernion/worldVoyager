@@ -15,12 +15,17 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
 - **Zoom:** pinch, scroll, or the slider on the right. The camera follows further back as you
   climb, but you can always zoom right up to the rocket (about 12 m) or out to see a whole
   world; on the map, from one world up close out to the whole solar system.
-- **🧭 Coach switch** (first of the helper buttons): choose how the helpers help. It's remembered.
-  - **On** (bright, green light): "I'll tell you when to hold GO!" You fly: an arrow shows
-    where to point, the right turn button glows, and GO says HOLD! / LET GO!.
-  - **Off** (dim): "I'll fly, you watch!" The helpers fly the rocket for you.
+- **🧭 Coach switch** (first of the helper buttons): choose who flies when you tap a helper.
+  It's remembered, and every time you flip it Pip says who flies next.
+  - **On** (green, pushed in, bright green light): "You fly, I'll tell you when!" You fly: an
+    arrow shows where to point, the right turn button glows, and GO says HOLD! / LET GO!.
+    The helper's status chip at the top shows 🧭 while you fly it.
+  - **Off** (grey, light off): Pip flies the helpers for you (the status chip shows 🤖). Flipped with
+    nothing running, Pip says "Now I'll fly when you tap a helper!".
   On your very first launch Pip offers it ("Tap the compass!"); tapping it then starts a
-  coached launch into orbit. Flipping it while a helper is running switches that helper over.
+  coached launch into orbit. Flipping it while a helper or trip is running hands it over on
+  the spot and it carries on from where you are: on, "You fly, I'll tell you when!"; off,
+  "I'll fly, you watch!".
 - **Helpers:** 🌀 Orbit, 🛬 Land (tap again to stop), ⏫ Faster / ⏬ Slower (hold; always flown
   for you). They sit in a row between the turn buttons and GO (just above them on narrow
   phones). Only the useful ones show: on the ground that's 🧭, 🌀 Orbit and 🚙 Drive; Land,

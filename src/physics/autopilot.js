@@ -197,10 +197,16 @@ export class Autopilot {
     return !!this.program && !this.coach;
   }
 
-  start(mode, target = null, { coach = false } = {}) {
+  /**
+   * `handover`: the 🧭 switch just gave a running helper to the other pilot (#32). The switch's
+   * own line says who flies now, so the helper skips its "let's go" line and only says what
+   * to do next.
+   */
+  start(mode, target = null, { coach = false, handover = false } = {}) {
     this.stop();
     this.coach = coach;
     this.coachSession = coach;
+    this.handover = handover;
     this.mode = mode;
     this.target = target;
     const programs = {
@@ -319,7 +325,7 @@ export class Autopilot {
     if (!f.state.landed && f.speed > 5) dir = f.elements().dir;
     const fromGround = f.state.landed;
     if (this.coach && fromGround) this.say('First we fly up high. Point up and hold GO!', COACH);
-    else if (!quiet) this.say('Up, up and away! Let\'s go around!');
+    else if (!quiet && !this.handover) this.say('Up, up and away! Let\'s go around!');
     this.status = 'Flying up';
 
     // 1. Climb and tip over until the high point of our path is in space.
@@ -420,8 +426,8 @@ export class Autopilot {
       return false;
     }
     this.status = 'Landing';
-    if (this.coach) return yield* this.coachLand(intro ?? `Let's land on ${body.name} together!`);
-    this.say(`Let's land on ${body.name}. Nice and gentle!`);
+    if (this.coach) return yield* this.coachLand(intro ?? (this.handover ? '' : `Let's land on ${body.name} together!`));
+    if (!this.handover) this.say(`Let's land on ${body.name}. Nice and gentle!`);
     return yield* this.descend();
   }
 
@@ -530,16 +536,18 @@ export class Autopilot {
     const pointUp = 'Now point up at the arrow. I\'ll tell you when to hold GO!';
     const stopSide = 'First, point along the arrow and hold GO to stop going sideways.';
     const tinyPush = 'I\'ll do this tiny push for you!';
+    // No intro when the 🧭 switch just handed this landing over (#32): straight to what to do.
+    const withIntro = (line) => (intro ? `${intro} ${line}` : line);
     let d = this.descent();
     // Only long sideways stops (a second or more of GO) are left to the player.
     let sideways = Math.abs(d.vt) > amax;
     if (sideways) {
-      this.say(`${intro} ${stopSide}`, COACH);
+      this.say(withIntro(stopSide), COACH);
     } else if (Math.abs(d.vt) > 1.5) {
-      yield* this.stopSideways(`${intro} ${tinyPush}`);
+      yield* this.stopSideways(withIntro(tinyPush));
       this.say(pointUp, CUE);
     } else {
-      this.say(`${intro} ${pointUp}`, COACH);
+      this.say(withIntro(pointUp), COACH);
     }
     let hold = false;
     let flipAt = -Infinity;
@@ -635,7 +643,7 @@ export class Autopilot {
   *gotoProgram(target) {
     const f = this.flight;
     if (!target || target.kind === 'star') return false;
-    this.say(`Let's fly to ${target.name}!`);
+    if (!this.handover) this.say(`Let's fly to ${target.name}!`);
     let legs = 0;
     // Enough tries for the longest route (Flip to Nibble: up, across, down) with a few retries.
     while (legs++ < 12) {

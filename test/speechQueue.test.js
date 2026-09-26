@@ -282,6 +282,26 @@ describe('speech queue (#31)', () => {
     await clock.advance(GAP + 0.01);
     expect(popped).toEqual(['sticker']);
   });
+
+  it('drops lines that no longer apply, cutting one off mid-line, and carries on (#32)', async () => {
+    const { q, clock, log, stopped, end } = setup();
+    q.push(LONG, { from: 'helper' });
+    q.push('Sticker line.');
+    q.push('Point up and hold GO!', { from: 'helper', key: 'coach' });
+    q.action(() => log.push('action'));
+    q.drop((l) => l.from === 'helper');
+    expect(stopped).toEqual([LONG]);
+    await clock.advance(GAP + 0.01);
+    expect(log).toEqual([LONG, 'Sticker line.']);
+    await end('Sticker line.');
+    await clock.advance(GAP + 0.01);
+    expect(log).toEqual([LONG, 'Sticker line.', 'action']);
+    // Nothing matching: nothing changes.
+    q.push('Still here.');
+    q.drop((l) => l.from === 'helper');
+    expect(stopped).toEqual([LONG]);
+    expect(log.at(-1)).toBe('Still here.');
+  });
 });
 
 // ---- the Narrator driven by the queue, with a fake AudioContext --------------------------

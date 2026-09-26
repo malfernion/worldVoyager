@@ -123,6 +123,17 @@ export class SpeechQueue {
     if (this.pending.length) this.gapTimer = this.timers.set(() => this.advance(), this.gap);
   }
 
+  /**
+   * Forget lines that no longer apply (#32: the 🧭 switch handed a helper over): drop the
+   * waiting ones `match` picks, and cut the current one off if it matches too.
+   */
+  drop(match) {
+    this.pending = this.pending.filter((p) => p.fn || !match(p));
+    if (!this.current || !match(this.current)) return;
+    this.interrupt();
+    if (this.pending.length) this.gapTimer = this.timers.set(() => this.advance(), this.gap);
+  }
+
   // ---- internals ------------------------------------------------------------
 
   /** Too many lines waiting: drop the least important, oldest first (`keep` lines last of all). */

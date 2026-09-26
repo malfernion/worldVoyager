@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: physics, autopilot missions, coach flights, buggy, discoveries, friends (+ the band's music), speech (+ the speech queue), zoom, audio unlock
+npm test             # vitest: physics, autopilot missions, coach flights (+ the 🧭 switch), buggy, discoveries, friends (+ the band's music), speech (+ the speech queue), zoom, audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -171,6 +171,9 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
 ## Verifying your work
 
 - **Physics, autopilot and coach:** headless vitest missions in `test/physics.test.js`.
+  `test/coachSwitch.test.js` flips the 🧭 switch in each context (idle, a helper or trip in
+  each mode, the first-launch nudge) through the real `FlightScene` methods and a speech queue
+  on a fake clock, and checks what Pip says and who ends up flying.
   `kidFlies()` simulates a late-reacting child (binary GO, 8-frame lag) following the coach
   cues. Any coach feature should have a test like it. `test/stress.test.js` replays a few trips
   that used to fail; after touching the planner or capture, run the full `npm run stress`
@@ -243,6 +246,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   - `normal` (default): waits its turn. Stale after 30 s (stickers 60 s).
   - `chatter`: only if Pip is free, else dropped and `pip()` returns false (idle hints, the
     compass hints, bonk, "We're at…"). Once-only hints set their flag from that return value.
+  - The 🧭 switch's line (#32, `FlightScene.setCoaching`) is a `cue` with key `coach-switch`,
+    so it answers the tap at once and a newer flip replaces it. Helper lines are pushed with
+    `from: 'helper'`; handing a helper over calls `app.speech.drop()` on them, so nothing the
+    old pilot was told is said afterwards. The restarted helper gets `{ handover: true }` and
+    skips its opener.
   A `key` groups lines of one kind (`coach`, `goal`, `target`, `build`, `journal`…): a new one
   replaces a waiting one, and a newer `cue` cuts off a playing one of the same key. The first
   step of a coach lesson (the rocket waits for the player) is `normal` with key `coach`

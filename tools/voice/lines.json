@@ -1008,6 +1008,10 @@
   "text": "Now Flurry is in our band!"
  },
  {
+  "key": "now ill fly when you tap a helper",
+  "text": "Now I'll fly when you tap a helper!"
+ },
+ {
   "key": "now lets land together",
   "text": "Now let's land together."
  },
@@ -1906,6 +1910,10 @@
  {
   "key": "you flew to tumble all by yourself",
   "text": "You flew to Tumble all by yourself!"
+ },
+ {
+  "key": "you fly ill tell you when",
+  "text": "You fly, I'll tell you when!"
  },
  {
   "key": "you found an old telescope",
