@@ -416,6 +416,7 @@ export class Autopilot {
       return false;
     }
     this.status = 'Landing';
+    this.site = null; // where on dry land we're heading, if the spot below is water (#44)
     if (this.coach) return yield* this.coachLand(intro ?? (this.resume ? '' : `Let's land on ${body.name} together!`));
     if (!this.resume) this.say(`Let's land on ${body.name}. Nice and gentle!`);
     return yield* this.descend();
@@ -440,30 +441,98 @@ export class Autopilot {
     return { up, ux, uy, tx, ty, vr, vt, alt, g: f.localGravity, brake, vrDes };
   }
 
-  /** Fly down on the gentle descent profile until we touch the ground. */
-  *descend() {
+  /**
+   * Where to touch down (#44): null while the spot we'd come to a stop over is somewhere a
+   * rocket can land, else a dry spot (a planar angle) to steer to. Once picked it stays picked
+   * for this landing (`landProgram` forgets it), so the rocket doesn't dither between two.
+   */
+  landSite(d) {
+    const f = this.flight;
+    const body = f.state.body;
+    if (!body.liquid) return null;
+    if (this.site != null) return this.site;
+    // Where we'd stop drifting sideways: the descent's gentle stop, or a hard one when fast.
+    const r = body.surfaceAt(d.up);
+    const stop = d.up + (d.vt / 1.3 + (d.vt * Math.abs(d.vt)) / (2 * f.stats.accel)) / r;
+    if (body.landableAt(stop)) return null;
+    this.site = body.nearestLandable(stop);
+    return this.site;
+  }
+
+  /** How far (m, along the ground; + the way the angle grows) the landing site is from under us. */
+  siteArc(d, site) {
+    return wrapPi(site - d.up) * this.flight.state.body.surfaceAt(d.up);
+  }
+
+  /**
+   * One frame of flying down on the gentle descent profile. With a landing site (#44), drift
+   * over to it first, staying up (hovering if need be) until we're nearly above it.
+   */
+  steerDown(d, site = null, floor = 6) {
     const f = this.flight;
     const amax = f.stats.accel;
+    const { up, ux, uy, tx, ty, vr, vt, alt, g } = d;
+    let { vrDes } = d;
+    let vtDes = 0;
+    if (site !== null) {
+      const arc = this.siteArc(d, site);
+      vtDes = clamp(arc * 0.35, -8, 8);
+      if (Math.abs(arc) > 3) {
+        // Not there yet: don't come down before we are, and stay `floor` metres up meanwhile.
+        const tGo = Math.abs(arc) / 5 + 2;
+        vrDes = Math.max(vrDes, -Math.max(0, alt - floor) / tGo);
+        if (alt < floor) vrDes = Math.max(vrDes, Math.min(3, (floor - alt) * 0.6));
+      }
+    }
+    const k = 1.3;
+    const Tx = k * ((vrDes - vr) * ux + (vtDes - vt) * tx) + g * ux;
+    const Ty = k * ((vrDes - vr) * uy + (vtDes - vt) * ty) + g * uy;
+    let rel = wrapPi(Math.atan2(Ty, Tx) - up);
+    const maxTilt = alt < 6 ? (site !== null ? 0.3 : 0.2) : 1.6;
+    rel = clamp(rel, -maxTilt, maxTilt);
+    const ok = this.aim(up + rel, alt < 6 ? 0.5 : 0.35);
+    const want = Math.hypot(Tx, Ty) / amax;
+    this.setThrottle(ok ? clamp(want, 0, 1) : 0);
+    return vtDes;
+  }
+
+  /** Fly down on the gentle descent profile until we touch the ground (dry ground, #44). */
+  *descend() {
+    const f = this.flight;
     while (!f.state.landed) {
       if (f.state.crashed) return false;
-      const { up, ux, uy, tx, ty, vr, vt, alt, g, vrDes } = this.descent();
-      const k = 1.3;
-      const Tx = k * ((vrDes - vr) * ux - vt * tx) + g * ux;
-      const Ty = k * ((vrDes - vr) * uy - vt * ty) + g * uy;
-      let rel = wrapPi(Math.atan2(Ty, Tx) - up);
-      const maxTilt = alt < 6 ? 0.2 : 1.6;
-      rel = clamp(rel, -maxTilt, maxTilt);
-      const ang = up + rel;
-      const ok = this.aim(ang, alt < 6 ? 0.5 : 0.35);
-      const want = Math.hypot(Tx, Ty) / amax;
-      this.setThrottle(ok ? clamp(want, 0, 1) : 0);
+      const d = this.descent();
+      const vtDes = this.steerDown(d, this.landSite(d));
       // Speed through long, boring falls.
-      const timeToGround = alt / Math.max(1, -vr);
-      this.warp = this.safeWarp(this.cmd.throttle === 0 && Math.abs(vt) < 2 && timeToGround > 12 ? clamp(timeToGround / 6, 1, 10) : 1);
+      const timeToGround = d.alt / Math.max(1, -d.vr);
+      this.warp = this.safeWarp(this.cmd.throttle === 0 && Math.abs(d.vt - vtDes) < 2 && Math.abs(vtDes) < 0.5 && timeToGround > 12 ? clamp(timeToGround / 6, 1, 10) : 1);
       yield;
     }
     this.setThrottle(0);
     return true;
+  }
+
+  /**
+   * Coached, but the spot below is water (#44): Pip flies us over to dry land (like the tiny
+   * pushes), staying up high, then hands back for the HOLD / LET GO down.
+   */
+  *glideToLand(site) {
+    const f = this.flight;
+    const wasCoach = this.coach;
+    this.coach = false;
+    this.goPower = 1;
+    this.say('Oops, water! I\'ll fly us over to dry land.', CUE);
+    this.warp = 1;
+    for (let guard = 0; guard < 60 * 60 && !f.state.landed && !f.state.crashed; guard++) {
+      const d = this.descent();
+      if (Math.abs(this.siteArc(d, site)) < 1.5 && Math.abs(d.vt) < 0.6) break;
+      // High enough that the player still has room for the HOLD / LET GO down.
+      this.steerDown(d, site, 15);
+      yield;
+    }
+    this.setThrottle(0);
+    f.targetAngle = null;
+    this.coach = wasCoach;
   }
 
   /** How hard we'd have to brake (beyond gravity) to slow from `down` to `vLand` just above the ground. */
@@ -578,6 +647,13 @@ export class Autopilot {
         sideways = false;
         this.say(`Let go! ${pointUp}`, CUE);
       }
+      // Heading for water? Pip flies us over to dry land first (#44).
+      const site = this.landSite(d);
+      if (site !== null && Math.abs(this.siteArc(d, site)) > 2.5) {
+        yield* this.glideToLand(site);
+        if (!f.state.landed && !f.state.crashed) this.say(pointUp, CUE);
+        continue;
+      }
       // Still drifting a lot? Pip tidies that up while there's room.
       if (Math.abs(d.vt) > 4 && d.alt > 10) {
         yield* this.stopSideways(tinyPush);
@@ -593,7 +669,9 @@ export class Autopilot {
       const brake = Math.max(0.5, amax * power - gSurface);
       // Lean a little to cancel leftover drift (and stand up straight near the ground).
       const lim = d.alt < 6 ? 0.12 : 0.3;
-      const ang = d.up + clamp(-d.vt * 0.2, -lim, lim);
+      // (Over to the landing site's middle, if there is one, #44.)
+      const vtDes = site === null ? 0 : clamp(this.siteArc(d, site) * 0.35, -2, 2);
+      const ang = d.up + clamp((vtDes - d.vt) * 0.2, -lim, lim);
       // Keeping straight is fiddly, so once the player has pointed up (and always near the
       // ground) Pip steadies the rocket and hides the arrow; the player does HOLD / LET GO.
       const off = Math.abs(wrapPi(ang - f.state.angle));
