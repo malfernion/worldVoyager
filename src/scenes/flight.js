@@ -290,6 +290,12 @@ export class FlightScene {
     if (this.warpIndex !== before || reset) this.app.audio.play(this.warpIndex > before ? 'warp' : 'unwarp');
   }
 
+  /** Jump straight to a time speed (0 = normal … 6 = fastest), e.g. from the number keys (#23). */
+  setWarpLevel(i) {
+    if (i <= 0) this.setWarp(0, true);
+    else this.setWarp(Math.min(i, WARP_LEVELS.length - 1) - this.warpIndex);
+  }
+
   get warp() {
     const ap = this.autopilot;
     const mine = WARP_LEVELS[this.warpIndex];

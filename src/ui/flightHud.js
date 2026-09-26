@@ -4,6 +4,13 @@ import { TAP_MOVE } from './fastTravel.js';
 
 const fmt = (n) => (n >= 10000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`);
 
+// Time controls on the keyboard (#23): several layouts' worth, so whichever a player tries works.
+const WARP_KEYS = {
+  Period: 'up', BracketRight: 'up', Equal: 'up', NumpadAdd: 'up',
+  Comma: 'down', BracketLeft: 'down', Minus: 'down', NumpadSubtract: 'down',
+  Slash: 'normal', Digit0: 'normal', Numpad0: 'normal',
+};
+
 export class FlightHud {
   constructor(app) {
     this.app = app;
@@ -119,9 +126,13 @@ export class FlightHud {
         e.preventDefault();
         this.scene.toggleMap();
       }
-      if (e.code === 'Period') this.scene.setWarp(1);
-      if (e.code === 'Comma') this.scene.setWarp(-1);
-      if (e.code === 'Slash') this.scene.setWarp(0, true);
+      const warp = WARP_KEYS[e.code];
+      if (warp === 'up') this.scene.setWarp(1);
+      if (warp === 'down') this.scene.setWarp(-1);
+      if (warp === 'normal') this.scene.setWarp(0, true);
+      // 1-7 pick a speed directly: 1 is normal, 7 the fastest.
+      const digit = /^(Digit|Numpad)([1-9])$/.exec(e.code);
+      if (digit) this.scene.setWarpLevel(Number(digit[2]) - 1);
       if (e.code === 'Backspace' || e.code === 'KeyR') this.scene.rewind();
       if (e.code === 'KeyO') this.scene.helper('orbit');
       if (e.code === 'KeyL') this.scene.helper('land');

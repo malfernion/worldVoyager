@@ -60,7 +60,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   you've driven round gets a 🌍 in the sticker book). (Psst: on tiny Nibble, drive the Hopper
   really fast, then jump and hold it…)
 - **Keyboard:** ←/→ or A/D turn, Space/↑/W fire (hold **Shift** too for a gentle tenth of the
-  thrust, for careful burns), M map, `.`/`,` warp, `/` normal speed,
+  thrust, for careful burns), M map, time speed `+`/`-` (or `]`/`[`, `.`/`,`), `0` or `/` normal speed, `1`–`7` pick a
+  speed (1 normal … 7 fastest; hover the time buttons to see the keys),
   R rewind, O orbit, L land, B buggy out / home. When driving: ↑/W go, ↓/S reverse,
   Space jump (Hopper).
 

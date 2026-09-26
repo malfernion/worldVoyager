@@ -638,3 +638,17 @@ describe('fine thrust (#28)', () => {
     expect(goThrottle(0.5, true)).toBeCloseTo(0.05);
   });
 });
+
+describe('keyboard time controls (#23)', () => {
+  it('number keys jump straight to a time speed, clamped to the fastest', async () => {
+    const { FlightScene, WARP_LEVELS } = await import('../src/scenes/flight.js');
+    const s = Object.create(FlightScene.prototype);
+    Object.assign(s, { warpIndex: 0, manualWarp: false, autopilot: { active: false }, clearClock() {}, app: { audio: { play() {} } } });
+    s.setWarpLevel(3);
+    expect(WARP_LEVELS[s.warpIndex]).toBe(30);
+    s.setWarpLevel(8);
+    expect(s.warpIndex).toBe(WARP_LEVELS.length - 1);
+    s.setWarpLevel(0);
+    expect(s.warpIndex).toBe(0);
+  });
+});
