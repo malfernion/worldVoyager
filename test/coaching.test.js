@@ -102,7 +102,7 @@ function setup(m, { done = [], coach = false, explain = false } = {}) {
     flight: m.flight, autopilot: m.ap, system: m.sys, time: 0, crashed: false, target: null, mode: 'flight', pause: null, clock: null,
     input: { left: false, right: false, go: false, fine: false }, warpIndex: 0, manualWarp: false,
     snapshots: [], snapTimer: 0, predTimer: 0, prediction: null, drive: { active: false, cancel() {} },
-    showing: null, coachKey: null, coachSpent: null, coachWait: 0, introGlow: false, lastPos: { body: null, x: 0, y: 0 },
+    showing: null, coachKey: null, coachSpent: null, coachWait: 0, coachAsked: false, introGlow: false, lastPos: { body: null, x: 0, y: 0 },
   });
   s.burst = s.discover = s.checkDiscoveries = s.checkBand = () => {};
   m.ap.on((e) => s.onPilotMessage(e));
@@ -247,12 +247,14 @@ describe('the 🧭 toggle during the starter journey (#36)', () => {
     expect(t.progress.settings.coach).toBe(true); // the toggle stays on
     // 🏡 Then the flight home and the landing, once Pip has cheered.
     expect(await t.run(30, () => t.coaching())).toBe(true);
-    expect(t.since().slice(-3)).toEqual([STICKERS['land-pebble'].name, 'Next: Fly home and land!', ALL_BY_YOURSELF]);
+    // It waits for Pip to finish the sticker, what's next and the cheer, then opens.
+    const said = t.since();
+    const at = said.indexOf(STICKERS['land-pebble'].name);
+    expect(said.slice(at)).toEqual([STICKERS['land-pebble'].name, 'Next: Fly home and land!', ALL_BY_YOURSELF, 'Let\'s fly to Homestead!']);
     expect(t.ap.mode).toBe('goto');
     expect(t.ap.target).toBe(t.sys.home);
     t.mark('home');
     expect(await t.run(3000, () => p.starterDone)).toBe(true);
-    expect(t.since()[0]).toBe('Let\'s fly to Homestead!');
     await t.run(20, () => t.since().includes(ALL_BY_YOURSELF));
     expect(t.since()).toContain(ALL_BY_YOURSELF);
     expect(t.heard.filter((l) => l === ALL_BY_YOURSELF)).toHaveLength(3); // home, Pebble, home again
@@ -331,6 +333,26 @@ describe('🧭 Show me how after the starter journey (#36)', () => {
     expect(button(t).shown).toBe(false);
     expect(goalShown(t.progress, t.s.showing)).toBe(null);
   }, 120000);
+
+  it('on the pad, it starts at once, even while Pip is saying something else', async () => {
+    const t = setup(onPad(), { done: JOURNEY });
+    t.s.setTarget(t.sys.byId.dusty);
+    t.speech.push(STICKERS.drive.say, { keep: true });
+    t.s.showMeHow();
+    expect(t.coaching()).toBe(true);
+    expect(t.ap.target).toBe(t.sys.byId.dusty);
+  });
+
+  it('in flight, it starts once Pip has said "Okay!"', async () => {
+    const t = setup(inOrbit(), { done: JOURNEY });
+    t.kid = false;
+    t.s.setTarget(t.sys.byId.dusty);
+    t.s.showMeHow();
+    expect(t.coaching()).toBe(false);
+    await t.run(5, () => t.coaching());
+    expect(t.coaching()).toBe(true);
+    expect(t.heard[t.heard.length - 1]).toBe(COACH_ON);
+  });
 
   it('from orbit: the trip and the landing (no take-off)', async () => {
     const t = setup(inOrbit(), { done: JOURNEY });

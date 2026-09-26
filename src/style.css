@@ -436,6 +436,9 @@ h1 {
   top: calc(76px + var(--safe-top));
   left: 50%;
   transform: translateX(-50%);
+  /* Its own width, not half the screen (left: 50% alone made it wrap onto a second line and
+     cover the status chip below it on phones, #36). */
+  width: max-content;
   max-width: min(560px, calc(100vw - 150px));
   text-align: center;
   font-size: 16px;
@@ -1827,6 +1830,21 @@ h1 {
 
   #status-line {
     top: calc(160px + var(--safe-top));
+  }
+
+  /* The target card has two choices (#36): slimmer buttons, and the 🎯 above it, so it keeps
+     clear of the zoom box and the 🎯 on short phones. */
+  #target-card .target-info {
+    gap: 4px;
+  }
+
+  #target-card .small-go {
+    padding: 8px 10px;
+  }
+
+  #map-tools {
+    top: calc(180px + var(--safe-top));
+    transform: none;
   }
 
   /* HOLD! / LET GO! between the thumbs, next to GO (the helper row is above it). */

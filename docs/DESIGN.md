@@ -107,10 +107,11 @@ borrow the vibe, not the content: all names, worlds and music are original.
    How: `FlightScene.coachWant()` says what to coach now (a Show me how, else the toggle's
    starter step), and `updateCoaching()` starts it every frame there's nothing flying, so a
    quieted action simply starts again (`resume`, no opener) when the autopilot is done. An action
-   that ended by itself isn't restarted until something changes (`coachSpent`). A new one waits
-   for Pip to finish what she's saying (a sticker, "Next: …"), up to 20 s, so its first cue
-   doesn't cut them off; on the ground it doesn't wait for the "Okay!", since the rocket waits
-   for GO anyway. This replaced #32's single switch that turned every helper into a lesson and
+   that ended by itself isn't restarted until something changes (`coachSpent`). Asked for (the
+   toggle turned on, Show me how) it starts at once on the ground, where the rocket waits for
+   GO anyway, and in flight once Pip has said "Okay!", so its first cue doesn't cut that off.
+   The next starter step, starting by itself, waits for Pip to finish what she's saying (the
+   sticker, "Next: …", "You landed all by yourself!"), up to 20 s. This replaced #32's single switch that turned every helper into a lesson and
    handed a running helper over when flipped: a child couldn't ask Pip to fly one thing while
    being coached on another, and "who flies" changed under them.
 3. **Failure is funny and cheap.** Crashes are cartoon explosions with bouncing parts. **↺ Rewind**

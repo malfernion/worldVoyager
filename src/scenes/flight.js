@@ -115,6 +115,7 @@ export class FlightScene {
     this.coachKey = null;
     this.coachSpent = null;
     this.coachWait = 0;
+    this.coachAsked = false;
     this.introGlow = false;
     // Any tap carries on from the pause (the line itself still finishes), and leaves the map be.
     window.addEventListener('pointerdown', () => {
@@ -398,33 +399,39 @@ export class FlightScene {
    * Every frame: start (or pick up again) whatever should be coached. Nothing while an autopilot
    * button flies, after a crash or while driving. A coached action that ended by itself
    * (`coachSpent`) isn't started again until something changes (a rewind, the pad, the toggle,
-   * a new Show me how). A new one waits (up to `COACH_WAIT`) for Pip to finish what she's saying
-   * (a sticker, "Next: …", "You landed all by yourself!"), so its first cue doesn't cut those
-   * off. The coach's own "Okay!" only holds it up in flight: on the ground the rocket waits for
-   * the player's GO anyway, so turning the coach on at the pad starts the launch at once.
+   * a new Show me how). When to start:
+   * - picking up again (after an autopilot button, a rewind, driving): at once;
+   * - just asked for (the toggle turned on, Show me how: `coachAsked`): at once on the ground,
+   *   where the rocket waits for the player's GO; in flight once Pip has said "Okay!", so the
+   *   first cue doesn't cut that off;
+   * - the next starter step, by itself: once Pip has finished what she's saying (a sticker,
+   *   "Next: …", "You landed all by yourself!"), up to `COACH_WAIT`.
    */
   updateCoaching(dt = 0) {
     const ap = this.autopilot;
     const s = this.flight.state;
     // We got there another way (Pip landed us, say): the Show me how is over.
     if (this.showing && s.landed && s.body === this.showing.body && !ap.coachSession) this.endShowing();
-    if (ap.active || this.crashed || s.crashed || this.drive?.active) return;
-    const want = this.coachWant();
-    if (!want || want.key === this.coachSpent) return;
+    const want = ap.active || this.crashed || s.crashed || this.drive?.active ? null : this.coachWant();
+    if (!want || want.key === this.coachSpent) {
+      // Nothing to start now: when there is, it's no longer an answer to a tap.
+      if (!ap.coachSession) this.coachAsked = false;
+      return;
+    }
     const resume = want.key === this.coachKey;
-    if (!resume && this.pipBusy(s.landed) && (this.coachWait += dt) < COACH_WAIT) return;
+    const wait = resume ? false : this.coachAsked ? !s.landed && this.pipSaying((l) => l.key === 'coach-switch') : !!this.app.speech?.busy;
+    if (wait && (this.coachWait += dt) < COACH_WAIT) return;
     this.coachWait = 0;
+    this.coachAsked = false;
     this.coachKey = want.key;
     ap.start(want.mode, want.body, { coach: true, resume });
   }
 
-  /** Is Pip saying something, or about to? `butCoach`: not counting the coach's own "Okay!". */
-  pipBusy(butCoach = false) {
+  /** Is Pip saying, or about to say, a line `match` picks? */
+  pipSaying(match) {
     const q = this.app.speech;
-    if (!q?.busy) return false;
-    if (!butCoach) return true;
-    const talk = (l) => l && !l.fn && l.key !== 'coach-switch';
-    return talk(q.current) || q.pending.some(talk);
+    const line = (l) => !!l && !l.fn && match(l);
+    return !!q && (line(q.current) || q.pending.some(line));
   }
 
   /** Stop the coached program now (the rocket keeps whatever the player is doing), and what it was still going to say. */
@@ -463,6 +470,8 @@ export class FlightScene {
     this.showing = null;
     this.quietCoach();
     this.coachKey = this.coachSpent = null;
+    this.coachAsked = on;
+    this.coachWait = 0;
     this.sayCoach(on);
     if (!on) return;
     this.updateCoaching();
@@ -510,6 +519,8 @@ export class FlightScene {
     this.introGlow = false;
     this.showing = { body, here: body === this.flight.state.body };
     this.coachKey = this.coachSpent = null;
+    this.coachAsked = true;
+    this.coachWait = 0;
     this.sayCoach(true);
     this.updateCoaching();
   }
