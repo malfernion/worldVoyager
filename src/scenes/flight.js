@@ -1663,6 +1663,9 @@ export class FlightScene {
    * (where it lands) and the buggy. A few multiplies per cloud; nothing allocated.
    */
   updateClouds() {
+    let any = false;
+    for (const v of this.visuals) if (v.clouds) any = true;
+    if (!any) return;
     const foci = this.cloudFoci;
     const s = this.flight.state;
     const r = this.rocketHolder.position;
