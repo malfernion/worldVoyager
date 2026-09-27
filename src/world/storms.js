@@ -42,6 +42,7 @@ export const STORM_LOOK = {
     shade: 0xd8a468,
     night: 0x3e3448,
     opacity: 1,
+    ragged: 1,
     shadow: 0,
     streams: {
       streaks: 380,
@@ -216,15 +217,16 @@ export function stormPlan(look, R) {
           puffs.push([p[0], p[1], p[2], size, lift, ci, rand(), nv2[0] / nl, nv2[1] / nl, nv2[2] / nl, dens, Math.min(1, Math.max(0, lift / H)), e[0], e[1], e[2], stretch]);
         };
         if (front) {
-          // A billowing clump: a dome of big soft sprites, towering over the haze behind it.
-          const count = 7 + Math.floor(rand() * 2);
+          // A billowing wall of blowing dust: sprites drawn out along the wind (streaky, ragged,
+          // not round bubbles), stacked up high over the haze behind it.
+          const count = 9 + Math.floor(rand() * 2);
           for (let k = 0; k < count; k++) {
             const du = (rand() + rand() - 1) * step * 0.6, dv = (rand() + rand() - 1) * step * 0.6;
             const mid = Math.max(0, 1 - (Math.hypot(du, dv) / (step * 0.7)) ** 2);
             const size = step * (0.45 + 0.2 * mid + rand() * 0.12);
             // Stacked up the wall: from its foot to the top of its dome.
             const lift = Math.max(size * 0.3, Math.min(((k + rand()) / count) * H * (0.5 + 0.5 * mid), H + 2 - size * 0.6));
-            put(du, dv, lift, size, 0.65 + 0.35 * mid, 1);
+            put(du * 1.5, dv * 0.8, lift, size * 0.66, 0.5 + 0.35 * mid, 2.7);
           }
         } else if (trail) {
           // Frayed streaks at the back, drawn out along the wind.

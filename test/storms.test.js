@@ -70,8 +70,17 @@ describe('Dusty\'s thin high clouds (#54 stage 3)', () => {
     expect(ps.length).toBeLessThan(sprites(cloudPlan(CLOUD_LOOK.homestead, home.radius)).length / 2);
     expect(cl.opacity).toBeLessThan(0.6);
     expect(cl.shadow).toBe(0);
-    const c = new THREE.Color(cl.lit);
-    expect(Math.min(c.r, c.g, c.b)).toBeGreaterThan(0.85);
+    // Warm peach (through the dusty air), and paler than the storms' ochre, so the two differ.
+    const c = new THREE.Color(cl.lit), st = new THREE.Color(look.lit);
+    expect(c.r).toBeGreaterThan(c.b);
+    expect(c.b).toBeGreaterThan(st.b);
+    expect(c.r + c.g + c.b).toBeGreaterThan(st.r + st.g + st.b);
+    // Dusky by night.
+    const n = new THREE.Color(cl.night);
+    expect(n.r + n.g + n.b).toBeLessThan((c.r + c.g + c.b) * 0.3);
+    // Ragged, feathered edges; Homestead's stay as they were.
+    expect(cl.ragged).toBeGreaterThan(0);
+    expect(CLOUD_LOOK.homestead.ragged).toBeUndefined();
   });
 
   it('sit high, near the top of the sky, under the space line', () => {

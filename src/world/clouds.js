@@ -44,7 +44,8 @@ import { mulberry32 } from '../physics/noise.js';
  * optionally how far their sprites are drawn out (`stretch`), how dense (`dens`) and tall (`h`,
  * of the width). Optional for thinner layers (Dusty): `bandWisps`, the share of wisps in the
  * `sky` and `plane` bands (else half of `wisps`); `wisp`, how a wisp is drawn (see WISP);
- * `puffDens`, how dense a puffy clump's sprites are (a share); `limbRound` (0..1): at the world's
+ * `puffDens`, how dense a puffy clump's sprites are (a share); `ragged` (0..1): feathered, see-through edges and flatter light (wisps of ice or dust,
+ * not soft balls); `limbRound` (0..1): at the world's
  * edge, seen side-on, its streaks become fuller round puffs (so a thin layer stands above the glow
  * as soft puffs, like Homestead's, rather than thin arcs);
  * `opacity`, how much of the layer shows at most. `shadow: 0`: no shadows at all (none baked).
@@ -69,26 +70,29 @@ export const CLOUD_LOOK = {
   // Thin high clouds, like Mars's water-ice clouds: sparse, pale, faint streaks and wisps near
   // the top of the sky (just under the space line), a few long streaky bands and only the odd
   // small clump; see-through, so from orbit they're faint streaks over the red ground, and from
-  // the ground thin wisps in the butterscotch sky. Too thin to cast a shadow.
+  // the ground thin wisps in the butterscotch sky. Warm peach, the colour they take through the
+  // dusty air (paler than the storms' ochre), dusky by night; ragged, feathered edges. Too thin
+  // to cast a shadow.
   dusty: {
     seed: 61,
     alt: [29, 34],
     size: [26, 44],
     sprites: [9, 13],
-    wisps: 0.85,
-    bandWisps: 0.85,
-    puffDens: 0.55,
-    wisp: { count: 1.3, width: 1.3, stretch: 2.2, dens: 0.6, h: 0.06 },
+    wisps: 0.93,
+    bandWisps: 0.93,
+    puffDens: 0.4,
+    wisp: { count: 1.5, width: 1.1, stretch: 3.2, dens: 0.55, h: 0.05 },
     sky: { count: 9, z: [-130, -25] },
     plane: { count: 5, z: [-22, 8] },
     spread: { front: 34, back: 14, size: [30, 54], field: 120 },
-    fronts: { count: 3, back: 0, alt: [30, 33], length: [180, 300], width: [22, 34], swirl: 0, clear: 50, stretch: 2.4, dens: 0.5, h: 0.06 },
+    fronts: { count: 3, back: 0, alt: [30, 33], length: [180, 300], width: [22, 34], swirl: 0, clear: 50, stretch: 3.2, dens: 0.45, h: 0.05 },
     drift: 0.003,
-    lit: 0xfff8f2,
-    shade: 0xcfc6dc,
-    night: 0x5c5478,
-    opacity: 0.42,
+    lit: 0xfff0e2,
+    shade: 0xf4c8aa,
+    night: 0x5e4652,
+    opacity: 0.58,
     limbRound: 1,
+    ragged: 1,
     shadow: 0,
   },
 };
@@ -385,6 +389,7 @@ const VERT = /* glsl */ `
   uniform float time;
   uniform vec3 sunDir;
   uniform float limbRound;
+  uniform float ragged;
   varying vec2 vUv;
   varying vec2 vNoise;
   varying float vH;
@@ -436,7 +441,7 @@ const VERT = /* glsl */ `
     // Its bit of the noise tile: a random spot and turn, slowly scrolling (the cloud billows).
     float a = puff.w * 6.2832;
     vUv = corner;
-    vNoise = mat2(cos(a), sin(a), -sin(a), cos(a)) * corner * (0.3 + 0.2 * fract(puff.w * 7.0))
+    vNoise = mat2(cos(a), sin(a), -sin(a), cos(a)) * corner * (0.3 + 0.2 * fract(puff.w * 7.0)) * (1.0 + 0.8 * ragged)
       + vec2(puff.w * 13.0, puff.w * 29.0) + vec2(0.006, 0.003) * time;
     gl_Position = projectionMatrix * mvPosition;
     if (vCloud * vScreen < 0.004) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -454,6 +459,7 @@ const FRAG = /* glsl */ `
   uniform vec3 shadeColor;
   uniform vec3 nightColor;
   uniform float opacity;
+  uniform float ragged;
   varying vec2 vUv;
   varying vec2 vNoise;
   varying float vH;
@@ -470,9 +476,11 @@ const FRAG = /* glsl */ `
     // A soft falloff, bent and eaten away by the noise (so it isn't a round disc): dense in the
     // middle, feathered and see-through at the rims.
     float nz = texture2D(noiseMap, vNoise).r;
-    float rr = min(1.0, r2 * (0.55 + 0.9 * nz));
+    // (Ragged layers, ragged 1: finer noise that eats further in, so the edges are feathered
+    // and see-through wisps of dust or ice rather than round soft balls.)
+    float rr = min(1.0, r2 * (0.55 + (0.9 + 0.8 * ragged) * nz));
     float fall = (1.0 - rr) * (1.0 - rr);
-    float d = fall * (0.3 + 1.1 * nz) - 0.12;
+    float d = fall * (0.3 + 1.1 * nz + ragged * (0.5 * nz - 0.25)) - 0.12 - 0.05 * ragged;
     // Thinning out just below the cloud's base.
     d *= smoothstep(-0.35 * vSize, 0.3 * vSize, vH);
     // Fading thins it from the rims inwards, so a fading cloud evaporates into wisps rather
@@ -485,8 +493,9 @@ const FRAG = /* glsl */ `
     // Gentle toon light: the sprite's place in its cloud, a soft ball's turn to the sun, and a
     // touch of the noise, in a soft two-tone step.
     vec3 n = vec3(vUv * 0.7, sqrt(max(0.0, 1.0 - r2 * 0.49)));
-    float light = vLight + 0.12 * dot(n, sunDir) + 0.4 * (nz - 0.5);
-    vec3 c = mix(shadeColor, litColor, smoothstep(-0.2, 0.25, light));
+    // (Ragged: flatter, softer light, so no sprite reads as a shaded bubble.)
+    float light = vLight * (1.0 - 0.5 * ragged) + 0.12 * (1.0 - ragged) * dot(n, sunDir) + 0.4 * (nz - 0.5);
+    vec3 c = mix(shadeColor, litColor, smoothstep(-0.2 - 0.25 * ragged, 0.25 + 0.25 * ragged, light));
     c *= mix(nightColor, vec3(1.0), vDay);
     gl_FragColor = vec4(c, a);
     #include <fog_fragment>
@@ -590,6 +599,7 @@ export function createCloudLayer(look, { clouds, puffs }, radius, sunDir, name) 
     nightColor: { value: colour(look.night) },
     opacity: { value: look.opacity ?? 1 },
     limbRound: { value: look.limbRound ?? 0 },
+    ragged: { value: look.ragged ?? 0 },
   };
   // One draw call: every sprite blended (premultiplied), none writing depth, so the ground,
   // the atmosphere's glow and each other all show through their soft edges.

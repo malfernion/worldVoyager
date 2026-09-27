@@ -1160,11 +1160,15 @@ same soft style, reusing the cloud layer rather than building a parallel system.
 
 - **Thin high clouds**, like Mars's water-ice clouds: Dusty's own `CLOUD_LOOK` entry, the same
   plan and shader with a few new knobs (all optional, so Homestead's plan is byte-for-byte the
-  same; a test checks it). 91 clouds, 983 sprites: most are wisps (`bandWisps`, `wisps`), drawn
-  as wider, fainter streaks pulled out 2.2 times (`wisp`), three long streaky bands (`fronts`
-  with `stretch`, `dens`, `h`) and only the odd small clump, fainter than a wisp
-  (`puffDens`). The whole layer shows at most 42% (`opacity`), in a pale white with a lilac
-  shade. Their bases are 29 to 34 m up (the air's glow reaches about 31 m on Dusty; higher,
+  same; a test checks it). Almost all are wisps (`bandWisps`, `wisps` 0.93), drawn as thin
+  streaks pulled out 3.2 times (`wisp`), three long streaky bands (`fronts` with `stretch`,
+  `dens`, `h`) and only the rare faint clump (`puffDens`). The whole layer shows at most 58%
+  (`opacity`). The first colour, a pale lilac-white, looked cold and foreign in the dusty sky;
+  now they're a warm pale peach (`lit` 0xfff0e2, `shade` 0xf4c8aa), the colour they'd take
+  through the dusty air: paler and pinker than the storms' ochre, so the two stay apart, and a
+  dusky mauve by night. `ragged` (the shader's, 0 for Homestead) feathers their edges: finer
+  noise that eats further in, so the rims are see-through wisps, and flatter light, so no
+  sprite reads as a shaded ball. Their bases are 29 to 34 m up (the air's glow reaches about 31 m on Dusty; higher,
   they floated out in space as bright arcs), well above the storms' haze and under the 50 m
   space line. No shadows (`shadow: 0`: nothing baked, the ground's shader untouched).
 - **Puffs at the edge, not arcs.** Seen side-on at the limb a thin layer's streaks were thin
@@ -1182,9 +1186,12 @@ same soft style, reusing the cloud layer rather than building a parallel system.
   thin): the owner asked for bolder storms. Now they're a light ochre-cream veil (`lit`
   0xfbe0a8) that is dense enough to hide the terrain's detail under it: inside, a low haze of
   few big sprites drawn out a little along the wind; at the back frayed streaks; and along the
-  front (the edge it drifts towards) a wall of big billowing clumps, 16 to 34 m tall (tallest
-  right at the edge, their tops under the space line), so from orbit the front is a lumpy bright
-  rim and at the limb the storm stands up as big dusty puffs. The cells' bases sit 11 m up
+  front (the edge it drifts towards) a wall of blowing dust 16 to 34 m tall (tallest right at the
+  edge, their tops under the space line), so from orbit the front is a bright streaky rim and at
+  the limb the storm stands up as big dusty puffs. The front was first round billowing clumps,
+  which up close in the map read as cauliflower or bubbles; its sprites are now smaller, more
+  of them, drawn out 2.7 times along the wind, and the storm layer is `ragged` too (feathered
+  edges, flat light), so it reads as streaming dust. The cells' bases sit 11 m up
   (most hills stay under; the volcano pokes through, like Olympus Mons above Mars's storms);
   the layer is drawn before the high clouds. It turns about z at 0.002 rad/s of real time (the
   storm across the plane passes a landing site in about 8 minutes).
@@ -1222,10 +1229,11 @@ same soft style, reusing the cloud layer rather than building a parallel system.
   no draw call, outside a storm.
 - **Cost** (measured, 844 × 390): draw calls +2 on Dusty (the two layers; +3 in a storm), e.g. 85
   → 87 on the pad, 94 → 96 in orbit; Homestead unchanged (149). Soft-sprite overdraw of all
-  three meshes: 0.08 (orbit), 0.12 (flight-view globe), 0.74 (the map's globe), 0.44 (landed
-  with a storm coming), 0.51 (landed in a storm; the blowing dust alone about 0.4), 0.45 driving
-  in one, and at most 1.41 landed zoomed out beside one (the wall filling the view), within the
-  clouds' budget (Homestead's worst is 1.38). Per-frame script for the fades, the haze and the
+  three meshes: 0.06 (orbit), 0.09 (flight-view globe), 0.54 (the map's globe), 0.28 (landed
+  with a storm coming), 0.48 (landed in a storm; the blowing dust alone about 0.4), 0.41 driving
+  in one, and at most 0.87 landed zoomed out beside one (the wall filling the view), well within
+  the clouds' budget (Homestead's worst is 1.38). (Before the fronts turned streaky it was 1.41
+  there.) Per-frame script for the fades, the haze and the
   dust under 0.1 ms (both layers' ~200 cells); nothing allocated. Plans take about 20 ms at load.
 - **Not done:** the storms don't grow, shrink or change shape (a rigid turn is what keeps them
   free), and the horizon bank is painted on the sky, so it doesn't sit behind nearer hills

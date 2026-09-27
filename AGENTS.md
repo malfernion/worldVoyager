@@ -264,7 +264,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   the rocket and buggy stay clear. Down in one its nearby cells are faded out (dropped), not
   drawn faint, and the blowing dust fades near the lens and when big on screen: that's what
   keeps a storm within the clouds' overdraw (measured at most 1.41). New `CLOUD_LOOK` knobs must default to the
-  old behaviour (a test pins Homestead's plan; `limbRound`, the side-on puffs at the world's edge, is 0 there).
+  old behaviour (a test pins Homestead's plan; `limbRound`, the side-on puffs at the world's edge, and `ragged`,
+  feathered edges and flat light, are 0 there).
 - **Lava's embers and heat haze are all in the shader** (#54, `src/world/embers.js`). Every spark
   and haze sheet of a world is one instanced billboard in one draw call (premultiplied, no depth
   write); each spark is a loop on the real clock (never the warp) worked out in the vertex
