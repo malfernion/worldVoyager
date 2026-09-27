@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -115,6 +115,9 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        the camera, big on screen, at the screen's edges), `noiseTile()` the noise that feathers them,
                        `createClouds()` the one-draw-call sprite layer, `shadowFaces()` / `cloudShadows()` their soft
                        shadows baked into a small cube map for the ground's shader)
+                       embers (#54 stage 2: sparks and heat haze over lava, `EMBER_LOOK` per liquid kind, only Sizzle's lava:
+                       `emberPlan()` where they rise from, `emberAt()` a spark's loop (the vertex shader's sums), `sightFade()` /
+                       `nearFade()` when they fade, `createEmbers()` the one-draw-call mesh)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
@@ -235,6 +238,15 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   about one and a half screens' worth at most (measured: 0.14 to 1.38 layers of sprite pixels
   per screen pixel in the standard views) and big shapes off the edges. Keep it if you add sprites.
   Clouds are only the look: the physics never sees them.
+- **Lava's embers and heat haze are all in the shader** (#54, `src/world/embers.js`). Every spark
+  and haze sheet of a world is one instanced billboard in one draw call (premultiplied, no depth
+  write); each spark is a loop on the real clock (never the warp) worked out in the vertex
+  shader, re-rolling where it starts each time round from a small hash (no `sin()` hash: it
+  breaks on phones), so there is no CPU work per frame beyond a few uniforms. Sparks always
+  start well inside a pool (`emberPlan()`, tested). They fade near the lens, far away (the
+  globe stays clean) and across the line of sight to the rocket and the buggy (the clouds'
+  foci, `FlightScene.updateClouds()`); `emberAt()` / `sightFade()` / `nearFade()` are the
+  shader's sums in JS for the tests, so change both together.
 - **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
   multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range

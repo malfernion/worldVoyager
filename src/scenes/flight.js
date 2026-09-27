@@ -1666,11 +1666,12 @@ export class FlightScene {
   /**
    * Clouds (#54) never hide what the child is looking at: each cloud layer fades its clouds near
    * the camera, and down to a veil across the line of sight to the rocket, the ground under it
-   * (where it lands) and the buggy. A few multiplies per cloud; nothing allocated.
+   * (where it lands) and the buggy. A few multiplies per cloud; nothing allocated. Lava's
+   * sparks and heat haze (#54, embers.js) get the rocket and buggy too (their shader fades them).
    */
   updateClouds() {
     let any = false;
-    for (const v of this.visuals) if (v.clouds) any = true;
+    for (const v of this.visuals) if (v.clouds || v.embers) any = true;
     if (!any) return;
     const foci = this.cloudFoci;
     const s = this.flight.state;
@@ -1691,6 +1692,8 @@ export class FlightScene {
       put(b.x, b.y, b.z);
     }
     for (const v of this.visuals) {
+      // Lava's sparks and haze (#54) keep clear of the rocket and the buggy the same way.
+      if (v.embers) v.embers.fade(foci, n);
       if (!v.clouds) continue;
       let m = n;
       if (s.body === v.body && !s.landed && !this.drive.active) {

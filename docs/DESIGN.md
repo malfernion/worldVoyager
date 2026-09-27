@@ -1074,6 +1074,39 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
   allocated. Placing the clouds and baking the shadow map take about 35 to 50 ms at load in the
   browser (more the first time in a cold script engine).
 
+### Sizzle's embers and heat shimmer (#54, stage 2)
+
+The second stage of the owner's atmosphere list (`src/world/embers.js`), in the clouds' soft
+style: no hard shapes, one look, no setting.
+
+- **Embers.** Small glowing sparks rise out of every lava pool (339 sprites on Sizzle in all:
+  14 per pool plus one per 20 m² of lava, and two or more haze sheets each). Two in three crowd
+  round two to four bubbling spots per pool, the rest rise anywhere over it; every start is at
+  most 0.65 of the way to the shore (which wobbles only 20% in), so they always come out of the
+  lava. A spark rises 3 to 7 m (one in seven flies up about 12 m), fast then slowing, drifting
+  off on its own wind with a little wobble, cooling from gold to red-orange, twinkling, and
+  winking out; then it rests a moment and starts again somewhere else in its patch. Each spark
+  is a hot core that covers a little (so it shows as an orange dot on Sizzle's bright yellow
+  ground by day) in a soft glow that only adds light, brighter on the night side.
+- **Heat shimmer.** A real refraction pass would cost a whole extra render of the scene, too
+  much for phones. Instead each pool has a few faint haze sheets standing over it (turned round
+  their up to face the camera): a soft oval of warm light thinning upwards, crossed by thin wavy
+  streaks that rise and wobble, like a cartoon's heat squiggles. Seen from above a sheet is only
+  a sliver, so it fades out there; it's gone from orbit.
+- **All in the shader.** Every spark is a loop on the real clock (like the clouds' drift, never
+  the time warp) worked out in the vertex shader from its fixed numbers; where it starts each
+  time round comes from a small arithmetic hash of its seed and the loop's number (a `sin()`
+  hash goes wrong on some phone GPUs for big arguments). So nothing moves on the CPU and nothing
+  is spawned or allocated; the same sums in JS (`emberAt()`) are what the tests check.
+- **Readability.** Sparks fade out right in front of the lens, and further than 260 to 520 m
+  away: from low orbit a pool keeps a faint twinkle, the globe stays clean. A spark is never
+  drawn smaller than about a pixel; further off it grows dimmer instead. Across the line of
+  sight to the rocket or the buggy (the clouds' foci) sparks and haze fade to 10%.
+- **Cost.** One draw call, 678 triangles, a few uniforms a frame (measured: 83 → 84 draw calls
+  landed on Sizzle). The haze sheets are the only big sprites, a few per pool, faint and
+  additive; everything else is a few pixels.
+- **Not done:** Io's plumes reach hundreds of kilometres; Sizzle's (#1) were left as they are.
+
 ## Ideas for later
 
 Tracked as [GitHub Issues](https://github.com/malfernion/worldVoyager/issues).

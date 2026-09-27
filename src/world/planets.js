@@ -15,6 +15,7 @@ import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
 import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
 import { createClouds, cloudShadows } from './clouds.js';
+import { createEmbers } from './embers.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
@@ -474,6 +475,13 @@ export function createBodyVisual(body) {
       group.add(liquid.mesh);
       out.liquid = liquid;
       out.updates.push(liquid.update);
+      // Sparks and heat haze over lava (#54: Sizzle's).
+      const embers = createEmbers(body, out.sunDir);
+      if (embers) {
+        group.add(embers.mesh);
+        out.embers = embers;
+        out.updates.push(embers.update);
+      }
     }
     if (body.id === 'homestead') {
       out.trees = trees(body, group);

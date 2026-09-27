@@ -97,7 +97,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   the rocket: a cloud close to the camera, or in front of the rocket (or the buggy, or the
   ground where you're landing), thins away to a faint veil.
 - **Lava:** Sizzle has glowing pools and flows of lava by its volcanoes (they glow at night
-  and you can see them from orbit). Lava is much too hot to land on: touching it is a sizzling,
+  and you can see them from orbit). Glowing embers drift up from them and wink out, brighter by
+  night, and the air over them wobbles with wavy heat. Lava is much too hot to land on: touching it is a sizzling,
   smoky crash, and Pip's helpers and coaching land on solid ground beside it ("Oops, lava!
   I'll fly us over to solid ground.").
 - **Methane lakes:** Misty has dark, still lakes of liquid methane, mostly round its poles
@@ -175,7 +176,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds (#54), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds and Sizzle's embers (#54), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```
