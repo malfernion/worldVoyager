@@ -451,10 +451,18 @@ function makeBanded(axis, bands, seed, { warp = 0.25, stripes = 1.6 } = {}) {
   };
 }
 
-const makeRingo = () => makeBanded(RINGO_AXIS, [0xf1e3c2, 0xd9b77e, 0xe9d2a2, 0xc28d5a, 0xf3e7cb, 0xb87a4e, 0xe4c58f], 79);
+/**
+ * Each gas giant's cloud bands (colours from pole to pole, repeated `stripes` times, wobbled by
+ * `warp`). Shared with the per-pixel cloud shader (src/world/richLook.js, #51).
+ */
+export const GAS_BANDS = {
+  ringo: { bands: [0xf1e3c2, 0xd9b77e, 0xe9d2a2, 0xc28d5a, 0xf3e7cb, 0xb87a4e, 0xe4c58f], warp: 0.25, stripes: 1.6 },
+  // Ice giants are nearly plain, so only faint pale stripes.
+  tumble: { bands: [0x8fd8d2, 0x7fcfcb, 0x9fe0da, 0x76c6c4, 0x8ad4d0, 0xa9e6e0], warp: 0.15, stripes: 1.2 },
+};
 
-// Ice giants are nearly plain, so only faint pale stripes.
-const makeTumble = () => makeBanded(TUMBLE_AXIS, [0x8fd8d2, 0x7fcfcb, 0x9fe0da, 0x76c6c4, 0x8ad4d0, 0xa9e6e0], 83, { warp: 0.15, stripes: 1.2 });
+const makeRingo = () => makeBanded(RINGO_AXIS, GAS_BANDS.ringo.bands, 79, GAS_BANDS.ringo);
+const makeTumble = () => makeBanded(TUMBLE_AXIS, GAS_BANDS.tumble.bands, 83, GAS_BANDS.tumble);
 
 // Flip's frosty geysers, like Triton's: placed by hand near the flight plane (z = 0, a little
 // towards the camera) so they show while flying. `lean` is the way the wind blows each plume,

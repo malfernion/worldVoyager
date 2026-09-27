@@ -13,6 +13,7 @@ import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS, OBSER
 import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
+import { bakeRelief, richRocky, gasMaterial, ringShadow } from './richLook.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests.)
@@ -25,12 +26,14 @@ function terrainGeometry(body) {
   geo = mergeVertices(geo);
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
+  const heights = new Float32Array(pos.count);
   const t = body.terrainFn;
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const l = Math.hypot(x, y, z);
     x /= l; y /= l; z /= l;
     const h = t.height(x, y, z);
+    heights[i] = h;
     const r = body.radius + h;
     pos.setXYZ(i, x * r, y * r, z * r);
     const c = t.color(x, y, z, h);
@@ -38,6 +41,8 @@ function terrainGeometry(body) {
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
   }
+  // Hollows darker, ridges lighter (#51; only colour, the shape is untouched).
+  bakeRelief(body, heights, geo.index.array, colors);
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
   return geo;
@@ -183,7 +188,7 @@ function ringTexture(faint) {
   return t;
 }
 
-function rings(body) {
+function rings(body, sunDir) {
   const inner = body.radius * body.rings.inner;
   const outer = body.radius * body.rings.outer;
   const faint = !!body.rings.faint;
@@ -197,6 +202,7 @@ function rings(body) {
   const mat = new THREE.MeshLambertMaterial({
     map: ringTexture(faint), transparent: true, side: THREE.DoubleSide, depthWrite: false, emissive: faint ? 0x3a4a55 : 0x3a2c1c,
   });
+  ringShadow(mat, body, sunDir); // the planet's shadow across them (#51)
   const m = new THREE.Mesh(geo, mat);
   // The rings lie around the planet's equator, square to its spin axis (standing up for Tumble).
   const a = SPIN_AXES[body.id];
@@ -432,17 +438,22 @@ export function createBodyVisual(body) {
       colors.set(c, i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() }));
+    // Per-pixel, slowly swirling clouds and storms (#51), or the old vertex-coloured bands.
+    const rich = gasMaterial(body, out.sunDir);
+    if (rich) geo.deleteAttribute('color');
+    mesh = new THREE.Mesh(geo, rich?.material ?? new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() }));
+    if (rich) out.updates.push(rich.update);
     const a = SPIN_AXES[body.id];
     const axis = new THREE.Vector3(a.x, a.y, a.z).normalize();
     out.updates.push((time) => mesh.quaternion.setFromAxisAngle(axis, time * 0.01));
-    if (body.rings) group.add(rings(body));
+    if (body.rings) group.add(rings(body, out.sunDir));
   } else {
     const geo = terrainGeometry(body);
     // A sea (#44): its own mesh at the liquid's level, sliced for the rocket's surface too.
     liquid = createLiquid(body, DETAIL[body.id] ?? 24, out.sunDir);
     surfaceFromMesh(body, geo, liquid?.mesh.geometry);
-    mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), flatShading: true }));
+    const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), flatShading: true });
+    mesh = new THREE.Mesh(geo, richRocky(mat, body, out.sunDir)); // detail, slopes, rim, night fill (#51)
     if (liquid) {
       group.add(liquid.mesh);
       out.liquid = liquid;

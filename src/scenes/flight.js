@@ -1458,7 +1458,7 @@ export class FlightScene {
         v.env.back.set(-tmp.x, -tmp.y, 0).normalize();
         v.env.scale = v.group.scale.x;
       }
-      for (const u of v.updates) u(this.time);
+      for (const u of v.updates) u(this.time, t);
       if (v.landmarks) {
         // Ember's flares rise on the rocket's side when it's in Ember's space.
         const s = this.flight.state;
