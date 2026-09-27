@@ -1,46 +1,14 @@
-// Richer cartoon worlds (#51, a trial on Ringo, Dusty and Pebble): the same chunky toon look,
+// Richer cartoon worlds (#51: Ringo, Dusty and Pebble so far): the same chunky toon look,
 // with more depth, detail and motion, and cheap enough for phones. Nothing here changes
 // geometry (the physics ground stays the visible mesh) or adds draw calls: it bakes shading
 // into vertex colours once, and extends the worlds' toon materials with small shader snippets
 // (a few value-noise lookups, no textures).
 //
-// Every idea has its own switch in VISUALS, so the owner can keep some and drop others. For a
-// side-by-side check in the browser: `?look=old` turns them all off, `?look=-ao,-storm` only those.
+// A world opts in by having an entry in ROCKY_LOOK (rocky worlds) or GAS_LOOK (gas giants,
+// whose bands come from GAS_BANDS in terrain.js); every other world keeps the plain toon look.
 import * as THREE from 'three';
 import { SPIN_AXES, GAS_BANDS } from '../physics/terrain.js';
 import { toonGradient } from './materials.js';
-
-export const VISUALS = {
-  worlds: ['ringo', 'dusty', 'pebble'], // the trial's worlds; the rest keep the old look
-  // Rocky worlds
-  ao: true, // baked relief shading: hollows darker, ridges and rims lighter (vertex colours)
-  detail: true, // per-pixel speckles and streaks, in object space, faded out when far
-  slope: true, // steep faces rocky, flat ones dusty
-  // Both
-  rim: true, // a soft rim of sunlight round the lit edge, seen from space
-  night: true, // a faint cool fill on the night side
-  // Gas giants
-  clouds: true, // per-pixel bands with slowly swirling, drifting turbulence
-  storm: true, // a slowly turning oval storm or two
-  ringShadows: true, // the rings' shadow on the planet and the planet's on the rings
-  softLimb: true, // the toon light bands soften towards the planet's edge
-};
-
-// `?look=old` (all off) or `?look=-ao,-detail` (just those off).
-(() => {
-  let q = null;
-  try { q = new URLSearchParams(globalThis.location?.search ?? '').get('look'); } catch { /* no page */ }
-  if (!q) return;
-  for (const k of Object.keys(VISUALS)) if (k !== 'worlds' && (q === 'old' || q.split(',').includes(`-${k}`))) VISUALS[k] = false;
-})();
-
-/** Is the richer look on for this world (any of its ideas)? */
-export function richOn(id, gas) {
-  if (!VISUALS.worlds.includes(id)) return false;
-  return gas
-    ? VISUALS.clouds || VISUALS.storm || VISUALS.ringShadows || VISUALS.softLimb || VISUALS.rim || VISUALS.night
-    : VISUALS.detail || VISUALS.slope || VISUALS.rim || VISUALS.night;
-}
 
 // Colours are used as raw 0..1 values, like the terrain's vertex colours (so the palettes match).
 const raw = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
@@ -124,18 +92,14 @@ const RIM_NIGHT = /* glsl */ `
   {
     vec3 rad = normalize(rlRadial);
     float sunK = dot(rad, rlSun);
-    #ifdef RL_RIM
-      float edge = 1.0 - clamp(dot(rad, normalize(vViewPosition)), 0.0, 1.0);
-      // A cartoon rim: a band of sunlight hugging the lit edge, crisp inside, fading out.
-      float rim = smoothstep(0.6, 0.72, edge) * (0.55 + 0.45 * smoothstep(0.72, 0.95, edge));
-      rim *= smoothstep(-0.2, 0.3, sunK) * smoothstep(1.25, 1.8, rlFar);
-      outgoingLight += rlRimColor * rim * 0.55;
-    #endif
-    #ifdef RL_NIGHT
-      // Moonlight-blue fill: the ground's own colour, cooled and lifted (linear light, so modest).
-      float nightK = 1.0 - smoothstep(-0.3, 0.1, sunK);
-      outgoingLight += (diffuseColor.rgb * 0.75 + 0.25) * rlNightColor * rlNightK * nightK;
-    #endif
+    float edge = 1.0 - clamp(dot(rad, normalize(vViewPosition)), 0.0, 1.0);
+    // A cartoon rim: a band of sunlight hugging the lit edge, crisp inside, fading out.
+    float rim = smoothstep(0.6, 0.72, edge) * (0.55 + 0.45 * smoothstep(0.72, 0.95, edge));
+    rim *= smoothstep(-0.2, 0.3, sunK) * smoothstep(1.25, 1.8, rlFar);
+    outgoingLight += rlRimColor * rim * 0.55;
+    // Moonlight-blue fill: the ground's own colour, cooled and lifted (linear light, so modest).
+    float nightK = 1.0 - smoothstep(-0.3, 0.1, sunK);
+    outgoingLight += (diffuseColor.rgb * 0.75 + 0.25) * rlNightColor * rlNightK * nightK;
   }
 `;
 
@@ -169,7 +133,7 @@ function defines(list) {
 // ---- Rocky worlds ------------------------------------------------------------------------------
 
 /**
- * Each trial world's extra colours: `rock` for steep faces, `dust` for flat ground, `speck` and
+ * Each rocky world's extra colours: `rock` for steep faces, `dust` for flat ground, `speck` and
  * `streak` for the fine detail, `rim` the sunlit edge, `night` the night side's fill (added, so
  * small), `ao` the baked relief's strength and `speckle` [how rare (0..1, higher: fewer), how bright]
  * the pale pebbles are (Pebble's bright regolith and ejecta).
@@ -179,10 +143,10 @@ export const ROCKY_LOOK = {
   pebble: { rock: 0x746d64, dust: 0xd9d4ca, speck: 0xf4f1ea, streak: 0x8c857b, rim: 0xfff2dc, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.32 }, speckle: [0.8, 0.45] },
 };
 
-/** Baked relief shading for a trial world's terrain colours (in place), if it's switched on. */
+/** Baked relief shading for a world's terrain colours (in place), if it has a ROCKY_LOOK. */
 export function bakeRelief(body, heights, index, colors) {
   const look = ROCKY_LOOK[body.id];
-  if (!VISUALS.ao || !look || !VISUALS.worlds.includes(body.id)) return;
+  if (!look) return;
   const shade = reliefShade(heights, index, look.ao);
   for (let i = 0; i < shade.length; i++) {
     for (let c = 0; c < 3; c++) colors[i * 3 + c] = Math.min(1, colors[i * 3 + c] * shade[i]);
@@ -190,13 +154,12 @@ export function bakeRelief(body, heights, index, colors) {
 }
 
 /**
- * Extends a trial world's toon terrain material with per-pixel detail, slope colours, rim and
+ * Extends a rocky world's toon terrain material with per-pixel detail, slope colours, rim and
  * night fill. `sunDir`: the world's view-space sun direction, shared (the flight scene updates it).
  */
 export function richRocky(mat, body, sunDir) {
   const look = ROCKY_LOOK[body.id];
-  if (!look || !richOn(body.id, false)) return mat;
-  const defs = defines([['RL_DETAIL', VISUALS.detail], ['RL_SLOPE', VISUALS.slope], ['RL_RIM', VISUALS.rim], ['RL_NIGHT', VISUALS.night]]);
+  if (!look) return mat;
   const uniforms = {
     rlSun: { value: sunDir },
     rlRadius: { value: body.radius },
@@ -212,8 +175,8 @@ export function richRocky(mat, body, sunDir) {
   };
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = defs + VERT_PARS + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}`);
-    shader.fragmentShader = defs + FRAG_PARS + /* glsl */ `
+    shader.vertexShader = VERT_PARS + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}`);
+    shader.fragmentShader = FRAG_PARS + /* glsl */ `
       uniform vec3 rlRock;
       uniform vec3 rlDust;
       uniform vec3 rlSpeck;
@@ -224,35 +187,31 @@ export function richRocky(mat, body, sunDir) {
       .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}`)
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n#include <opaque_fragment>`);
   };
-  mat.customProgramCacheKey = () => `rich-rocky:${defs}`;
+  mat.customProgramCacheKey = () => 'rich-rocky';
   return mat;
 }
 
 // Object space (metres), so the detail is stuck to the ground wherever the world is drawn.
 const ROCKY_COLOR = /* glsl */ `
   {
-    #ifdef RL_SLOPE
-      // Each triangle's own slope (from screen derivatives), so the colour keeps the facets.
-      vec3 faceN = normalize(cross(dFdx(rlObj), dFdy(rlObj)));
-      float level = abs(dot(faceN, normalize(rlObj)));
-      float steep = 1.0 - smoothstep(0.84, 0.87, level);
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, steep * 0.72);
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlDust, smoothstep(0.93, 0.975, level) * 0.22);
-    #endif
-    #ifdef RL_DETAIL
-      // How many metres one pixel covers: detail finer than a few pixels fades out (no grain from far).
-      float px = length(fwidth(rlObj));
-      // Wind streaks: long blotches (stretched along one axis), two tones with crisp edges.
-      float sn = rlNoise(rlObj * vec3(0.03, 0.11, 0.11) + 3.1);
-      float streakK = (1.0 - smoothstep(0.8, 2.5, px));
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlStreak, smoothstep(0.6, 0.64, sn) * 0.3 * streakK);
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlDust, (1.0 - smoothstep(0.34, 0.38, sn)) * 0.1 * streakK);
-      // Speckles: little pale pebbles and dark pits, about a metre across.
-      float fn = rlNoise(rlObj * 1.7);
-      float speckK = 1.0 - smoothstep(0.06, 0.25, px);
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlSpeck, smoothstep(rlSpeckAt, rlSpeckAt + 0.02, fn) * rlSpeckK * speckK);
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, (1.0 - smoothstep(0.17, 0.19, fn)) * 0.3 * speckK);
-    #endif
+    // Each triangle's own slope (from screen derivatives), so the colour keeps the facets.
+    vec3 faceN = normalize(cross(dFdx(rlObj), dFdy(rlObj)));
+    float level = abs(dot(faceN, normalize(rlObj)));
+    float steep = 1.0 - smoothstep(0.84, 0.87, level);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, steep * 0.72);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rlDust, smoothstep(0.93, 0.975, level) * 0.22);
+    // How many metres one pixel covers: detail finer than a few pixels fades out (no grain from far).
+    float px = length(fwidth(rlObj));
+    // Wind streaks: long blotches (stretched along one axis), two tones with crisp edges.
+    float sn = rlNoise(rlObj * vec3(0.03, 0.11, 0.11) + 3.1);
+    float streakK = (1.0 - smoothstep(0.8, 2.5, px));
+    diffuseColor.rgb = mix(diffuseColor.rgb, rlStreak, smoothstep(0.6, 0.64, sn) * 0.3 * streakK);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rlDust, (1.0 - smoothstep(0.34, 0.38, sn)) * 0.1 * streakK);
+    // Speckles: little pale pebbles and dark pits, about a metre across.
+    float fn = rlNoise(rlObj * 1.7);
+    float speckK = 1.0 - smoothstep(0.06, 0.25, px);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rlSpeck, smoothstep(rlSpeckAt, rlSpeckAt + 0.02, fn) * rlSpeckK * speckK);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, (1.0 - smoothstep(0.17, 0.19, fn)) * 0.3 * speckK);
     // Mixing in the extra colours greys things a little: win the colour back (bright for kids).
     diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.333))), diffuseColor.rgb, 1.15), 0.0);
   }
@@ -264,7 +223,7 @@ const ROCKY_COLOR = /* glsl */ `
  * Each gas giant's cloud look: storms (latitude `lat` along the spin axis, -1..1, longitude `lon`,
  * size across and up in radians, colours from the rim in to the eye, and how fast they turn),
  * how much its bands drift (`drift`, radians) and its rim colour. Generic over the axis and
- * palette so Tumble can use it later; only Ringo is in the trial (VISUALS.worlds).
+ * palette, so another gas giant (Tumble) opts in with an entry here.
  */
 export const GAS_LOOK = {
   ringo: {
@@ -277,13 +236,7 @@ export const GAS_LOOK = {
     night: 0x1c2250,
     nightK: 0.12,
   },
-  tumble: {
-    storms: [{ lat: -0.3, lon: 1.2, size: [0.16, 0.09], colors: [0x6cbcbc, 0xc9f2ee, 0xf2fffd], turn: 0.1 }],
-    drift: 0.2,
-    rim: 0xe0fffb,
-    night: 0x162a50,
-    nightK: 0.12,
-  },
+
 };
 
 // The cloud clock follows game time (time warp speeds the clouds up) but never faster than
@@ -295,12 +248,12 @@ const DRIFT_PERIOD = 900;
 
 /**
  * A gas giant's toon material with per-pixel clouds, storms, ring shadows, soft limb, rim and
- * night fill. Returns { material, update(time, t) }, or null to keep the old vertex-coloured one.
+ * night fill. Returns { material, update(time, t) }, or null (no GAS_LOOK: the plain vertex-coloured bands).
  */
 export function gasMaterial(body, sunDir) {
   const look = GAS_LOOK[body.id];
   const bands = GAS_BANDS[body.id];
-  if (!look || !bands || !richOn(body.id, true)) return null;
+  if (!look || !bands) return null;
   const a = SPIN_AXES[body.id];
   const axis = new THREE.Vector3(a.x, a.y, a.z).normalize();
   // A frame round the axis, for placing storms.
@@ -310,7 +263,7 @@ export function gasMaterial(body, sunDir) {
   const stormU = [];
   for (let i = 0; i < 2; i++) {
     const s = storms[i];
-    const on = !!s && VISUALS.storm;
+    const on = !!s;
     const c = new THREE.Vector3();
     const east = new THREE.Vector3(), north = new THREE.Vector3();
     if (s) {
@@ -342,7 +295,6 @@ export function gasMaterial(body, sunDir) {
     gBands: { value: palette },
     gCount: { value: bands.bands.length },
     gStripes: { value: bands.stripes },
-    gWarp: { value: bands.warp },
     gTime: { value: 0 },
     gDrift: { value: 0 },
     gRing: { value: new THREE.Vector2(r ? r.inner : 0, r ? r.outer : 0) }, // in planet radii
@@ -352,9 +304,8 @@ export function gasMaterial(body, sunDir) {
     gStorm1A: stormU[1].col0, gStorm1B: stormU[1].col1, gStorm1D: stormU[1].col2, gStorm1T: stormU[1].turn, gStorm1On: stormU[1].on,
   };
   const defs = defines([
-    ['RL_CLOUDS', VISUALS.clouds], ['RL_STORM', VISUALS.storm && storms.length > 0],
-    ['RL_RINGSHADOW', VISUALS.ringShadows && !!r && !r.faint], ['RL_SOFTLIMB', VISUALS.softLimb],
-    ['RL_RIM', VISUALS.rim], ['RL_NIGHT', VISUALS.night],
+    ['RL_STORM', storms.length > 0], // (faint rings, like Tumble's, cast no shadow worth drawing)
+    ['RL_RINGSHADOW', !!r && !r.faint],
   ]);
   const mat = new THREE.MeshToonMaterial({ gradientMap: toonGradient() });
   mat.onBeforeCompile = (shader) => {
@@ -369,10 +320,8 @@ export function gasMaterial(body, sunDir) {
       .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb = gasColor(normalize(rlObj));`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>\n${RING_SHADOW_ON_PLANET}`)
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n#include <opaque_fragment>`);
-    if (VISUALS.softLimb) {
-      frag = frag.replace('#include <gradientmap_pars_fragment>', SOFT_GRADIENT)
-        .replace('#include <lights_toon_fragment>', 'rlViewDir = normalize(vViewPosition);\n#include <lights_toon_fragment>');
-    }
+    frag = frag.replace('#include <gradientmap_pars_fragment>', SOFT_GRADIENT)
+      .replace('#include <lights_toon_fragment>', 'rlViewDir = normalize(vViewPosition);\n#include <lights_toon_fragment>');
     shader.fragmentShader = defs + FRAG_PARS + GAS_PARS + frag;
   };
   mat.customProgramCacheKey = () => `rich-gas:${defs}`;
@@ -418,7 +367,6 @@ const GAS_PARS = /* glsl */ `
   uniform vec3 gBands[8];
   uniform int gCount;
   uniform float gStripes;
-  uniform float gWarp;
   uniform float gTime;
   uniform float gDrift;
   uniform vec2 gRing;
@@ -466,12 +414,8 @@ const GAS_PARS = /* glsl */ `
     float pole = abs(lat);
     float bandLat = 2.0 / (float(gCount - 1) * gStripes); // one band's width in lat
     float lat2 = lat;
-    #ifdef RL_CLOUDS
-      // Gentle waves along the band edges (calmer towards the poles), slowly rolling.
-      lat2 += bandLat * (0.12 * sin(lon * 7.0 + lat * 13.0 + gTime * 0.006) + 0.06 * sin(lon * 13.0 - lat * 29.0 - gTime * 0.004)) * (1.0 - pole * pole);
-    #else
-      lat2 += (rlNoise(p * 3.0) - 0.5) * gWarp;
-    #endif
+    // Gentle waves along the band edges (calmer towards the poles), slowly rolling.
+    lat2 += bandLat * (0.12 * sin(lon * 7.0 + lat * 13.0 + gTime * 0.006) + 0.06 * sin(lon * 13.0 - lat * 29.0 - gTime * 0.004)) * (1.0 - pole * pole);
     float f = (lat2 + 1.0) * 0.5 * float(gCount - 1) * gStripes;
     float fl = floor(f);
     float fr = f - fl;
@@ -479,28 +423,26 @@ const GAS_PARS = /* glsl */ `
     vec3 b = gBand(fl + 1.0);
     // Crisp band edges (bands meet where fr = 0.5).
     vec3 c = mix(a, b, smoothstep(0.47, 0.53, fr));
-    #ifdef RL_CLOUDS
-      // Cartoon curls where two bands meet: a few per edge (N cells round the planet, some
-      // empty), each a little spiral of both bands' colours, turning slowly.
-      float N = 11.0;
-      float u = (lon / 6.2831853 + 0.5) * N;
-      float cell = floor(u);
-      float h = fract(sin(fl * 12.9898 + mod(cell, N) * 78.233) * 43758.5453);
-      float h2 = fract(h * 91.7);
-      float du = (u - cell - 0.5 - (h2 - 0.5) * 0.4) * 6.2831853 * sqrt(max(0.0, 1.0 - lat * lat)) / N / (bandLat * 0.5);
-      float dv = (fr - 0.5) * 2.0; // in half-bands
-      float r = length(vec2(du, dv));
-      float R = 0.8 + 0.35 * h2;
-      if (h < 0.5 && r < R && pole < 0.75) {
-        float dir = h < 0.25 ? 1.0 : -1.0;
-        float spiral = fract(dir * atan(dv, du) / 6.2831853 + r / R * 0.85 - gTime * 0.004 * dir);
-        vec3 curl = mix(a, b, smoothstep(0.46, 0.54, spiral));
-        c = mix(c, curl, 1.0 - smoothstep(R - 0.08, R, r));
-      }
-      // Faint pale streaks running along the bands.
-      float st = rlNoise((p + gAxis * (lat * 7.0)) * 4.0 + vec3(0.0, 0.0, gTime * 0.002));
-      c = mix(c, vec3(1.0, 0.98, 0.93), smoothstep(0.68, 0.71, st) * 0.18 * (1.0 - pole));
-    #endif
+    // Cartoon curls where two bands meet: a few per edge (N cells round the planet, some
+    // empty), each a little spiral of both bands' colours, turning slowly.
+    float N = 11.0;
+    float u = (lon / 6.2831853 + 0.5) * N;
+    float cell = floor(u);
+    float h = fract(sin(fl * 12.9898 + mod(cell, N) * 78.233) * 43758.5453);
+    float h2 = fract(h * 91.7);
+    float du = (u - cell - 0.5 - (h2 - 0.5) * 0.4) * 6.2831853 * sqrt(max(0.0, 1.0 - lat * lat)) / N / (bandLat * 0.5);
+    float dv = (fr - 0.5) * 2.0; // in half-bands
+    float r = length(vec2(du, dv));
+    float R = 0.8 + 0.35 * h2;
+    if (h < 0.5 && r < R && pole < 0.75) {
+      float dir = h < 0.25 ? 1.0 : -1.0;
+      float spiral = fract(dir * atan(dv, du) / 6.2831853 + r / R * 0.85 - gTime * 0.004 * dir);
+      vec3 curl = mix(a, b, smoothstep(0.46, 0.54, spiral));
+      c = mix(c, curl, 1.0 - smoothstep(R - 0.08, R, r));
+    }
+    // Faint pale streaks running along the bands.
+    float st = rlNoise((p + gAxis * (lat * 7.0)) * 4.0 + vec3(0.0, 0.0, gTime * 0.002));
+    c = mix(c, vec3(1.0, 0.98, 0.93), smoothstep(0.68, 0.71, st) * 0.18 * (1.0 - pole));
     // A soft polar cap: calm, pale, a little of the first band's colour.
     c = mix(c, mix(gBand(0.0), vec3(1.0, 0.97, 0.9), 0.35), smoothstep(0.86, 0.95, pole) * 0.75);
     // A little more colour than the vertex bands had (kids like it bright).
@@ -545,7 +487,7 @@ const RING_SHADOW_ON_PLANET = /* glsl */ `
 
 /** The planet's shadow on its rings (patches the rings' Lambert material). */
 export function ringShadow(mat, body, sunDir) {
-  if (!VISUALS.ringShadows || !VISUALS.worlds.includes(body.id)) return;
+  if (!GAS_LOOK[body.id]) return;
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.rlSun = { value: sunDir };
     shader.uniforms.rlRadius = { value: body.radius };
