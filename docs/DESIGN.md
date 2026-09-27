@@ -989,6 +989,52 @@ no setting:
   they sit in the sky as before; white on the pale horizon they read a little softer than they
   did on black space, and their night tint reads as moonlit cloud on the navy.
 
+## Rocket smoke in the air (#60)
+
+The owner asked for "particle effects for the rocket boosters when manoeuvring in an
+atmosphere". One look, no setting; only the look (the physics never sees it).
+
+- **The air decides** (`src/physics/exhaust.js`). Each world with an atmosphere gets an `AIR`
+  entry: how thick at the ground (Homestead 1, Misty 1.35, Dusty 0.4; unlisted gas giants 1
+  with a pale version of their colour), its smoke colour (white steam, a dusty orange, a
+  murky orange) and a wind. `airAt(body, alt)` thins it with height (`exp(-1.5 h / spaceLine)`)
+  and has it gone by the space line; airless worlds have none. That one number sets how many
+  trail puffs there are, how opaque (`smokeAlpha()`: faint on Dusty) and how much they swell.
+  So a launch leaves a fat trail low down that thins out as the rocket climbs; in a vacuum
+  there's only the flame.
+- **What makes smoke.** The main engine (any power, the fine thrust #28 too) leaves puffs just
+  past the flame, spread along where the rocket went this frame so a fast rocket's trail has
+  no gaps; the air slows them at once, then they drift with the wind and a slow rise, swell and
+  evaporate. Low down with the nozzles at the ground (`groundBlast()`, from 22 m for one engine,
+  higher for big rockets) the plume turns into big clouds rolling out along the ground both ways
+  (some of them the ground's own dust colour, #26's `dustColor()`), and the trail there is
+  mostly replaced by them; `touchdown()` does a second of that at once when landing. Dust is
+  kicked up too, and on airless worlds that's all there is: grains in clean ballistic arcs.
+  Turning (by hand or any helper, found from the change in angle) puffs little clouds from the
+  nose and the tail, the ways that turn it.
+- **Time speed.** Particles live in real seconds, but trails thin out from ×3 and are gone by
+  ×30 (`warpThin()`), so a warped burn never strings puffs across kilometres.
+- **Cheap.** One ring of 400 particles in typed arrays (when full, the oldest slot is reused),
+  in the frame of the world we're at (cleared when that changes, never joined across a rewind);
+  `src/world/exhaust.js` copies the live ones into one instanced mesh, oldest first (the newest,
+  by the rocket, on top), and only uploads that part. About 0.1 ms per frame on a desktop in
+  headless Chromium, one draw call. It replaced the old pad dust, which was a Sprite with its
+  own material per puff (about 85 draw calls with the engine on the pad).
+- **Readable.** The clouds' soft look (#54): the same noise tile, a soft ball eaten away by
+  it, a gentle two-tone light, dimmed by night, fading by thinning from the rims (never grey
+  discs), and the fog (so Misty's haze swallows it). Sprites near the camera or big on screen
+  are dropped (`SMOKE_BIG`, larger than the clouds' so a billow can fill part of the pad view,
+  still keeping overdraw to about 1 to 2 screens at the pad and under 1 in flight; there's no
+  edge fade, as the trail runs off the bottom of the screen). Anything in front of the rocket
+  and over it on screen (near the line from its base to its nose) is only a thin veil; level
+  with it or behind, the rocket's depth hides it. A puff's middle stays a third of its size
+  above the ground and the shader thins what's below the ground, so the ground never cuts a
+  billow off in a straight line. The flames draw after it (`renderOrder` 3), glowing through.
+- **Weak spots.** In landscape the helper row sits just below the rocket, so on the way up the
+  young trail is often behind it (zoom out or portrait shows it); soft sprites still look like
+  separate puffs rather than one continuous plume at a glance; the old flame sparks are still
+  the scene's `Particles` sprites.
+
 ## Clouds (#54)
 
 The owner asked where atmosphere and particle effects could make the worlds richer; the order
