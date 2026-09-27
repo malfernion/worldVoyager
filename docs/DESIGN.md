@@ -167,11 +167,36 @@ borrow the vibe, not the content: all names, worlds and music are original.
    - *When the path changes:* the ⏰ keeps its time, so it slides along with the path. If the
      path no longer gets there (a crash now comes first, or we've landed), it goes and time
      drops to normal, so we never warp into the ground.
-   - *Helpers:* they run the clock themselves, so while one is flying (or coaching), tapping the
-     path does nothing, and starting one takes the ⏰ away. Simplest, and it keeps "who's in
-     charge of time" clear.
+   - *Helpers:* while one is flying (or coaching), tapping the path does nothing, and starting
+     one takes the ⏰ away. Simplest, and it keeps "who's in charge of time" clear.
    - The pause is the same one Pip uses to explain a marker (`FlightScene.pause`), just without
      the time limit.
+
+7. **The game only slows time down by itself, never speeds it up** (#50). In a playtest,
+   coaching and the autopilot sped time up on their own, and it was unpleasant: about to burn,
+   and suddenly all the worlds race round. Slowing down by itself is good (before a new world,
+   the ground, a burn or a coach's cue); speeding up is the child's choice (⏩, the keys, the ⏰),
+   with one exception: **🤖 Take me there**, since the child asked Pip to fly them there.
+   - *The rule* (`helperWarp()` in `autopilot.js`, used by `FlightScene.warp`): a helper's
+     `warp` is only ever a cap on the player's own speed: 1 for a burn, a manoeuvre or a cue,
+     and a little more as an event comes closer (`safeWarp()` keeps it short of a new world or
+     the ground). Only a 🤖 trip (`Autopilot.trip`: `goto` flown by Pip, including its final
+     landing, not coached) may go faster than the player's speed, until the player takes the
+     clock (`manualWarp`: then the trip caps it too). 🌀 Orbit and 🛬 Land never speed up: they
+     are short, and the child is watching the rocket closely. The slow-down before a new world or
+     the ground (`fly()`) comes on top, and GO puts time back to normal, as before.
+   - *Waits* (`Autopilot.coast(want, left)`: coasting to a burn, a new world, the top of the
+     climb, the ground, the next HOLD) say how long is left (`waitLeft`). When a helper's wait
+     ends (a burn, a cue), the speed-up the player chose for it ends too (not on a 🤖 trip,
+     whose clock is the player's to keep): each wait, the child chooses again, and time never
+     jumps back up after a burn by itself.
+   - *Coached long waits:* at normal speed a coached trip can wait a long time for a transfer
+     window or coast for minutes. When a coached wait is longer than `LONG_WAIT` (10 s at the
+     player's ×1), the ⏩ glows and Pip says once (chatter, key `skip`, not again within 30 s):
+     "Tap the fast button ⏩ to skip ahead!". A child who taps it gets the same speed-up the
+     coach used to take by itself, and the coach's cap still slows back to ×1 before its next
+     cue, so HOLD and LET GO come in time at any speed. The pretend kids in the tests
+     (`kidFlies()`, the coaching tests) tap ⏩ when it glows, as a child would.
 
 ## Structure
 

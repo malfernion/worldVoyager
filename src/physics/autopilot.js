@@ -1095,7 +1095,7 @@ export class Autopilot {
     // push isn't instant (turning, then a second or two of burning), so a path the plan says
     // just clears the ground can still hit it (Misty, from a low orbit, after a late LET GO).
     const here = s.body;
-    const skim = here !== dest && here.kind !== 'star' ? (here.solid ? here.maxSurface : here.radius) + here.spaceLine * 0.3 : -Infinity;
+    const skim = here !== dest && here.kind !== 'star' ? (here.solid ? here.maxSurface : here.radius) + here.spaceLine * 0.1 : -Infinity;
     for (let i = 0; i < 16; i++) {
       const dir = pro + (i / 16) * Math.PI * 2;
       for (const dv of mags) {

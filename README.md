@@ -18,6 +18,11 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   paint it. Drag a part off the rocket to throw it away. 🎲 builds a surprise rocket.
 - **Fly:** ⟲ ⟳ turn, hold **GO** to fire the engine. 🗺️ opens the map, ⏩ speeds up time,
   ↺ rewinds a few seconds.
+- **Time speed:** only you speed time up (⏩, or the ⏰ below). The game slows it down by
+  itself before something happens: a new world, the ground, a burn, Pip's next HOLD. Pip only
+  speeds time up on a 🤖 Take me there trip (you asked her to take you there); 🌀 and 🛬 fly at
+  your speed. While Pip coaches you through a long wait, ⏩ glows and she says "Tap the fast
+  button to skip ahead!"; after each wait time goes back to normal.
 - **Zoom:** pinch, scroll, or the slider on the right. The camera follows further back as you
   climb, but you can always zoom right up to the rocket (about 12 m) or out to see a whole
   world; on the map, from one world up close out to the whole solar system. Flying into a new

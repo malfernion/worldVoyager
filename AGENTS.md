@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -87,6 +87,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
   predict.js           Multi-segment trajectory prediction (impact / escape / encounter)
   autopilot.js         Helper programs (orbit, land, goto), each run as the autopilot or coached, + transfer planner (+ comet windows and homing);
+                       the warp rule `helperWarp()` (#50: helpers only cap the player's speed; only a 🤖 trip, `Autopilot.trip`, may raise it),
+                       waits through `coast()` (`waitLeft`, `LONG_WAIT`);
                        landings pick dry land (`landSite()`, `steerDown()`, coached `glideToLand()`; #44);
                        `landRefusal()` (why 🛬 can't land here)
   buggy.js             Buggy physics on the 3D globe (arcade car + real radial gravity, tree/rock bumps via ObstacleGrid, comet gas jets,
@@ -107,7 +109,8 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
-                       `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; under a sea `updateUnderwater()`, #44;
+                       `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
+                       `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
                        Misty's orange haze near its ground `updateHaze()`, #46), drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
                        HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
@@ -305,6 +308,19 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   coached program with `ap.stop()` and never starts the autopilot. The toggle only shows during
   the journey; after it the 🧭 shows only while a Show me how coaches (lit; tapping dismisses
   it), and the goal banner shows its destination through `goalShown()`.
+- **The game only slows time down by itself** (#50). A helper's `ap.warp` is a *cap* on the
+  player's own speed (`helperWarp()` in `autopilot.js`, used by `FlightScene.warp`): 1 for
+  burns, manoeuvres and cues, a little more as an event comes closer. Only a 🤖 Take me there
+  trip (`Autopilot.trip`: `goto` flown by Pip, including its final landing, never coached) may
+  raise time above the player's speed, until the player takes the clock (`manualWarp`). 🌀, 🛬
+  and every coached action never speed up. Helper waits go through `ap.coast(want, left)`; when
+  one ends, a non-trip helper's wait puts the player's speed back to ×1 (`updateWait()`), so
+  time never jumps back up after a burn. A coached wait longer than `LONG_WAIT` makes ⏩ glow
+  and Pip say "Tap the fast button ⏩ to skip ahead!" once; the coach's cap still slows back
+  down before its next cue. The slow-down before a new world or the ground (`fly()`: it only
+  ever lowers `warpIndex`), GO → ×1, and the ⏰'s `travelWarp` are unchanged. Headless flights
+  must use `helperWarp()` too (`test/missions.js`: the pretend kid taps ⏩ when told); the
+  tests in `test/coaching.test.js` (#50 block) sample every frame's warp.
 - **Helpers are closed-loop.** Autopilot and coach react to the real state each frame, so
   imperfect flying still works, and a coached action can start (or pick up again) from wherever
   the rocket is. Coached, the player flies; Pip only does tiny nudges, the comet catch and
@@ -320,7 +336,7 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   how (from the pad, from orbit, landing where we are), dismissing it, arriving, the autopilot
   buttons during coaching, the first launch's intro, and exactly what Pip says.
   `kidFlies()` simulates a late-reacting child (binary GO, 8-frame lag) following the coach
-  cues. Any coach feature should have a test like it. `test/stress.test.js` replays a few trips
+  cues, and tapping ⏩ when a coached wait is long (#50; `patient` doesn't). Any coach feature should have a test like it. `test/stress.test.js` replays a few trips
   that used to fail; after touching the planner or capture, run the full `npm run stress`
   (add `--verbose` to list failures, `--phases 24 --tours 60` for a bigger sweep).
 - **Visual check:** run `npm run dev` and open it in a browser. `window.app` is the debug
@@ -409,7 +425,7 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
     current line off, unless it ends within `CUE_WAIT` (2 s). Stale after 3 s.
   - `normal` (default): waits its turn. Stale after 30 s (stickers 60 s).
   - `chatter`: only if Pip is free, else dropped and `pip()` returns false (idle hints, the
-    compass hints, bonk, "We're at…"). Once-only hints set their flag from that return value.
+    compass hints, bonk, "We're at…", the coach's "tap ⏩", #50). Once-only hints set their flag from that return value.
   - The 🧭's lines (#36, `FlightScene.sayCoach`: "Okay! I'll tell you what to do while you
     fly." / "Okay! I'll stop telling you what to do. You're the pilot!") are a `cue` with key
     `coach-switch`, so they answer the tap at once and a newer one replaces an older one. Lines
@@ -488,6 +504,13 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - The Orbit helper's "going round" burn pushes sideways against gravity; on the comet (gravity
   under 1 m/s²) it ran away and flung the rocket out, so on a comet `catchComet()` does that
   part too.
+- **Pushes aren't instant.** `planCorrection()` plans an impulsive push, but the rocket first
+  turns and then burns for a second or two. From a low orbit (Misty) a push the plan said just
+  cleared the ground crashed into it, so it skips any push whose way out passes lower than
+  0.1 × the space line above the world's highest ground (#50; 0.3 turned away pushes that
+  worked, and another trip crashed). Likewise Pip's last bit of a coached "going round" burn
+  pushes straight at a round orbit's velocity, the way we're really going round: pushing
+  "sideways" after a wobbly launch flung the rocket out of Pebble's pull.
 - **iPad/iPhone audio (#24).** All iPad browsers are WebKit. It mutes Web Audio in silent mode
   unless we ask for `navigator.audioSession.type = 'playback'` (iOS 16.4+; older iOS: a looping
   silent `<audio>`, only started there), and it only starts or resumes a context inside a
