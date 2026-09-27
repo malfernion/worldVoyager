@@ -221,7 +221,7 @@ src/audio/     procedural campfire music + sound effects (WebAudio, no asset fil
 ```
 
 Key techniques:
-- **Floating origin.** Every frame the world is drawn relative to the rocket (or the map focus),
+- **Floating origin.** Every frame the world is drawn relative to the rocket (or the map's fixed centre, #57),
   so float32 precision holds from 1 m to the ~65 km out to Tumble.
 - **Physics surface = visible mesh.** After meshing a planet we slice the mesh at z = 0 and use
   that exact outline as the ground, so legs touch what you see. A world with a liquid has two
@@ -317,7 +317,19 @@ where it was, and it eases back (with the view's "down" turning to the new world
 it's calm, never during a burn or within 30 m of the ground, over about two seconds. The map
 keeps its focus and zoom, even if it was centred on the world we just left: easing it over to
 the new world would slide the rocket across the screen, and following a different world is a
-choice the child makes (tap a world, or 🎯). Instead the new world's label glows for a moment.
+choice the child makes (🎯). Instead the new world's label glows for a moment.
+
+**The map stays where you put it (#57).** The map's centre used to be "the world you were in
+when you opened it, plus however far you'd dragged", so it rode along with that world round the
+Sun: after taking off from Homestead the whole map (the Sun, the other worlds, the spot you'd
+dragged to) slid and wobbled with Homestead, and it opened on Homestead rather than the rocket.
+Now the centre is one fixed point in the Sun's frame (`FlightScene.mapAt`, world coordinates,
+so the floating origin and SOI hand-offs can't move it): opening the map puts it on the rocket
+(framed so the world we're in still fits), and after that only the child moves it (dragging),
+or 🎯, which glides back to the rocket and then stays put again. `focusMapOn(body)` centres on
+a world the same way, once. `mapFocus` is still "the world the map is about" (its zoom range,
+default view, label priority), but the map never follows it: a map that follows something
+moving is exactly what felt wobbly, and a kid who drags the map wants it to stay there.
 
 ## The starter journey (#36)
 

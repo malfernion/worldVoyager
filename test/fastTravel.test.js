@@ -149,7 +149,7 @@ function setup(m) {
   Object.assign(s, {
     flight: m.flight, autopilot: m.ap, time: 0, crashed: false, target: null, mode: 'map', pause: null, clock: null,
     input: { left: false, right: false, go: false, fine: false }, warpIndex: 0, manualWarp: false,
-    snapshots: [], snapTimer: 0, predTimer: 0, prediction: null, origin: { x: 0, y: 0 }, tmp3: {}, kindAt: {}, pan: { x: 0, y: 0 }, mapDist: 2000,
+    snapshots: [], snapTimer: 0, predTimer: 0, prediction: null, origin: { x: 0, y: 0 }, tmp3: {}, kindAt: {}, mapAt: { x: 0, y: 0 }, mapDist: 2000,
     camera: new THREE.PerspectiveCamera(50, 844 / 390, 1, 3e6),
   });
   const look = () => {

@@ -95,8 +95,14 @@ export class FlightScene {
     this.camSettle = false; // a new world took over and the view's "down" hasn't turned to it yet (#49)
     this.soiGlow = null; // the map label of the world we just flew into the space of (#49)
     this.mapDist = 1; // map camera distance (absolute)
-    this.pan = { x: 0, y: 0 };
+    // The map's centre, in the Sun's frame (world coordinates), so it stays put as worlds move,
+    // the origin floats or a new world takes over (#57). `mapFocus` is only the world the map's
+    // zoom range and default view are about; the map never follows it.
+    this.mapAt = { x: 0, y: 0 };
     this.mapFocus = null;
+    this.mapGoal = null; // what a smooth re-centre glides to: a body, or 'rocket'
+    this.mapOff = { x: 0, y: 0 }; // how far the centre still is from the goal, easing to 0
+    this.mapGoalAt = { x: 0, y: 0 };
     this.warpIndex = 0;
     this.target = null;
     this.input = { left: false, right: false, go: false, fine: false };
@@ -266,15 +272,13 @@ export class FlightScene {
     if (this.mode === 'drive') return;
     this.panGlide = null;
     this.mode = this.mode === 'map' ? 'flight' : 'map';
-    if (this.mode === 'map') {
-      this.mapFocus = this.flight.state.body;
-      this.pan = { x: 0, y: 0 };
-      this.fitMap();
-    }
+    // The map opens on the rocket, then stays where it is (or is dragged to), #57.
+    if (this.mode === 'map') this.focusMapOn(this.flight.state.body, false, true);
     this.app.audio.play('whoosh');
   }
 
-  fitMap() {
+  /** The default view of `mapFocus`; `onRocket`: centred on the rocket rather than the world. */
+  fitMap(onRocket = false) {
     const s = this.flight.state;
     const b = this.mapFocus;
     let extent;
@@ -288,6 +292,8 @@ export class FlightScene {
     } else {
       extent = Number.isFinite(b.soi) ? Math.min(b.soi, b.radius * 12) : SYSTEM_VIEW;
     }
+    // Centred on the rocket, what's round the world must still fit: reach past it by as far as the rocket is from the world.
+    if (onRocket && b === s.body) extent += Math.hypot(s.x, s.y);
     // A new default view, always inside the fixed limits, so re-fitting never changes what's reachable.
     const [lo, hi] = this.mapLimits();
     this.mapDist = clamp(fitDist(extent, this.camera.fov, this.camera.aspect), lo, hi);
@@ -328,34 +334,62 @@ export class FlightScene {
     }
   }
 
-  /** Re-centre the map on a world. With `smooth`, glide there instead of jumping. */
-  focusMapOn(body, smooth = false) {
+  /**
+   * Centre the map on a world (or, with `onRocket`, on the rocket in that world's space) and
+   * frame it. With `smooth`, glide there instead of jumping. Either way the map then stays where
+   * that was, in the Sun's frame: it never follows the world as it moves on (#57).
+   */
+  focusMapOn(body, smooth = false, onRocket = false) {
     this.panGlide = null;
-    if (!smooth || !this.mapFocus) {
-      this.mapFocus = body;
-      this.pan = { x: 0, y: 0 };
-      this.fitMap();
-      return;
-    }
-    const t = this.flight.state.t;
-    const oldCentre = this.mapFocus.worldPos(t, {});
-    const newCentre = body.worldPos(t, {});
     const oldDist = this.mapDist;
     this.mapFocus = body;
-    this.pan = { x: oldCentre.x + this.pan.x - newCentre.x, y: oldCentre.y + this.pan.y - newCentre.y };
-    this.fitMap();
+    this.mapGoal = onRocket ? 'rocket' : body;
+    this.fitMap(onRocket);
+    const at = this.mapGoalPos();
+    if (!smooth) {
+      this.mapEase = false;
+      this.mapAt.x = at.x;
+      this.mapAt.y = at.y;
+      return;
+    }
+    // Glide as an offset from the goal, so a moving goal is still reached; then it's left there.
+    this.mapOff.x = this.mapAt.x - at.x;
+    this.mapOff.y = this.mapAt.y - at.y;
     this.mapDistTarget = this.mapDist;
     this.mapDist = oldDist;
     this.mapEase = true;
   }
 
+  /** 🎯: back to the rocket, gliding, framed on the world we're in. */
+  findRocket() {
+    this.focusMapOn(this.flight.state.body, true, true);
+  }
+
+  /** Where a re-centre is going (world coordinates; reused object). */
+  mapGoalPos() {
+    const g = this.mapGoal;
+    if (g === 'rocket') return this.flight.worldPos(this.mapGoalAt);
+    return g.worldPos(this.flight.state.t, this.mapGoalAt);
+  }
+
   easeMap(dt) {
     if (!this.mapEase) return;
     const k = 1 - Math.exp(-dt * 2.5);
-    this.pan.x -= this.pan.x * k;
-    this.pan.y -= this.pan.y * k;
+    const off = this.mapOff;
+    off.x -= off.x * k;
+    off.y -= off.y * k;
     this.mapDist += (this.mapDistTarget - this.mapDist) * k;
-    if (Math.hypot(this.pan.x, this.pan.y) < 1 && Math.abs(this.mapDist / this.mapDistTarget - 1) < 0.01) this.mapEase = false;
+    const at = this.mapGoalPos();
+    this.mapAt.x = at.x + off.x;
+    this.mapAt.y = at.y + off.y;
+    if (Math.hypot(off.x, off.y) < 1 && Math.abs(this.mapDist / this.mapDistTarget - 1) < 0.01) this.mapEase = false;
+  }
+
+  /** The floating origin (#57): the rocket in the flight view, the map's fixed centre on the map. */
+  placeOrigin(rw) {
+    const o = this.mode === 'flight' ? rw : this.mapAt;
+    this.origin.x = o.x;
+    this.origin.y = o.y;
   }
 
   /** Change time speed by a step (+1 / -1), or pass `reset` for normal speed. */
@@ -949,14 +983,7 @@ export class FlightScene {
       this.glideMap(dt);
     }
     const rw = f.worldPos(this.tmp);
-    if (this.mode === 'flight') {
-      this.origin.x = rw.x;
-      this.origin.y = rw.y;
-    } else {
-      const fw = this.mapFocus.worldPos(s.t, this.tmp2);
-      this.origin.x = fw.x + this.pan.x;
-      this.origin.y = fw.y + this.pan.y;
-    }
+    this.placeOrigin(rw);
     this.placeBodies(s.t);
     this.placeRocket(rw);
     this.updateEffects(dt);
@@ -1273,15 +1300,15 @@ export class FlightScene {
     if (at.sx > W * 0.2 && at.sx < W * 0.8 && at.sy > H * 0.4 && at.sy < H * 0.72) return;
     const perPx = (2 * this.mapDist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / H;
     this.mapEase = false;
-    this.panGlide = { x: this.pan.x + at.x, y: this.pan.y + at.y + H * 0.08 * perPx, t: 0 };
+    this.panGlide = { x: this.mapAt.x + at.x, y: this.mapAt.y + at.y + H * 0.08 * perPx, t: 0 };
   }
 
   glideMap(dt) {
     const g = this.panGlide;
     if (!g) return;
     const k = 1 - Math.exp(-dt * 4);
-    this.pan.x += (g.x - this.pan.x) * k;
-    this.pan.y += (g.y - this.pan.y) * k;
+    this.mapAt.x += (g.x - this.mapAt.x) * k;
+    this.mapAt.y += (g.y - this.mapAt.y) * k;
     g.t += dt;
     if (g.t > 2.5 || this.mode !== 'map') this.panGlide = null;
   }

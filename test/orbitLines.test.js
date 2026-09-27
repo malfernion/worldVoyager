@@ -22,7 +22,7 @@ function setup(m) {
     flight: m.flight, autopilot: m.ap, system: m.sys, time: 0, crashed: false, target: null, mode: 'flight', pause: null, clock: null,
     input: { left: false, right: false, go: false, fine: false }, warpIndex: 0, manualWarp: false,
     snapshots: [], snapTimer: 0, predTimer: 0, prediction: null, origin: { x: 0, y: 0 }, tmp: {}, tmp2: {}, tmp3: {}, kindAt: {},
-    pan: { x: 0, y: 0 }, mapDist: 2000, zoom: 1, carry: 1, camSettle: false, soiGlow: null, highlight: null,
+    mapAt: { x: 0, y: 0 }, mapOff: { x: 0, y: 0 }, mapGoalAt: { x: 0, y: 0 }, mapDist: 2000, zoom: 1, carry: 1, camSettle: false, soiGlow: null, highlight: null,
     camera: new THREE.PerspectiveCamera(50, 844 / 390, 1, 3e6), camUp: new THREE.Vector3(0, 1, 0), rocket: { height: 6 },
     drive: { active: false, cancel() {} }, showing: null, coachKey: null, coachSpent: null, coachWait: 0,
     scene: new THREE.Scene(), lineGroup: new THREE.Group(), segLines: [], orbitLines: new Map(), ghosts: new Map(),

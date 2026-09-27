@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), orbit lines never through the ground (#48), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -114,7 +114,8 @@ src/rocket/            Parts catalogue + stats, procedural rocket and buggy mesh
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
                        `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
-                       Misty's orange haze near its ground `updateHaze()`, #46, flying and driving, #58; orbit lines and the path: `updateLines()`, hidden
+                       Misty's orange haze near its ground `updateHaze()`, #46, flying and driving, #58; the map's fixed centre `mapAt`, `toggleMap()`,
+                       `focusMapOn()`, 🎯 `findRocket()`, #57; orbit lines and the path: `updateLines()`, hidden
                        while driving, and in the flight view a line through the world we're at fades close up: `lineShown()`, #48),
                        drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
@@ -189,8 +190,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   staying up until it's nearly there; coached, Pip flies us over and hands back 15 m up). The
   launch pad is on land. `test/liquid.test.js`, `test/lava.test.js` and `test/misty.test.js` land from all round the
   orbit.
-- **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or map
-  focus. Never put raw world coordinates (up to ~65 km, out to Tumble) into three.js positions.
+- **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or the map's
+  fixed centre (`mapAt`, #57). Never put raw world coordinates (up to ~65 km, out to Tumble) into three.js positions.
 - **Orbits can go either way.** `Body.orbitDir` is -1 (clockwise) for almost everything and +1
   for Flip, Tumble's backwards moon (#11); `angularSpeed` carries the sign. Never assume
   clockwise: use `orbitDir` / `angularSpeed` (the planner's arrival direction, `flipOrbit`,
@@ -225,11 +226,17 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   carry eases back to 1 and the view's "down" turns to the new world (`camSettle`, at most
   `HANDOFF_TURN`) only while it's calm (`handoffCalm()` in `zoom.js`: never mid-burn or below
   `HANDOFF_LOW`, about 2 s). The camera stays on the rocket, so there's no frame to switch in
-  the flight view. The map keeps its focus, centre and zoom (even if it was on the world we
-  left: the rocket must not move on screen); the new world's label glows (`.arrived`) for 4 s,
-  and 🎯 re-centres on our world. `test/soiCamera.test.js` flies real hand-offs (and every
+  the flight view. The map keeps its focus, centre and zoom (the rocket must not jump on
+  screen); the new world's label glows (`.arrived`) for 4 s, and 🎯 re-centres on the rocket. `test/soiCamera.test.js` flies real hand-offs (and every
   world's SOI edge, in and out, coasting and burning) and checks each frame's distance, aim,
   up and the rocket's place on screen. Nothing else may refocus the map or re-zoom on an event.
+- **The map stays where it's put** (#57). Its centre is `FlightScene.mapAt`, a point in the Sun's
+  frame (world coordinates), never relative to a world: it can't drift as worlds move, the
+  origin floats or a new world takes over. `toggleMap()` opens it on the rocket; after that only
+  dragging, 🎯 (`findRocket()`: glides to the rocket, then stops) and `focusMapOn(body)` (once)
+  move it. `mapFocus` only picks the zoom range, default view and label priority. The origin is
+  set in `placeOrigin()`. `test/mapView.test.js` checks the Sun and a dragged-to spot stay put
+  on screen at ×1000 and across hand-offs.
 - **The sim never commits a broken state** (#30). `Flight.step()` checks every substep
   (finite numbers, coasting keeps its orbital energy, not absurdly far away). If Kepler
   propagation fails the check, that substep is integrated by hand (`leapfrog()`) so the rocket
