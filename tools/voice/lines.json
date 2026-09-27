@@ -208,6 +208,10 @@
   "text": "Can you land in it, or drive in?"
  },
  {
+  "key": "can you spot it",
+  "text": "Can you spot it?"
+ },
+ {
   "key": "can you wake it up",
   "text": "Can you wake it up?"
  },
@@ -928,6 +932,10 @@
   "text": "Look, a glow deep in the crack!"
  },
  {
+  "key": "look a storm with six straight sides like a honeycomb",
+  "text": "Look, a storm with six straight sides, like a honeycomb!"
+ },
+ {
   "key": "look it is pointing at ringo",
   "text": "Look, it is pointing at Ringo."
  },
@@ -1190,6 +1198,10 @@
  {
   "key": "round and round we go",
   "text": "Round and round we go!"
+ },
+ {
+  "key": "saturn has one at its north pole",
+  "text": "Saturn has one at its north pole."
  },
  {
   "key": "saturn is so light it could float in a giant bathtub",
@@ -1536,6 +1548,10 @@
   "text": "Tumble!"
  },
  {
+  "key": "tumble has a storm with six sides",
+  "text": "Tumble has a storm with six sides."
+ },
+ {
   "key": "tumble is an icy blue giant like uranus",
   "text": "Tumble is an icy blue giant, like Uranus."
  },
@@ -1558,6 +1574,10 @@
  {
   "key": "turn sideways to the arrow and hold go so we go around",
   "text": "Turn sideways to the arrow and hold GO, so we go around!"
+ },
+ {
+  "key": "two earths could fit inside it",
+  "text": "Two Earths could fit inside it!"
  },
  {
   "key": "under europas ice there is a huge hidden ocean",

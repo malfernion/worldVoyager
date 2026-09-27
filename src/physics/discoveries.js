@@ -11,7 +11,8 @@
 //   devil  the buggy drives through one of Dusty's wandering dust devils
 //   gap    the rocket crosses Ringo's ring plane between the clouds and the rings
 //   flare  the rocket is close to Ember while it flares
-import { dirOf, OBSERVATORY, NIBBLE_CRATER, FROSTY_GLOWS, SIZZLE_VENTS, FLIP_GEYSERS, SPIN_AXES } from './terrain.js';
+//   see    Tumble's hexagon is in view, big enough to make out (flight view or map)
+import { dirOf, OBSERVATORY, NIBBLE_CRATER, FROSTY_GLOWS, SIZZLE_VENTS, FLIP_GEYSERS, SPIN_AXES, facingPole } from './terrain.js';
 
 const biggest = (list) => list.reduce((a, b) => (b.size > a.size ? b : a));
 const unit = (x, y, z) => {
@@ -39,6 +40,14 @@ export const DUST_DEVILS = [
 // a flare rises and fades for `last` seconds. Seen from within `reach` × Ember's radius.
 export const FLARE = { period: 150, last: 50, reach: 6 };
 
+// Tumble's hexagon (#55; drawn in src/world/richLook.js) is found by seeing it, in the flight
+// view or the map: its middle on screen, clear of the buttons round the edges (`x`, `top`,
+// `bottom`, in normalised screen coordinates), tilted towards us (`facing`: the cosine of its
+// tilt away from the camera) and big enough to make out (`px`: its size, the flat sides'
+// distance from its middle, in pixels).
+export const HEX_POLE = facingPole(SPIN_AXES.tumble);
+export const HEXAGON_VIEW = { x: 0.75, top: 0.75, bottom: -0.5, facing: 0.2, px: 16 };
+
 export const DISCOVERIES = [
   { id: 'find-observatory', world: 'homestead', find: 'near', spots: [OBSERVATORY], reach: 9 },
   { id: 'find-footprints', world: 'pebble', find: 'near', spots: [dirOf(4.0, -0.35)], reach: 7 },
@@ -53,6 +62,7 @@ export const DISCOVERIES = [
   // behind the plane (clear of the rocket's strip), about 12 m from the shore.
   { id: 'find-huygens', world: 'misty', find: 'near', spots: [dirOf(2.64, -0.12)], reach: 6 },
   { id: 'find-flare', world: 'ember', find: 'flare' },
+  { id: 'find-hexagon', world: 'tumble', find: 'see' },
   { id: 'find-streak', world: 'flip', find: 'near', spots: FLIP_STREAKS, reach: 8 },
   { id: 'find-philae', world: 'ducky', find: 'near', spots: [dirOf(1.8, -0.5)], reach: 6 },
 ];
@@ -258,4 +268,13 @@ export function flareNumber(t) {
 export function flareSeen(state) {
   const b = state.body;
   return b.kind === 'star' && !state.crashed && Math.hypot(state.x, state.y) < b.radius * FLARE.reach && flareAt(state.t) > 0.3;
+}
+
+/**
+ * Can we see Tumble's hexagon? view: { x, y: its middle on screen (-1..1, y up), behind: it's
+ * behind the camera, facing, px } (see HEXAGON_VIEW).
+ */
+export function hexagonSeen(view) {
+  const v = HEXAGON_VIEW;
+  return !view.behind && Math.abs(view.x) < v.x && view.y < v.top && view.y > v.bottom && view.facing > v.facing && view.px > v.px;
 }

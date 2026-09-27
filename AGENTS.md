@@ -78,10 +78,10 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        `shoreDist()`: metres to the nearest pool's shore, #45)
   terrain.js           Height + colour functions per world (shared by physics and meshes), each world's liquid (`liquid: { kind, level }`,
                        the seabed shape `seabedDepth()`; #44), pools carved below a liquid's level (`makePools()`, Sizzle's lava
-                       `SIZZLE_LAVA`; #45; Misty's methane lakes and dunes `MISTY_LAKES`; #46), gas giants' spin axes, vents, geysers and the comet's gas jets,
+                       `SIZZLE_LAVA`; #45; Misty's methane lakes and dunes `MISTY_LAKES`; #46), gas giants' spin axes (+ `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
-                       the ring gap, flares), and the ✨ compass's targets
+                       the ring gap, flares, seeing Tumble's hexagon `hexagonSeen()`, #55), and the ✨ compass's targets
   friends.js           Pip's friends, the space band (#16): where each campfire is, saying hello (buggy near / landing next to),
                        the 🎵 compass targets, how loud each friend's part is from where you are, Full Band
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
@@ -107,7 +107,8 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails,
-                       richLook (#51-#53: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight, Ember's `starShimmer()`;
+                       richLook (#51-#53: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight, Ember's `starShimmer()`,
+                       Tumble's polar hexagon `HEXAGON`, #55;
                        baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
                        clouds (#54: a world's cloud layer from `CLOUD_LOOK`, only Homestead so far: `cloudPlan()` where clouds
                        and puffs go, `cloudFade()` when they fade, `createClouds()` the two-draw-call billboard layer,
@@ -612,5 +613,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - **The toon light still lights the night side** (`MeshToonMaterial`'s gradient looks up
   `dot(N, L) * 0.5 + 0.5`, so the back half gets the lowest steps). Anything that dims direct
   light (cloud shadows, #54) must fade out by itself on the night side.
+- **Anything on Tumble's (or any world's) visible pole is seen side-on** (#55). The cameras
+  all look at the flight plane from +z, and Tumble's axis lies nearly in it, so its pole is about
+  62° from the view and only the pole leaning towards +z (`facingPole()`) is ever seen. A polar
+  feature sits near the limb and its far side wraps over the horizon close up; size it for that
+  (a test checks the hexagon stays on the seen side), and antialias thin lines there with `fwidth`,
+  since fixed smoothstep widths shimmer where the sphere is foreshortened.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

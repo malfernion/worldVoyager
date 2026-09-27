@@ -713,6 +713,7 @@ world's picture), and Pip says the fact in short sentences.
 | Frosty | fresh cracks with a faint blue glow, only at night | parked within 6 m of a crack where Ember is below the horizon | 🐙 Ocean Spotter (Europa's ocean) |
 | Misty | Huygens, a gold saucer-shaped probe on ice pebbles about 12 m from the flight plane's big lake, its orange-and-white parachute spread behind it | buggy within 6 m | 🪂 Probe Finder (Huygens landed on Titan in 2005 and saw pebbles of ice) |
 | Ember | a solar flare: a loop of glowing gas that rises for 50 s every 150 s of flight time | the rocket within 6 × Ember's radius while it flares | 🌞 Flare Watcher (auroras) |
+| Tumble | a Saturn-style six-sided storm round the pole the cameras see (#55) | seeing it: its middle on screen clear of the buttons, facing us, at least 16 px across its flat sides' radius (flight view or map; `FlightScene.hexagonInView()`) | 🐝 Hexagon Hunter (Saturn's north-pole hexagon; two Earths could fit inside it) |
 | Flip | the dark streaks the geysers' dust leaves downwind | buggy within 8 m of one | 🌬️ Streak Spotter (Voyager 2 at Triton) |
 | Ducky | Philae, tipped over in a shady hollow by a big boulder | buggy within 6 m | 📡 Lander Finder |
 
@@ -729,6 +730,10 @@ world's picture), and Pip says the fact in short sentences.
 - **Landing counts too.** A rocket landing by (or in) a discovery finds it; the landmarks
   keep clear of the flight plane so they never hide the rocket, so in practice that's
   Nibble's crater and Flip's streaks.
+- **Tumble's hexagon is found by looking at it** (#55), not by being somewhere: Tumble has no
+  ground, and flying low over its pole the follow camera shows only the top of the planet
+  (the hexagon sat under the helper buttons), so a place-based trigger had Pip describing a
+  storm the child couldn't see. Opening the map on Tumble, or zooming out near it, finds it.
 - **The ring gap** is judged where the rocket crossed the ring plane (the line where it meets
   the flight plane), interpolating the radius, not the chord, so top time warp can't cut the
   corner. A cosy orbit round Ringo is inside the gap, so most visits find it: that's fine, it's
@@ -843,6 +848,20 @@ ground stays the visible mesh), and nothing adds draw calls or textures
     the shear never builds up into sub-pixel stripes. Their clock follows game time, but never
     faster than 20× real time, so time warp doesn't strobe them.
   - *Storms:* turning ovals with spiral arms.
+  - *Tumble's hexagon* (#55, `HEXAGON`): like Saturn's north-pole storm, a deep-blue jet-stream
+    band with six straight sides round a pole, a dark edge and a pale core streaming along it, a
+    calmer blue inside, and a little vortex with two turning spiral arms and a pale eye in the
+    middle. It's a hexagon in the point's coordinates seen from straight above the pole, so its
+    sides are straight on the sphere and it turns with the planet. It sits on the end of the
+    axis that leans towards +z (`facingPole()` in `terrain.js`): every camera looks at the
+    flight plane from the front, so that's the pole always in view (the other one never is).
+    Tumble's axis lies nearly in the plane, so the hexagon is seen quite side-on near the limb,
+    wrapping over the horizon close up; flat on in the sticker book's picture. It doesn't drift
+    with the bands (their shear would bend its sides), and its edges are antialiased by their
+    size on screen (`fwidth`), so they stay crisp and don't shimmer near the limb or in the small
+    pictures. Tumble's pole is in the dark half of its year (the axis is in the plane, so the
+    seasons are extreme), so the jet glows softly on the night side, like a polar aurora.
+    The round dark spot (#52) stays too.
   - *Shadows:* the planet's shadow on its rings, and a gentle hint of the rings' shadow on the
     planet (at most about a third of the sunlight, with a wide soft falloff; a dark one looked
     heavy). Both are worked out analytically.
@@ -874,7 +893,8 @@ ground stays the visible mesh), and nothing adds draw calls or textures
     under the haze, like its night fill.
 - **Cost.**
   - Rocky: two noise lookups (16 hashes) and a few mixes per pixel.
-  - Gas giant: one noise lookup, an `atan` and a few `sin`s, plus the storms.
+  - Gas giant: one noise lookup, an `atan` and a few `sin`s, plus the storms (and on Tumble's
+    polar cap only, the hexagon: two more `atan`s and a few `sin`s; the rest of the planet skips it).
   - No textures, and the same draw calls and triangles. Three more shader programs.
   - The relief bake takes about 240 ms for all nine rocky worlds together on a desktop (Dusty and
     Homestead about 60 ms each), once at load. Softening it (#56) adds about 1 ms per world.

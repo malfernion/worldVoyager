@@ -5,9 +5,9 @@ import { Flight } from '../src/physics/sim.js';
 import { Buggy, vec } from '../src/physics/buggy.js';
 import {
   DISCOVERIES, DUST_DEVILS, FLARE, buggyFinds, landingFinds, discoveryTargets, nearestTarget, groundPoint,
-  devilAt, isNight, ringGapCrossed, flareAt, flareSeen, sunDirection, finds,
+  devilAt, isNight, ringGapCrossed, flareAt, flareSeen, hexagonSeen, HEXAGON_VIEW, HEX_POLE, sunDirection, finds,
 } from '../src/physics/discoveries.js';
-import { FROSTY_GLOWS, NIBBLE_CRATER } from '../src/physics/terrain.js';
+import { FROSTY_GLOWS, NIBBLE_CRATER, SPIN_AXES } from '../src/physics/terrain.js';
 import { Progress, STICKERS, DISCOVERY_IDS, GOALS } from '../src/progress.js';
 import { sentencesOf } from '../src/ui/speech.js';
 import { BUGGIES } from '../src/rocket/parts.js';
@@ -199,7 +199,7 @@ describe('discoveries (#15)', () => {
   }
 
   describe('following the ✨ compass from any landing spot finds everything on the world', () => {
-    const worlds = [...new Set(DISCOVERIES.filter((d) => !['gap', 'flare'].includes(d.find)).map((d) => d.world))];
+    const worlds = [...new Set(DISCOVERIES.filter((d) => !['gap', 'flare', 'see'].includes(d.find)).map((d) => d.world))];
     for (const w of worlds) {
       it(w, () => {
         const body = sys.byId[w];
@@ -279,6 +279,27 @@ describe('discoveries (#15)', () => {
       expect(flareSeen(state(ember.radius * 8, on))).toBe(false); // out at Homestead's orbit
       expect(flareSeen(state(ember.radius * 5, on, { crashed: true }))).toBe(false);
       expect(flareSeen({ ...state(ember.radius * 0.1, on), body: sys.home })).toBe(false);
+    });
+  });
+
+  describe('Tumble\'s hexagon (#55)', () => {
+    // Seen from the front, a little right of the middle of the screen, 40 px across.
+    const view = (extra = {}) => ({ x: 0.3, y: 0.1, behind: false, facing: 0.47, px: 40, ...extra });
+
+    it('is found by seeing it, on screen and big enough to make out', () => {
+      expect(hexagonSeen(view())).toBe(true);
+      expect(hexagonSeen(view({ px: HEXAGON_VIEW.px - 1 }))).toBe(false); // a speck in the map
+      expect(hexagonSeen(view({ behind: true }))).toBe(false);
+      expect(hexagonSeen(view({ facing: 0.05 }))).toBe(false); // edge-on at the limb
+      expect(hexagonSeen(view({ x: 0.95 }))).toBe(false); // off to the side, by the buttons
+      expect(hexagonSeen(view({ y: -0.8 }))).toBe(false); // under the helper buttons
+      expect(hexagonSeen(view({ y: 1.2 }))).toBe(false); // off the top
+    });
+
+    it('is on the pole the cameras look at', () => {
+      expect(HEX_POLE.z).toBeGreaterThan(0.3);
+      const a = SPIN_AXES.tumble;
+      expect(Math.abs(HEX_POLE.x * a.x + HEX_POLE.y * a.y + HEX_POLE.z * a.z)).toBeCloseTo(1, 9);
     });
   });
 
