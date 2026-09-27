@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -114,11 +114,15 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        richLook (#51-#53: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight, Ember's `starShimmer()`,
                        Tumble's polar hexagon `HEXAGON`, #55;
                        baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
-                       clouds (#54: a world's cloud layer from `CLOUD_LOOK`, only Homestead so far: `cloudPlan()` where clouds
+                       clouds (#54: a world's cloud layer from `CLOUD_LOOK`, Homestead's and Dusty's thin high ones: `cloudPlan()` where clouds
                        and their soft sprites go, `frontPaths()` the few big bands and swirls, `cloudFade()` when a cloud fades, `spriteFade()` when a sprite does (near
                        the camera, big on screen, at the screen's edges), `noiseTile()` the noise that feathers them,
-                       `createClouds()` the one-draw-call sprite layer, `shadowFaces()` / `cloudShadows()` their soft
-                       shadows baked into a small cube map for the ground's shader)
+                       `createClouds()` / `createCloudLayer()` the one-draw-call sprite layer, `shadowFaces()` / `cloudShadows()` their soft
+                       shadows baked into a small cube map for the ground's shader; none with `shadow: 0`)
+                       storms (#54 stage 3: Dusty's dust storms, `STORM_LOOK`: `stormAt()` how deep in one a direction
+                       is (pure, drifting on the real clock), `stormPlan()` their cells for a cloud layer of their own,
+                       `createStreams()` the dust blowing along the ground in one (a shader loop per streak, one draw call),
+                       `createStorms()`)
                        embers (#54 stage 2: sparks and heat haze over lava, `EMBER_LOOK` per liquid kind, only Sizzle's lava:
                        `emberPlan()` where they rise from, `emberAt()` a spark's loop (the vertex shader's sums), `sightFade()` /
                        `nearFade()` when they fade, `createEmbers()` the one-draw-call mesh)
@@ -128,7 +132,8 @@ src/rocket/            Parts catalogue + stats, procedural rocket and buggy mesh
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
                        `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
-                       a world's sky near its ground `updateHaze()` (Misty's orange haze, #46, flying and driving, #58; Homestead's and Dusty's skies, #61); the map's fixed centre `mapAt`, `toggleMap()`,
+                       a world's sky near its ground `updateHaze()` (Misty's orange haze, #46, flying and driving, #58; Homestead's and Dusty's skies, #61;
+                       down in a dust storm, #54, `this.storm`), the blowing dust `updateStorms()`; the map's fixed centre `mapAt`, `toggleMap()`,
                        `focusMapOn()`, 🎯 `findRocket()`, #57; orbit lines and the path: `updateLines()`, hidden
                        while driving, and in the flight view a line through the world we're at fades close up: `lineShown()`, #48),
                        drive.js (buggy mode)
@@ -159,6 +164,8 @@ test/                  vitest suites; missions.js has the shared headless flight
                        after a lake), the buggy and rocket kept clear, worlds without a sky untouched; Homestead's and
                        Dusty's skies (#61): no fog, no jump from orbit down (day, dusk, night) or as the sun sets, gone
                        in orbit, night dark and starry, driving through Homestead's sea
+                       storms.test.js: Dusty's high clouds and dust storms (#54 stage 3): Homestead's clouds unchanged, where
+                       the storms are and how they drift, the blowing dust, the sky and haze down in one (the real updateHaze)
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
                        orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
                        world no orbit line through its ground (#48)
@@ -248,7 +255,13 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   the screen's edges (`spriteFade()`, the same sums, tested): that is what keeps overdraw to
   about one and a half screens' worth at most (measured: 0.14 to 1.38 layers of sprite pixels
   per screen pixel in the standard views) and big shapes off the edges. Keep it if you add sprites.
-  Clouds are only the look: the physics never sees them.
+  Clouds are only the look: the physics never sees them. Dusty's dust storms (#54 stage 3,
+  `src/world/storms.js`) are a second layer of the same kind (their own plan, faded the same way
+  in `updateClouds()`), plus one draw call of blowing dust that is hidden outside a storm. Where
+  the storms are is only `stormAt()` (pure, real time: the layer's turn), and down in one the
+  sky only goes through `updateHaze()` (`SKY_LOOK.dusty.storm`): the fog is counted from what the
+  camera follows, so the rocket and buggy stay clear. New `CLOUD_LOOK` knobs must default to the
+  old behaviour (a test pins Homestead's plan).
 - **Lava's embers and heat haze are all in the shader** (#54, `src/world/embers.js`). Every spark
   and haze sheet of a world is one instanced billboard in one draw call (premultiplied, no depth
   write); each spark is a loop on the real clock (never the warp) worked out in the vertex

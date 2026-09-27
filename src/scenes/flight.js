@@ -113,6 +113,8 @@ export class FlightScene {
     this.tmp = {};
     this.tmp2 = {};
     this.cloudFoci = new Float64Array(9); // what clouds must never hide (#54, updateClouds)
+    this.stormTint = new THREE.Color(); // scratch for a dust storm's sky (#54, updateHaze)
+    this.storm = 0; // how deep in a dust storm the camera is (#54, updateHaze)
     this.tmp3 = {};
     this.discoverUntil = 0;
 
@@ -1006,6 +1008,7 @@ export class FlightScene {
     this.updateMarkers();
     this.updateUnderwater(dt);
     this.updateHaze();
+    this.updateStorms(this.pause ? 0 : dt);
     this.app.audio.setEngine(this.crashed ? 0 : f.throttle);
   }
 
@@ -1042,6 +1045,10 @@ export class FlightScene {
    * pops between the views. Every frame, flying or driving (#58: driving never updated it, so a
    * dip in a lake or a zoomed-out view before 🚙 left it off). It reuses the scene's always-there
    * fog (#44), so no material changes; nothing is allocated. Under a sea the underwater fog wins.
+   * Down in one of Dusty's dust storms (#54, `look.storm`, `stormAt()` in storms.js) the sky
+   * turns dusty, hides more of space and the distance fogs over (counted from what the camera
+   * follows, so that stays clear), as deep as the camera is in the storm; `this.storm` says how
+   * deep, for the blowing dust (updateStorms()).
    */
   updateHaze() {
     const s = this.flight.state;
@@ -1050,12 +1057,20 @@ export class FlightScene {
     let k = 0;
     const v = look && this.mode !== 'map' && !this.underwater ? this.visuals.find((x) => x.body === body) : null;
     const c = this.camera.position;
+    let st = 0;
     if (v) {
       const g = v.group.position;
       const r = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
       const t = Math.max(0, Math.min(1, (r - body.radius - look.low) / (look.top - look.low)));
       k = 1 - t * t * (3 - 2 * t);
+      // In a dust storm (#54): where the camera is over the ground, gone above the storm.
+      const sl = look.storm;
+      if (sl && v.storms && k > 0) {
+        const h = Math.max(0, Math.min(1, (r - body.radius - sl.low) / (sl.top - sl.low)));
+        st = v.storms.at((c.x - g.x) / r, (c.y - g.y) / r, (c.z - g.z) / r, this.time || 0) * (1 - h * h * (3 - 2 * h));
+      }
     }
+    this.storm = st;
     if (k === this.haze && k === 0) return;
     this.haze = k;
     // Down in it, the fog and the dome are the sky; the shell (only seen from outside) fades out.
@@ -1071,7 +1086,8 @@ export class FlightScene {
     if (sky) sky.visible = k >= 0.01;
     if (this.underwater) return;
     const fog = this.scene.fog;
-    if (k < 0.01 || !look.fog) {
+    const fogged = look?.fog || st > 0.005;
+    if (k < 0.01 || !fogged) {
       fog.near = FOG_OFF;
       fog.far = FOG_OFF * 2;
       this.scene.background.copy(this.spaceColour);
@@ -1096,16 +1112,27 @@ export class FlightScene {
     const dusk = look.dusk === undefined ? 0 : Math.max(0, 1 - Math.abs(cos) / look.duskWidth);
     u.dusk.value.copy(look.colours.dusk).multiplyScalar(dusk * dusk * (3 - 2 * dusk));
     u.veil.value = look.veil[0] + (look.veil[1] - look.veil[0]) * day;
+    if (st > 0) {
+      // Dust in the air: a dusty sky (dark by night), the sun's glow and the sunset band
+      // smothered, and less of space showing through.
+      const sc = look.storm.colours, tint = this.stormTint;
+      u.horizon.value.lerp(tint.lerpColors(sc.night.horizon, sc.day.horizon, day), st);
+      u.zenith.value.lerp(tint.lerpColors(sc.night.zenith, sc.day.zenith, day), st);
+      u.glow.value.multiplyScalar(1 - 0.6 * st);
+      u.dusk.value.multiplyScalar(1 - 0.85 * st);
+      u.veil.value += (look.storm.veil - u.veil.value) * st;
+    }
     u.up.value.set(ux / ul, uy / ul, uz / ul);
     u.sun.value.set(sx / sl, sy / sl, sz / sl);
-    if (!look.fog) return;
+    if (!fogged) return;
     fog.color.copy(u.horizon.value);
     // Counted from what the camera follows (the rocket or buggy, at the floating origin), so
     // that stays clear however far out the camera is, and only what's beyond it fogs over.
     const d = Math.hypot(c.x, c.y, c.z);
-    fog.near = (look.fog.near + d) / k;
-    fog.far = (look.fog.far + d) / k;
-    this.scene.background.copy(this.spaceColour).lerp(fog.color, k);
+    const fl = look.fog ?? look.storm.fog, fk = look.fog ? k : st;
+    fog.near = (fl.near + d) / fk;
+    fog.far = (fl.far + d) / fk;
+    this.scene.background.copy(this.spaceColour).lerp(fog.color, fk);
     this.sky.visible = look.stars || k < 0.6;
   }
 
@@ -1461,6 +1488,7 @@ export class FlightScene {
     this.updateMood();
     this.updateUnderwater(dt);
     this.updateHaze();
+    this.updateStorms(dt);
     this.checkBand(dt, this.drive.buggy?.body === this.system.home);
   }
 
@@ -1712,7 +1740,7 @@ export class FlightScene {
    */
   updateClouds() {
     let any = false;
-    for (const v of this.visuals) if (v.clouds || v.embers) any = true;
+    for (const v of this.visuals) if (v.clouds || v.embers || v.storms) any = true;
     if (!any) return;
     const foci = this.cloudFoci;
     const s = this.flight.state;
@@ -1735,7 +1763,9 @@ export class FlightScene {
     for (const v of this.visuals) {
       // Lava's sparks and haze (#54) keep clear of the rocket and the buggy the same way.
       if (v.embers) v.embers.fade(foci, n);
-      if (!v.clouds) continue;
+      // Dust storms (#54): the blowing dust the same; their cells as clouds (below).
+      if (v.storms) v.storms.streams.fade(foci, n);
+      if (!v.clouds && !v.storms) continue;
       let m = n;
       if (s.body === v.body && !s.landed && !this.drive.active) {
         // Where we'd come down: the ground straight under the rocket.
@@ -1745,7 +1775,37 @@ export class FlightScene {
         foci[m * 3 + 2] = 0;
         m++;
       }
-      v.clouds.fade(this.camera.position, foci, m, v.group);
+      v.clouds?.fade(this.camera.position, foci, m, v.group);
+      v.storms?.layer.fade(this.camera.position, foci, m, v.group);
+    }
+  }
+
+  /**
+   * The dust blowing across the ground in a storm (#54, storms.js): as thick as the camera is deep
+   * in one (`this.storm`, from updateHaze()), round what the camera follows (the buggy, or the
+   * rocket, over the ground under it). Hidden everywhere else. Nothing allocated.
+   */
+  updateStorms(dt) {
+    const s = this.flight.state;
+    const b = this.drive.active ? this.drive.buggy : null;
+    const body = b ? b.body : s.body;
+    for (const v of this.visuals) {
+      if (!v.storms) continue;
+      const st = v.body === body && this.mode !== 'map' ? this.storm : 0;
+      // Down in it, the storm's own cells mostly give way to the dusty sky and haze (they'd
+      // only be blotches round the horizon).
+      v.storms.layer.opacity.value = v.storms.look.opacity * (1 - 0.9 * st);
+      if (st <= 0.005) {
+        v.storms.streams.set(0);
+        continue;
+      }
+      if (b) {
+        const r = Math.hypot(b.p[0], b.p[1], b.p[2]);
+        v.storms.streams.set(st, b.p[0] / r, b.p[1] / r, b.p[2] / r, r - b.kind.ride, this.time, dt);
+      } else {
+        const a = Math.atan2(s.y, s.x);
+        v.storms.streams.set(st, Math.cos(a), Math.sin(a), 0, body.surfaceAt(a), this.time, dt);
+      }
     }
   }
 

@@ -1043,9 +1043,9 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
 
 - **One layer per world, from a table.** `CLOUD_LOOK` says how high the clouds' bases are, how
   big they are, how many sprites make one, how many are thin wisps, where they go, how fast the
-  layer drifts, their colours and how dark their shadows are. Only Homestead has an entry so
-  far; other worlds (Dusty's thin high clouds, Misty's haze bands, Tumble's and Ringo's
-  streaks) can reuse it, with new shapes where they need them.
+  layer drifts, their colours and how dark their shadows are. Homestead and Dusty (its thin
+  high clouds, stage 3 below) have entries; other worlds (Misty's haze bands, Tumble's and
+  Ringo's streaks) can reuse it, with new shapes where they need them.
 - **Where they go.** The views all look at the flight plane from its +z side, so clouds are
   placed for them rather than evenly: a band behind the plane that the landed and launch views
   see as their sky (16 clouds), a ring right round the plane that a launch climbs past (7), and
@@ -1152,6 +1152,65 @@ style: no hard shapes, one look, no setting.
   landed on Sizzle). The haze sheets are the only big sprites, a few per pool, faint and
   additive; everything else is a few pixels.
 - **Not done:** Io's plumes reach hundreds of kilometres; Sizzle's (#1) were left as they are.
+
+### Dusty's thin high clouds and dust storms (#54, stage 3)
+
+The third stage (`CLOUD_LOOK.dusty` in `src/world/clouds.js`, and `src/world/storms.js`), in the
+same soft style, reusing the cloud layer rather than building a parallel system.
+
+- **Thin high clouds**, like Mars's water-ice clouds: Dusty's own `CLOUD_LOOK` entry, the same
+  plan and shader with a few new knobs (all optional, so Homestead's plan is byte-for-byte the
+  same; a test checks it). 91 clouds, 983 sprites: most are wisps (`bandWisps`, `wisps`), drawn
+  as wider, fainter streaks pulled out 2.2 times (`wisp`), three long streaky bands (`fronts`
+  with `stretch`, `dens`, `h`) and only the odd small clump, fainter than a wisp
+  (`puffDens`). The whole layer shows at most 42% (`opacity`), in a pale white with a lilac
+  shade. Their bases are 29 to 34 m up (the air's glow reaches about 31 m on Dusty, so at the
+  limb they stand as faint streaks and puffs just at its edge; higher, they floated out in
+  space as bright arcs), well above the storms and under the 50 m space line. No shadows
+  (`shadow: 0`: nothing baked, the ground's shader untouched): they're far too thin.
+- **Dust storms from space.** Two regional storms (`STORM_LOOK`): one in the middle of the face
+  the map and orbit views see, one across the flight plane (so a landing, now and then, is in
+  it; about an eighth of the flight plane is under it at any time). Each is a lumpy ellipse
+  (about 240 × 160 m and 185 × 130 m on a 220 m world; together about 5% of the surface) filled
+  with cells on a jittered grid, and each cell is a cloud of the cloud layer's own kind (95 in
+  all, 466 sprites), in a second layer with dusty colours: in its front (the edge it drifts
+  towards) tall billowing clumps, inside a low flat haze drawn out a little along the wind,
+  and at its back frayed streaks; thinner towards its edges except at the front. They sit 11 m
+  up (most hills stay under; the volcano pokes through, like Olympus Mons above Mars's
+  storms) and are drawn before the high clouds. The first colours matched the ground so well
+  the storms vanished; they're a paler dusty cream, so from space they read as a soft veil over
+  the red ground with a lumpy bright front. The layer turns about z at 0.002 rad/s of real
+  time (the storm across the plane passes a landing site in about 7 minutes).
+- **Where the storms are is pure** (`stormAt()`): the direction turned back by the drift, then a
+  few multiplies per storm, soft between 55% and 100% of the way to the lumpy edge. The haze
+  asks it once a frame about the camera.
+- **Down in a storm** (`SKY_LOOK.dusty.storm`, `FlightScene.updateHaze()`, only the #61 sky
+  machinery): as deep as the camera is in one (full below 45 m up, gone by 110 m), the sky dome
+  turns dusty tan (dark by night), its sun glow and blue sunset band are smothered, it hides
+  more of space (`veil` 0.96: the stars nearly go), and the distance fogs over in the horizon's
+  colour, from what the camera follows out to 75 m beyond it: the far hills go soft, the buggy
+  and rocket stay crisp (a mood, not a whiteout; on a world this small the horizon is only 40 to
+  80 m away). The storm's own cells fade to 10% around the camera, since from inside they were
+  only brown blotches in the sky.
+- **Blowing dust** (`createStreams()`): 340 thin streaks and 44 faint puffs in a 44 m box round
+  what the camera follows (the buggy, or the ground under the rocket), 0.3 to 4.5 m up, blowing
+  east on the wind. Each is a loop in the vertex shader (like the embers): it fades in, is
+  carried along with its own gust, fades out and starts again somewhere else. They're anchored
+  to the ground, not the camera: the CPU only adds the wind to an offset each frame, wrapped
+  every 44 m (the box repeats along x, y and z, so the wrap never jumps). Streaks are drawn out
+  along the wind; everything fades near the lens, at the box's sides, when big on screen, and
+  across the line of sight to the rocket and buggy (the clouds' foci). Hidden, with no draw
+  call, outside a storm.
+- **Cost** (measured, 844 × 390): draw calls +2 on Dusty (the two layers; +3 in a storm), e.g. 85
+  → 87 on the pad, 94 → 96 in orbit; Homestead unchanged (149). Soft-sprite overdraw of all
+  three meshes 0.06 (orbit) to 0.85 (in a storm on the pad) and 1.21 (landed zoomed out, the
+  storm around the horizon) layers per screen pixel, 0.54 for the map's globe. Per-frame script
+  for the fades, the haze and the dust about 0.04 ms more (both layers' ~190 cells); nothing
+  allocated. Plans take about 20 ms at load.
+- **Not done:** the storms don't grow, shrink or change shape (a rigid turn is what keeps them
+  free), and the storm near the flight plane is often beyond the horizon from the pad (the world
+  is so small that a 30 m tall storm 150 m away is below it), so you meet it by driving or when it
+  drifts over.
 
 ## Ideas for later
 

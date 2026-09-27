@@ -100,7 +100,12 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   bands and a swirl, clouds in the sky from
   the launch pad and the buggy, and you fly up past them on the way to space. They never hide
   the rocket: a cloud close to the camera, or in front of the rocket (or the buggy, or the
-  ground where you're landing), thins away to a faint veil.
+  ground where you're landing), thins away to a faint veil. Dusty has thin, pale, high wisps
+  and streaks instead, like Mars's icy clouds.
+- **Dust storms:** one or two big dust storms drift slowly round Dusty: from space a soft dusty
+  patch with a billowing front edge. Land or drive into one and the sky turns dusty, the far
+  hills go hazy and streams of dust blow past along the ground (the rocket and buggy always
+  stay easy to see). Drive out of it, or wait for it to drift away.
 - **Lava:** Sizzle has glowing pools and flows of lava by its volcanoes (they glow at night
   and you can see them from orbit). Glowing embers drift up from them and wink out, brighter by
   night, and the air over them wobbles with wavy heat. Lava is much too hot to land on: touching it is a sizzling,
@@ -181,7 +186,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds and Sizzle's embers (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

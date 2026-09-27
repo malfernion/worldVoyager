@@ -1,6 +1,7 @@
 // Cartoon clouds (#54): a layer of soft clouds drifting slowly round a world, with faint soft
-// shadows on its ground. Driven by CLOUD_LOOK per world (only Homestead so far), so other
-// worlds can have their own layer later (thin high clouds, haze bands, streaks).
+// shadows on its ground. Driven by CLOUD_LOOK per world: Homestead's white clouds, and Dusty's
+// thin, pale, high wisps and streaks (like Mars's water-ice clouds; no shadows). The same layer
+// draws Dusty's dust storms from space (storms.js makes their plan: `createCloudLayer()`).
 //
 // Soft and diffuse, made of particles: each cloud is a loose cluster of soft sprites (big dense
 // ones in its core, small faint ones round its rim; some clouds are only thin wisps, and a few
@@ -39,7 +40,12 @@ import { mulberry32 } from '../physics/noise.js';
  * undersides), `night` (multiplies them on the night side); `shadow`: how much of the direct
  * sunlight a cloud's shadow takes off the ground at most. `fronts`: the big systems (see
  * frontPaths()): how many (`back` of them behind the world, the first `swirl` winding up), their
- * bases, length and greatest width (m), and how far they keep off the flight plane (`clear`).
+ * bases, length and greatest width (m), and how far they keep off the flight plane (`clear`);
+ * optionally how far their sprites are drawn out (`stretch`), how dense (`dens`) and tall (`h`,
+ * of the width). Optional for thinner layers (Dusty): `bandWisps`, the share of wisps in the
+ * `sky` and `plane` bands (else half of `wisps`); `wisp`, how a wisp is drawn (see WISP);
+ * `puffDens`, how dense a puffy clump's sprites are (a share);
+ * `opacity`, how much of the layer shows at most. `shadow: 0`: no shadows at all (none baked).
  */
 export const CLOUD_LOOK = {
   homestead: {
@@ -58,7 +64,36 @@ export const CLOUD_LOOK = {
     night: 0x5a6aa8,
     shadow: 0.3,
   },
+  // Thin high clouds, like Mars's water-ice clouds: sparse, pale, faint streaks and wisps near
+  // the top of the sky (just under the space line), a few long streaky bands and only the odd
+  // small clump; see-through, so from orbit they're faint streaks over the red ground, and from
+  // the ground thin wisps in the butterscotch sky. Too thin to cast a shadow.
+  dusty: {
+    seed: 61,
+    alt: [29, 34],
+    size: [26, 44],
+    sprites: [9, 13],
+    wisps: 0.85,
+    bandWisps: 0.85,
+    puffDens: 0.55,
+    wisp: { count: 1.3, width: 1.3, stretch: 2.2, dens: 0.6, h: 0.06 },
+    sky: { count: 9, z: [-130, -25] },
+    plane: { count: 5, z: [-22, 8] },
+    spread: { front: 34, back: 14, size: [30, 54], field: 120 },
+    fronts: { count: 3, back: 0, alt: [30, 33], length: [180, 300], width: [22, 34], swirl: 0, clear: 50, stretch: 2.4, dens: 0.5, h: 0.06 },
+    drift: 0.003,
+    lit: 0xfff8f2,
+    shade: 0xcfc6dc,
+    night: 0x5c5478,
+    opacity: 0.42,
+    shadow: 0,
+  },
 };
+
+// How a wisp is drawn unless its look says otherwise: its sprites (a share of `sprites`), their
+// width (a share of the usual), how far they're drawn out, how dense, and the wisp's height (of
+// its length).
+export const WISP = { count: 0.8, width: 1, stretch: 1.8, dens: 1, h: 0.12 };
 
 // Sprite numbers: centre x, y, z (the layer's frame), size (radius, m), lift (how far the
 // centre sits above its cloud's base, m), cloud index, seed (0..1, where its noise comes from),
@@ -155,7 +190,7 @@ export function cloudPlan(look, radius) {
       const base = radius + between(look.alt);
       const L = between(look.size);
       const lon = ((i + 0.2 + rand() * 0.6) / count) * Math.PI * 2;
-      spots.push({ base, z: Math.max(-base, Math.min(base, between(zs))), lon, L, wisp: rand() < look.wisps * 0.5 });
+      spots.push({ base, z: Math.max(-base, Math.min(base, between(zs))), lon, L, wisp: rand() < (look.bandWisps ?? look.wisps * 0.5) });
     }
   };
   band(look.sky);
@@ -194,6 +229,17 @@ export function cloudPlan(look, radius) {
       left--;
     }
   }
+  return plantClouds(look, spots, rand);
+}
+
+/**
+ * Sprites for each spot (pure, seeded by `rand`): { base, z, lon, L, wisp, e (a front's way),
+ * front }. Returns { clouds, puffs } as cloudPlan() does (the storms use it too).
+ */
+export function plantClouds(look, spots, rand) {
+  const between = ([a, b]) => a + rand() * (b - a);
+  const ws = look.wisp ?? WISP;
+  const fl = look.fronts ?? {};
   const clouds = [];
   const puffs = [];
   spots.forEach(({ base, z, lon, L, wisp, e: along, front = -1 }, ci) => {
@@ -210,7 +256,7 @@ export function cloudPlan(look, radius) {
     const nx = [up[1] * e[2] - up[2] * e[1], up[2] * e[0] - up[0] * e[2], up[0] * e[1] - up[1] * e[0]];
     const centre = up.map((c) => c * base);
     // The cloud's height, and the middle its light comes out of.
-    const H = wisp ? L * 0.12 : front >= 0 ? L * 0.16 : L * (0.34 + rand() * 0.1);
+    const H = wisp ? L * ws.h : front >= 0 ? L * (fl.h ?? 0.16) : L * (0.34 + rand() * 0.1);
     const heart = up.map((c) => c * H * 0.35);
     let reach = 0;
     const mine = [];
@@ -231,19 +277,19 @@ export function cloudPlan(look, radius) {
         const v = (rand() * 0.6 + rand() * 0.6 - 0.6) * L;
         const mid = Math.max(0, 1 - Math.abs((2 * v) / L));
         const size = L * (0.13 + 0.08 * mid + rand() * 0.05);
-        put(u, v, size * 0.3 + rand() * H * mid, size, 0.45 + 0.45 * mid, 1.6);
+        put(u, v, size * 0.3 + rand() * H * mid, size, (0.45 + 0.45 * mid) * (fl.dens ?? 1), fl.stretch ?? 1.6);
       }
     } else if (wisp) {
       // A thin streak: faint sprites drawn out along a gently bent line, overlapping into one
       // smooth stroke, thinning out at the ends.
-      const count = Math.round(between(look.sprites) * 0.8);
+      const count = Math.round(between(look.sprites) * ws.count);
       const bend = (rand() - 0.5) * 0.5;
       for (let j = 0; j < count; j++) {
         const t = (j + 0.5) / count - 0.5;
         const end = 1 - Math.abs(2 * t);
         const u = t * L * 1.5;
         put(u, bend * L * (t * t * 4 - 1) * 0.3 + (rand() - 0.5) * L * 0.06, H * (0.4 + rand() * 0.3),
-          L * (0.09 + 0.08 * end + rand() * 0.02), 0.3 + 0.3 * end, 1.8);
+          L * (0.09 + 0.08 * end + rand() * 0.02) * ws.width, (0.3 + 0.3 * end) * ws.dens, ws.stretch);
       }
     } else {
       // A puffy cloud: a dome of sprites, big and dense in its core, higher in the middle,
@@ -260,7 +306,7 @@ export function cloudPlan(look, radius) {
         // Low sprites sit near the base; higher ones only where the dome is tall.
         // (Their tops stay within a little of the dome's.)
         const lift = Math.max(size * 0.3, Math.min(rand() * H * (0.25 + 0.75 * mid), H + L * 0.1 - size));
-        put(u, v, lift, size, 0.55 + 0.45 * mid);
+        put(u, v, lift, size, (0.55 + 0.45 * mid) * (look.puffDens ?? 1));
       }
     }
     clouds.push({ x: centre[0], y: centre[1], z: centre[2], r: reach, base, wisp: !!wisp, front });
@@ -399,6 +445,7 @@ const FRAG = /* glsl */ `
   uniform vec3 litColor;
   uniform vec3 shadeColor;
   uniform vec3 nightColor;
+  uniform float opacity;
   varying vec2 vUv;
   varying vec2 vNoise;
   varying float vH;
@@ -423,7 +470,7 @@ const FRAG = /* glsl */ `
     // Fading thins it from the rims inwards, so a fading cloud evaporates into wisps rather
     // than turning into grey discs over the dark sky: all of it for the fades on screen (near
     // the camera, big, at the edges), and a see-through veil too over the rocket.
-    float a = smoothstep(0.0, 0.4, d * vCloud * vScreen) * sqrt(vCloud) * vDens;
+    float a = smoothstep(0.0, 0.4, d * vCloud * vScreen) * sqrt(vCloud) * vDens * opacity;
     // Fainter by night, so a big cloud overhead is a hint of moonlit cloud, not a dark smudge.
     a *= mix(0.55, 1.0, vDay);
     if (a < 0.004) discard;
@@ -484,12 +531,20 @@ export function noiseTexture() {
 /**
  * A world's cloud layer, or null if it has none. `sunDir`: its view-space sun direction (the
  * flight scene keeps it fresh). Returns { mesh, update(time), fade(camera, foci, n, group),
- * shadow (what the ground's shader needs), frontAngle() (for the screenshots) }.
+ * shadow (what the ground's shader needs; null with `look.shadow` 0), frontAngle() (for the
+ * screenshots) }.
  */
 export function createClouds(body, sunDir) {
   const look = CLOUD_LOOK[body.id];
   if (!look) return null;
-  const { clouds, puffs } = cloudPlan(look, body.radius);
+  return createCloudLayer(look, cloudPlan(look, body.radius), body.radius, sunDir, 'clouds');
+}
+
+/**
+ * A layer of soft sprites from a plan ({ clouds, puffs }, as cloudPlan() makes): one draw call,
+ * turning at `look.drift` rad/s. Used for clouds and for Dusty's dust storms (storms.js).
+ */
+export function createCloudLayer(look, { clouds, puffs }, radius, sunDir, name) {
   const count = puffs.length / PUFF_STRIDE;
   const offsets = new Float32Array(count * 3), shape = new Float32Array(count * 4), lk = new Float32Array(count * 4), height = new Float32Array(count), stretch = new Float32Array(count * 4);
   for (let i = 0; i < count; i++) {
@@ -509,7 +564,12 @@ export function createClouds(body, sunDir) {
   geo.setAttribute('height', new THREE.InstancedBufferAttribute(height, 1));
   geo.setAttribute('stretch', new THREE.InstancedBufferAttribute(stretch, 4));
   geo.instanceCount = count;
-  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), body.radius + look.alt[1] + look.size[1] * 1.5);
+  let reach = radius;
+  for (let i = 0; i < count; i++) {
+    const p = i * PUFF_STRIDE;
+    reach = Math.max(reach, Math.hypot(puffs[p], puffs[p + 1], puffs[p + 2]) + puffs[p + 3] * puffs[p + 15]);
+  }
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), reach);
   const fades = new Float32Array(clouds.length).fill(1);
   const colour = (hex) => new THREE.Color(hex);
   const uniforms = {
@@ -520,6 +580,7 @@ export function createClouds(body, sunDir) {
     litColor: { value: colour(look.lit) },
     shadeColor: { value: colour(look.shade) },
     nightColor: { value: colour(look.night) },
+    opacity: { value: look.opacity ?? 1 },
   };
   // One draw call: every sprite blended (premultiplied), none writing depth, so the ground,
   // the atmosphere's glow and each other all show through their soft edges.
@@ -534,26 +595,27 @@ export function createClouds(body, sunDir) {
     fog: true,
   });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.name = 'clouds';
+  mesh.name = name;
   mesh.raycast = () => {};
 
-  const shadow = {
+  const shadow = look.shadow ? {
     map: shadowMap(clouds, puffs),
     rot: { value: new THREE.Vector2(1, 0) }, // the layer's turn (cos, sin)
-    alt: body.radius + (look.alt[0] + look.alt[1]) / 2,
+    alt: radius + (look.alt[0] + look.alt[1]) / 2,
     k: { value: look.shadow },
-  };
+  } : null;
   const layer = {
     mesh,
     shadow,
     clouds,
     sprites: count,
+    opacity: uniforms.opacity, // how much of the layer shows (the storms thin theirs out round the camera)
     noFade: false, // testing only: no per-cloud fades (the screenshots show what they save)
     spin: 0,
     update(time) {
       layer.spin = time * look.drift;
       mesh.rotation.z = layer.spin;
-      shadow.rot.value.set(Math.cos(layer.spin), Math.sin(layer.spin));
+      shadow?.rot.value.set(Math.cos(layer.spin), Math.sin(layer.spin));
       uniforms.time.value = time;
     },
     /**

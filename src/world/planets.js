@@ -16,6 +16,7 @@ import { mulberry32 } from '../physics/noise.js';
 import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
 import { createClouds, cloudShadows } from './clouds.js';
 import { createEmbers } from './embers.js';
+import { createStorms } from './storms.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
@@ -463,13 +464,22 @@ export function createBodyVisual(body) {
     surfaceFromMesh(body, geo, liquid?.mesh.geometry);
     const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), flatShading: true });
     mesh = new THREE.Mesh(geo, richRocky(mat, body, out.sunDir)); // detail, slopes, rim, night fill (#51)
-    // A cloud layer (#54: Homestead's), and its soft shadows on the ground.
+    // A cloud layer (#54: Homestead's, Dusty's thin high ones), and its soft shadows on the ground.
     const clouds = createClouds(body, out.sunDir);
     if (clouds) {
-      cloudShadows(mat, clouds, out.sunDir);
+      if (clouds.shadow) cloudShadows(mat, clouds, out.sunDir);
       group.add(clouds.mesh);
       out.clouds = clouds;
       out.updates.push(clouds.update);
+    }
+    // Dust storms (#54: Dusty's), drawn from space by a cloud layer of their own, and the dust
+    // blowing across the ground down in one.
+    const storms = createStorms(body, out.sunDir);
+    if (storms) {
+      storms.layer.mesh.renderOrder = -1; // under the high clouds
+      group.add(storms.layer.mesh, storms.streams.mesh);
+      out.storms = storms;
+      out.updates.push(storms.layer.update);
     }
     if (liquid) {
       group.add(liquid.mesh);
@@ -558,6 +568,12 @@ export const SKY_LOOK = {
     horizon: 0xe3c19c, zenith: 0x8f6448, glow: 0x5c5448, veil: [0.35, 0.75],
     dusk: 0x7fa6e0, duskWidth: 0.35, duskPow: 10,
     night: { horizon: 0x251c24, zenith: 0x0c0a16, glow: 0x000000 },
+    // Down in a dust storm (#54, storms.js): the sky's colours (by day; `night` dims them),
+    // how much of space it hides, and the distance fogging over (as `fog` above); full below
+    // `low` metres up, gone by `top`.
+    storm: {
+      horizon: 0xd9a476, zenith: 0xc2895e, night: 0.09, veil: 0.96, fog: { near: 0, far: 75 }, low: 45, top: 110,
+    },
   },
 };
 // Each look's colours, made once (updateHaze mixes them into the dome's uniforms every frame).
@@ -570,6 +586,11 @@ for (const look of Object.values(SKY_LOOK)) {
     night[key] = typeof look.night === 'number' ? day[key].clone().multiplyScalar(dim) : new THREE.Color(look.night[key]);
   }
   look.colours = { day, night, dusk: new THREE.Color(look.dusk ?? 0) };
+  const st = look.storm;
+  if (st) {
+    const sd = { horizon: new THREE.Color(st.horizon), zenith: new THREE.Color(st.zenith) };
+    st.colours = { day: sd, night: { horizon: sd.horizon.clone().multiplyScalar(st.night), zenith: sd.zenith.clone().multiplyScalar(st.night) } };
+  }
 }
 
 /**
