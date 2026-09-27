@@ -107,7 +107,7 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails,
-                       richLook (#51, #52: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight;
+                       richLook (#51-#53: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight, Ember's `starShimmer()`;
                        baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,

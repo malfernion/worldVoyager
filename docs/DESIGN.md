@@ -845,7 +845,7 @@ ground stays the visible mesh), and nothing adds draw calls or textures
   - *Light:* the shared 4-step toon gradient cut hard straight lines across a big sphere (its
     step at half-lit was a vertical stripe down the middle). So a gas giant's day side is one
     tone, with a soft terminator and one soft step into the night, softer at the limb.
-- **Every world has it** (#52; Ember, the star, doesn't). Each has an entry in `ROCKY_LOOK`
+- **Every world has it** (#52). Each has an entry in `ROCKY_LOOK`
   (rock, dust, speckle, streak, rim and night colours, the night fill's and rim's strength
   `nightK` / `rimK`, the relief's strength `ao`, how rare and bright its speckles are) or in
   `GAS_LOOK` (storms, drift, rim, night), with its bands in `GAS_BANDS`. A gas giant's ring
@@ -857,6 +857,14 @@ ground stays the visible mesh), and nothing adds draw calls or textures
     slopes and detail out below the world's liquid (seabeds and lake floors seen through water
     look as before; lava hides its pools) and round the spots in the look's `keep` list
     (Sizzle's glowing vents, Frosty's glowing cracks).
+  - *Tuning* (#53): Homestead's relief is stronger (valleys, hills and coasts read from space)
+    and its rim softer; Frosty's cliffs are tinted icier; the comet is darker than coal (`darken`
+    darkens its dusty ice but not the bright frost, and `ambientK` takes most of the sky's blue
+    light off it); Misty's dune crests are painted paler than their troughs (`terrain.js`), so
+    the dunes read through the haze; Dusty's and Sizzle's night fill is slate-blue (a pure blue
+    over orange read mauve); Tumble's rim is softer.
+  - *Ember* has soft, slowly boiling granules and a darker orange limb (`starShimmer()`: two
+    noise lookups on the star's own pixels, real time).
   - *Rims:* none from low down (the buggy's camera on tiny Nibble is two radii out); the comet
     (`rimSurface`) uses its real surface, since its lobes are far from round; Misty's is faint
     under the haze, like its night fill.
