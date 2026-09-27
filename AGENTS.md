@@ -529,6 +529,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - **Headless screenshots time out after many stepped frames**: SwiftShader seems to queue every
   frame's GL work until the screenshot. Stub `app.renderer.render = () => {}` while stepping and
   put it back just before the shot (#33).
+- **Terrain features only a few mesh vertices across look faceted**, and anything with a
+  slope crease (`1 - |noise|`, a piecewise profile) shows the crease as a ring of sharp
+  facets. Keep ground shapes smooth (smoothstep / polynomial blends that join level) and a
+  feature at least three or four vertex spacings across (`DETAIL` in `planets.js`); the
+  shading baked or worked out per vertex follows the same vertices (#56: Pebble's craters).
 - **Screen markers: don't animate `scale` on the marker itself.** Markers are placed with
   `transform: translate(...)`, and CSS applies the `scale` property on top of that, so a
   bobbing marker drifted away from its spot by up to 30% of its screen position (the 🚀 pin

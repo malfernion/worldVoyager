@@ -16,8 +16,9 @@ import { mulberry32 } from '../physics/noise.js';
 import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
-// for its lakes' shores and its dunes' crests.)
-const DETAIL = { homestead: 64, pebble: 28, dusty: 48, nibble: 16, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 20 };
+// for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
+// their small craters have enough vertices across to look round: about 2.4, 1.3 and 1.8 m apart.)
+const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);

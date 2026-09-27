@@ -822,11 +822,15 @@ ground stays the visible mesh), and nothing adds draw calls or textures
   - *Relief:* baked into the vertex colours once, when the mesh is built. Each vertex is
     compared with the average height round it at three sizes (`reliefShade()`, scaled by the
     world's own bumpiness), so crater floors and valleys are darker, and rims and ridges lighter.
+    Then it's softened over each vertex's neighbours twice (#56): unsoftened, small craters on a
+    coarse mesh shaded as angular, triangle-shaped patches.
   - *Detail:* wind streaks and small pale speckles, in object space (two value-noise lookups,
     crisp two-tone edges). They fade out once a pixel covers more than they do, so there's no
     grain from far away.
-  - *Slopes:* each triangle's own slope (from screen derivatives, so the facets show) tints
-    steep faces rocky and flat ones dusty.
+  - *Slopes:* the ground's slope tints steep ground rocky and flat ground dusty. It comes from
+    the smooth vertex normals, blended across each triangle (#56); each triangle's own slope
+    (the first version) made jagged, triangle-shaped rock patches inside small craters. The
+    thresholds were re-tuned so about as much ground reads as rock as before (Dusty about 24%).
   - *Rim and night:* a sunlit rim round the world, seen from space, and a moonlight-blue fill on
     the night side. Both come from the world's round shape, not the bumps (which would light
     every slope).
@@ -873,7 +877,21 @@ ground stays the visible mesh), and nothing adds draw calls or textures
   - Gas giant: one noise lookup, an `atan` and a few `sin`s, plus the storms.
   - No textures, and the same draw calls and triangles. Three more shader programs.
   - The relief bake takes about 240 ms for all nine rocky worlds together on a desktop (Dusty and
-    Homestead about 60 ms each), once at load.
+    Homestead about 60 ms each), once at load. Softening it (#56) adds about 1 ms per world.
+- **Round craters** (#56). The owner found crater rims too low-poly and the shading inside them
+  angular. Besides the softer relief and slopes above:
+  - *Profile:* `craterProfile()` (`terrain.js`) is smooth all the way: a bowl as round at the
+    bottom as before, bending over into a level crest at the rim, and the ejecta falling away
+    smoothly. The old one had a sharp crease at the rim, which the mesh showed as a ring of
+    facets. Depth and rim height are unchanged (-1 and +0.35 of the crater's `deep`), so
+    landing sites and Nibble's crater discovery are too.
+  - *Mesh:* the cratered worlds' meshes are finer (`DETAIL` in `planets.js`): Pebble 28 → 36,
+    Nibble 16 → 24, Ducky 20 → 24, so vertices are about 2.4, 1.3 and 1.8 m apart and a small
+    crater has a few rings of them across. That's 27k, 12.5k and 12.5k triangles (Dusty has
+    48k), and about 70 ms more mesh building at load on a desktop, most of it three.js's
+    icosphere and `mergeVertices`.
+  - Still faceted: the toon light's steps follow the triangles, so its band edges stay a little
+    angular on the smallest worlds (Nibble, Ducky). That's the game's chunky look everywhere.
 
 ## Ideas for later
 
