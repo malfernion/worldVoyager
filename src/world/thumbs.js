@@ -20,7 +20,9 @@ function snap(scene, camera, size) {
   return r.domElement.toDataURL('image/png');
 }
 
-function lights(scene, sunDir = new THREE.Vector3(1, 0.6, 0.8)) {
+const THUMB_SUN = new THREE.Vector3(1, 0.6, 0.8);
+
+function lights(scene, sunDir = THUMB_SUN) {
   scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x3a2a40, 1.1));
   const d = new THREE.DirectionalLight(0xfff0d8, 2.6);
   d.position.copy(sunDir);
@@ -54,6 +56,15 @@ export function planetThumb(visual, size = 160) {
   obj.rotation.x = body.id === 'homestead' ? 0.5 : 0.25;
   obj.rotation.y = -0.4;
   camera.lookAt(0, 0, 0);
+  // Shaders that shade by the sun (#51: rim, night fill, ring shadows) read the world's shared
+  // view-space sun direction: point it at this picture's light while it's taken.
+  if (visual.sunDir) {
+    const keep = visual.sunDir.clone();
+    visual.sunDir.copy(THUMB_SUN).normalize();
+    const url = snap(scene, camera, size);
+    visual.sunDir.copy(keep);
+    return url;
+  }
   return snap(scene, camera, size);
 }
 

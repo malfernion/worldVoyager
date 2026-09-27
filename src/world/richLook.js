@@ -126,12 +126,15 @@ const RIM_NIGHT = /* glsl */ `
     float sunK = dot(rad, rlSun);
     #ifdef RL_RIM
       float edge = 1.0 - clamp(dot(rad, normalize(vViewPosition)), 0.0, 1.0);
-      float rim = smoothstep(0.68, 0.9, edge) * smoothstep(-0.15, 0.35, sunK) * smoothstep(1.25, 1.8, rlFar);
-      outgoingLight += rlRimColor * rim * 0.3;
+      // A cartoon rim: a band of sunlight hugging the lit edge, crisp inside, fading out.
+      float rim = smoothstep(0.6, 0.72, edge) * (0.55 + 0.45 * smoothstep(0.72, 0.95, edge));
+      rim *= smoothstep(-0.2, 0.3, sunK) * smoothstep(1.25, 1.8, rlFar);
+      outgoingLight += rlRimColor * rim * 0.55;
     #endif
     #ifdef RL_NIGHT
-      // (Linear light: a little goes a long way.)
-      outgoingLight += diffuseColor.rgb * rlNightColor * 0.25 * (1.0 - smoothstep(-0.35, 0.1, sunK));
+      // Moonlight-blue fill: the ground's own colour, cooled and lifted (linear light, so modest).
+      float nightK = 1.0 - smoothstep(-0.3, 0.1, sunK);
+      outgoingLight += (diffuseColor.rgb * 0.75 + 0.25) * rlNightColor * rlNightK * nightK;
     #endif
   }
 `;
@@ -152,6 +155,7 @@ const FRAG_PARS = /* glsl */ `
   uniform vec3 rlSun;
   uniform vec3 rlRimColor;
   uniform vec3 rlNightColor;
+  uniform float rlNightK;
   varying vec3 rlObj;
   varying vec3 rlRadial;
   varying float rlFar;
@@ -167,11 +171,12 @@ function defines(list) {
 /**
  * Each trial world's extra colours: `rock` for steep faces, `dust` for flat ground, `speck` and
  * `streak` for the fine detail, `rim` the sunlit edge, `night` the night side's fill (added, so
- * small), and `ao` the baked relief's strength.
+ * small), `ao` the baked relief's strength and `speckle` [how rare (0..1, higher: fewer), how bright]
+ * the pale pebbles are (Pebble's bright regolith and ejecta).
  */
 export const ROCKY_LOOK = {
-  dusty: { rock: 0x7e3a22, dust: 0xe79a66, speck: 0xf6c49a, streak: 0x9a452a, rim: 0xffc890, night: 0x1e2c66, ao: { dark: 0.4, light: 0.16 } },
-  pebble: { rock: 0x746d64, dust: 0xd9d4ca, speck: 0xf4f1ea, streak: 0x8c857b, rim: 0xfff2dc, night: 0x243466, ao: { dark: 0.42, light: 0.16 } },
+  dusty: { rock: 0x7e3a22, dust: 0xe79a66, speck: 0xf6c49a, streak: 0x9a452a, rim: 0xffc890, night: 0x24388a, nightK: 0.28, ao: { dark: 0.4, light: 0.16 }, speckle: [0.8, 0.45] },
+  pebble: { rock: 0x746d64, dust: 0xd9d4ca, speck: 0xfdfcf8, streak: 0x8c857b, rim: 0xfff2dc, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.32 }, speckle: [0.72, 0.8] },
 };
 
 /** Baked relief shading for a trial world's terrain colours (in place), if it's switched on. */
@@ -197,10 +202,13 @@ export function richRocky(mat, body, sunDir) {
     rlRadius: { value: body.radius },
     rlRimColor: { value: raw(look.rim) },
     rlNightColor: { value: raw(look.night) },
+    rlNightK: { value: look.nightK },
     rlRock: { value: raw(look.rock) },
     rlDust: { value: raw(look.dust) },
     rlSpeck: { value: raw(look.speck) },
     rlStreak: { value: raw(look.streak) },
+    rlSpeckAt: { value: look.speckle[0] },
+    rlSpeckK: { value: look.speckle[1] },
   };
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -210,6 +218,8 @@ export function richRocky(mat, body, sunDir) {
       uniform vec3 rlDust;
       uniform vec3 rlSpeck;
       uniform vec3 rlStreak;
+      uniform float rlSpeckAt;
+      uniform float rlSpeckK;
     ` + shader.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}`)
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n#include <opaque_fragment>`);
@@ -225,8 +235,8 @@ const ROCKY_COLOR = /* glsl */ `
       // Each triangle's own slope (from screen derivatives), so the colour keeps the facets.
       vec3 faceN = normalize(cross(dFdx(rlObj), dFdy(rlObj)));
       float level = abs(dot(faceN, normalize(rlObj)));
-      float steep = 1.0 - smoothstep(0.8, 0.84, level);
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, steep * 0.45);
+      float steep = 1.0 - smoothstep(0.84, 0.87, level);
+      diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, steep * 0.72);
       diffuseColor.rgb = mix(diffuseColor.rgb, rlDust, smoothstep(0.93, 0.975, level) * 0.22);
     #endif
     #ifdef RL_DETAIL
@@ -240,7 +250,7 @@ const ROCKY_COLOR = /* glsl */ `
       // Speckles: little pale pebbles and dark pits, about a metre across.
       float fn = rlNoise(rlObj * 1.7);
       float speckK = 1.0 - smoothstep(0.06, 0.25, px);
-      diffuseColor.rgb = mix(diffuseColor.rgb, rlSpeck, smoothstep(0.8, 0.82, fn) * 0.45 * speckK);
+      diffuseColor.rgb = mix(diffuseColor.rgb, rlSpeck, smoothstep(rlSpeckAt, rlSpeckAt + 0.02, fn) * rlSpeckK * speckK);
       diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, (1.0 - smoothstep(0.17, 0.19, fn)) * 0.3 * speckK);
     #endif
     // Mixing in the extra colours greys things a little: win the colour back (bright for kids).
@@ -265,12 +275,14 @@ export const GAS_LOOK = {
     drift: 0.35,
     rim: 0xfff0cc,
     night: 0x1c2250,
+    nightK: 0.12,
   },
   tumble: {
     storms: [{ lat: -0.3, lon: 1.2, size: [0.16, 0.09], colors: [0x6cbcbc, 0xc9f2ee, 0xf2fffd], turn: 0.1 }],
     drift: 0.2,
     rim: 0xe0fffb,
     night: 0x162a50,
+    nightK: 0.12,
   },
 };
 
@@ -323,7 +335,10 @@ export function gasMaterial(body, sunDir) {
     rlRadius: { value: body.radius },
     rlRimColor: { value: raw(look.rim) },
     rlNightColor: { value: raw(look.night) },
+    rlNightK: { value: look.nightK },
     gAxis: { value: axis },
+    gE1: { value: e1 },
+    gE2: { value: e2 },
     gBands: { value: palette },
     gCount: { value: bands.bands.length },
     gStripes: { value: bands.stripes },
@@ -380,25 +395,26 @@ export function gasMaterial(body, sunDir) {
   };
 }
 
-// Toon light bands like the shared 4-step gradient (materials.js), but their edges soften
-// towards the limb, so a big round planet looks round rather than sliced.
+// Toon light for a big round planet: the shared 4-step gradient (materials.js) cut hard lines
+// right across it (its step at half-lit was the vertical stripe), so here the day side is one
+// flat tone, with a soft terminator and one soft step into the night; both soften more
+// towards the limb, so the planet looks round rather than sliced.
 // (vViewPosition is declared after this chunk, so main() copies it into rlViewDir first.)
 const SOFT_GRADIENT = /* glsl */ `
   vec3 rlViewDir = vec3(0.0, 0.0, 1.0);
   vec3 getGradientIrradiance(vec3 normal, vec3 lightDirection) {
     float d = dot(normal, lightDirection);
     float limb = 1.0 - clamp(dot(normal, rlViewDir), 0.0, 1.0);
-    float w = mix(0.03, 0.22, limb * limb);
-    float g = 70.0 / 255.0;
-    g += (70.0 / 255.0) * smoothstep(-0.5 - w, -0.5 + w, d);
-    g += (65.0 / 255.0) * smoothstep(-w, w, d);
-    g += (50.0 / 255.0) * smoothstep(0.5 - w, 0.5 + w, d);
+    float w = mix(0.08, 0.25, limb * limb);
+    float g = 60.0 / 255.0;
+    g += (55.0 / 255.0) * smoothstep(-0.5 - w, -0.5 + w, d);
+    g += (140.0 / 255.0) * smoothstep(-0.05 - w, 0.15 + w, d);
     return vec3(g);
   }
 `;
 
 const GAS_PARS = /* glsl */ `
-  uniform vec3 gAxis;
+  uniform vec3 gAxis, gE1, gE2;
   uniform vec3 gBands[8];
   uniform int gCount;
   uniform float gStripes;
@@ -445,50 +461,68 @@ const GAS_PARS = /* glsl */ `
     float jet = sin(lat * 9.0) * 0.6 + sin(lat * 23.0 + 1.3) * 0.4;
     float ang = jet * gDrift;
     float cs = cos(ang), sn = sin(ang);
-    p = p * cs + cross(gAxis, p) * sn + gAxis * dot(gAxis, p) * (1.0 - cs);
-    float w = 0.0;
-    float turb = 0.5;
+    p = p * cs + cross(gAxis, p) * sn + gAxis * lat * (1.0 - cs);
+    float lon = atan(dot(p, gE2), dot(p, gE1));
+    float pole = abs(lat);
+    float bandLat = 2.0 / (float(gCount - 1) * gStripes); // one band's width in lat
+    float lat2 = lat;
     #ifdef RL_CLOUDS
-      // Domain-warped turbulence: a big slow wobble, then swirls pushed about by it.
-      // Stretched along the bands (three times finer across them), like real cloud belts.
-      vec3 q = (p + gAxis * (lat * 2.0)) * 3.0;
-      w = rlNoise(q + vec3(0.0, 0.0, gTime * 0.004)) * 0.65 + rlNoise(q * 2.1 + 7.0) * 0.35 - 0.5;
-      vec3 qq = q * 2.6 + vec3(w * 2.4, -w * 1.7, gTime * 0.007);
-      turb = rlNoise(qq) * 0.6 + rlNoise(qq * 2.3 + 3.0) * 0.4;
+      // Gentle waves along the band edges (calmer towards the poles), slowly rolling.
+      lat2 += bandLat * (0.12 * sin(lon * 7.0 + lat * 13.0 + gTime * 0.006) + 0.06 * sin(lon * 13.0 - lat * 29.0 - gTime * 0.004)) * (1.0 - pole * pole);
     #else
-      w = rlNoise(p * 3.0) - 0.5;
+      lat2 += (rlNoise(p * 3.0) - 0.5) * gWarp;
     #endif
-    float f = (lat + w * gWarp * 1.6 + 1.0) * 0.5 * float(gCount - 1) * gStripes;
+    float f = (lat2 + 1.0) * 0.5 * float(gCount - 1) * gStripes;
     float fl = floor(f);
     float fr = f - fl;
     vec3 a = gBand(fl);
     vec3 b = gBand(fl + 1.0);
-    vec3 c = mix(a, b, smoothstep(0.44, 0.56, fr + (turb - 0.5) * 0.45));
+    // Crisp band edges (bands meet where fr = 0.5).
+    vec3 c = mix(a, b, smoothstep(0.47, 0.53, fr));
     #ifdef RL_CLOUDS
-      // Crisp little eddies of the neighbouring band's colour along the band edges, and a few
-      // pale puffs.
-      // (Bands meet where fr = 0.5.)
-      float nearEdge = 1.0 - smoothstep(0.3, 0.8, abs(fr - 0.5) * 2.0);
-      c = mix(c, fr < 0.5 ? b : a, smoothstep(0.6, 0.63, turb) * nearEdge * 0.8);
-      c = mix(c, vec3(1.0, 0.98, 0.93), smoothstep(0.74, 0.76, turb) * 0.25);
+      // Cartoon curls where two bands meet: a few per edge (N cells round the planet, some
+      // empty), each a little spiral of both bands' colours, turning slowly.
+      float N = 11.0;
+      float u = (lon / 6.2831853 + 0.5) * N;
+      float cell = floor(u);
+      float h = fract(sin(fl * 12.9898 + mod(cell, N) * 78.233) * 43758.5453);
+      float h2 = fract(h * 91.7);
+      float du = (u - cell - 0.5 - (h2 - 0.5) * 0.4) * 6.2831853 * sqrt(max(0.0, 1.0 - lat * lat)) / N / (bandLat * 0.5);
+      float dv = (fr - 0.5) * 2.0; // in half-bands
+      float r = length(vec2(du, dv));
+      float R = 0.8 + 0.35 * h2;
+      if (h < 0.5 && r < R && pole < 0.75) {
+        float dir = h < 0.25 ? 1.0 : -1.0;
+        float spiral = fract(dir * atan(dv, du) / 6.2831853 + r / R * 0.85 - gTime * 0.004 * dir);
+        vec3 curl = mix(a, b, smoothstep(0.46, 0.54, spiral));
+        c = mix(c, curl, 1.0 - smoothstep(R - 0.08, R, r));
+      }
+      // Faint pale streaks running along the bands.
+      float st = rlNoise((p + gAxis * (lat * 7.0)) * 4.0 + vec3(0.0, 0.0, gTime * 0.002));
+      c = mix(c, vec3(1.0, 0.98, 0.93), smoothstep(0.68, 0.71, st) * 0.18 * (1.0 - pole));
     #endif
+    // A soft polar cap: calm, pale, a little of the first band's colour.
+    c = mix(c, mix(gBand(0.0), vec3(1.0, 0.97, 0.9), 0.35), smoothstep(0.86, 0.95, pole) * 0.75);
     // A little more colour than the vertex bands had (kids like it bright).
     c = mix(vec3(dot(c, vec3(0.333))), c, 1.25);
     #ifdef RL_STORM
       c = gStorm(p, c, gStorm0C, gStorm0E, gStorm0N, gStorm0A, gStorm0B, gStorm0D, gStorm0T, gStorm0On);
       c = gStorm(p, c, gStorm1C, gStorm1E, gStorm1N, gStorm1A, gStorm1B, gStorm1D, gStorm1T, gStorm1On);
     #endif
-    return c;
+    return clamp(c, 0.0, 1.0);
   }
 
   // How much the rings block the sun at p (unit sphere; the rings are in radii too).
   float gRingDensity(float r) {
     float t = (r - gRing.x) / (gRing.y - gRing.x);
-    if (t < 0.0 || t > 1.0) return 0.0;
-    float a = 0.55 + 0.35 * sin(t * 40.0 + 0.3) * sin(t * 7.0);
-    if (t > 0.58 && t < 0.63) a *= 0.12;
-    a *= mix(0.3, 1.0, smoothstep(0.0, 0.04, t) * (1.0 - smoothstep(0.97, 1.0, t)));
-    return clamp(a, 0.0, 1.0);
+    if (t < -0.03 || t > 1.03) return 0.0;
+    float soft = smoothstep(-0.03, 0.02, t) * (1.0 - smoothstep(0.98, 1.03, t)); // soft outer edges
+    // Broadly like the rings' texture (planets.js ringTexture), smoothed so the shadow reads
+    // as a shadow, not as rings: denser middle, the Cassini-style gap, faint edges.
+    float a = 0.8 + 0.15 * sin(t * 9.0 + 0.5);
+    a *= 1.0 - 0.85 * smoothstep(0.565, 0.585, t) * (1.0 - smoothstep(0.625, 0.645, t));
+    a *= mix(0.35, 1.0, smoothstep(0.0, 0.06, t) * (1.0 - smoothstep(0.94, 1.0, t)));
+    return clamp(a * soft, 0.0, 1.0);
   }
 `;
 
@@ -500,8 +534,11 @@ const RING_SHADOW_ON_PLANET = /* glsl */ `
     float up = dot(gSunObj, gAxis);
     float s = -dot(p, gAxis) / (abs(up) < 1e-3 ? 1e-3 : up);
     if (s > 0.0) {
-      float rr = length(p + gSunObj * s);
-      reflectedLight.directDiffuse *= 1.0 - 0.45 * gRingDensity(rr);
+      // A real shadow: most of the sunlight gone, a touch of the sky light too (only where the
+      // sun shines, so the night side is untouched), warm-dark rather than grey.
+      float sh = gRingDensity(length(p + gSunObj * s)) * smoothstep(-0.05, 0.15, dot(p, gSunObj));
+      reflectedLight.directDiffuse *= 1.0 - 0.82 * sh;
+      reflectedLight.indirectDiffuse *= 1.0 - 0.3 * sh;
     }
   }
   #endif

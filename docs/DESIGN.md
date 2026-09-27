@@ -815,8 +815,9 @@ bands. The owner chose a *richer cartoon* look (keep the chunky shapes and hard 
 bands; add depth, detail and motion), tried first on Ringo, Dusty and Pebble
 (`VISUALS.worlds` in `src/world/richLook.js`) and judged from before/after screenshots.
 Nothing changes geometry (the physics ground stays the visible mesh) or adds draw calls or
-textures; each idea has its own flag so it can be kept or dropped, and `?look=old` (all off)
-or `?look=-ao,-storm` (some off) compares them in the browser.
+textures. The game has **one look**, never a player setting: each idea has a flag only as a
+developer tool for comparing (`?look=old` all off, `?look=-ao,-storm` some off), and once the
+owner approves, dropped ideas are deleted from the code rather than left switched off.
 
 - **Rocky worlds.** `ao`: relief shading baked into the vertex colours once, when the mesh is
   built: each vertex against the average height round it at three sizes (`reliefShade()`,
@@ -827,16 +828,20 @@ or `?look=-ao,-storm` (some off) compares them in the browser.
   tints steep faces rocky and flat ones dusty. `rim` and `night`: a thin sunlit rim round the
   world, seen from space, and a faint cool fill on the night side, both from the world's round
   shape, not the bumps (which would light every slope).
-- **Gas giants.** `clouds`: bands worked out per pixel from the same palette (`GAS_BANDS` in
-  `terrain.js`) with domain-warped turbulence stretched along the bands and little eddies where
-  bands meet; neighbouring bands drift at different speeds, back and forth over 15 minutes, so
+- **Gas giants.** `clouds`: clean cartoon bands worked out per pixel from the same palette
+  (`GAS_BANDS` in `terrain.js`): crisp edges with gentle rolling waves, a few little spiral
+  curls of both colours where bands meet, faint pale streaks, and a soft calm polar cap (v1's
+  domain-warped turbulence read as blotchy stains, so it went); neighbouring bands drift at different speeds, back and forth over 15 minutes, so
   the shear never builds up into sub-pixel stripes. Their clock follows game time but never
   faster than 20× real time, so time warp doesn't strobe them. `storm`: two turning ovals with
-  spiral arms. `ringShadows`: the rings' shadow on the planet and the planet's on the rings,
-  worked out analytically. `softLimb`: the toon light bands soften towards the edge. Generic
+  spiral arms. `ringShadows`: the rings' shadow on the planet (dark, soft-edged, with
+  the ring gap, only where the sun shines) and the planet's on the rings, worked out
+  analytically. `softLimb`: the shared 4-step toon gradient cut hard straight lines across a big
+  sphere (its step at half-lit was a vertical stripe down the middle), so the gas giant's day
+  side is one tone with a soft terminator and one soft step into the night, softer at the limb. Generic
   over the spin axis and palette (`GAS_LOOK` has Tumble's look ready).
-- **Cost.** Rocky: two noise lookups (16 hashes) and a few mixes per pixel; gas giant: four
-  noise lookups plus the storms' `atan`/`sin`; no textures, same draw calls and triangles, and
+- **Cost.** Rocky: two noise lookups (16 hashes) and a few mixes per pixel; gas giant: one
+  noise lookup, an `atan` and a few `sin`s, plus the storms' `atan`/`sin`; no textures, same draw calls and triangles, and
   three more shader programs. The relief bake takes about 60 ms for Dusty (24k vertices) on a desktop, once at load.
 
 ## Ideas for later
