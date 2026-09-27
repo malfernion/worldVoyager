@@ -347,7 +347,7 @@ const ROCKY_COLOR = /* glsl */ `
  * `turn` is how fast the vortex swirls; the hexagon turns with the planet.
  */
 export const HEXAGON = {
-  size: 0.32, width: 0.055, eye: 0.09, turn: 0.12,
+  size: 0.213, width: 0.037, eye: 0.06, turn: 0.12, // two-thirds of the first try, on the owner's ask
   colors: { band: 0x0f3f8a, core: 0xa8f0ff, inside: 0x3a88c4, rim: 0x0a2656, body: 0x1f5aa8, eye: 0xeafcff },
   glow: 0x8fe8ff, // its jet glows softly on the night side, like an aurora
 };
