@@ -14,6 +14,10 @@ patches and a "ghost" of the moon where you'll meet it. We keep all of that. Pat
 from the conic's geometry, except near-vertical ones (a squashed conic whose geometry
 degenerates to the planet's centre), which are sampled in time instead: a kid sees the
 straight up-and-down line, ▲ at the top and 💥 at the bottom, from the moment of liftoff.
+The worlds' orbits are drawn too (bold on the map, faint in the flight view), but they're for
+flying: they lie in the flight plane and a world's own orbit runs through its middle, so they're
+hidden while driving the buggy, and in the flight view a line through the world we're at fades
+out while we're close to it (#48).
 
 **What KSP makes hard, and we drop:** fuel and staging (every rocket has endless fuel), structural
 wobble, aerodynamics and heat, maneuver-node editing, inclination (everything is in one

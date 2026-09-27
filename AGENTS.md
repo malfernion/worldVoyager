@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), orbit lines never through the ground (#48), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -111,7 +111,9 @@ src/rocket/            Parts catalogue + stats, procedural rocket and buggy mesh
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
                        `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
-                       Misty's orange haze near its ground `updateHaze()`, #46), drive.js (buggy mode)
+                       Misty's orange haze near its ground `updateHaze()`, #46; orbit lines and the path: `updateLines()`, hidden
+                       while driving, and in the flight view a line through the world we're at fades close up: `lineShown()`, #48),
+                       drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
                        HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
@@ -134,7 +136,9 @@ test/                  vitest suites; missions.js has the shared headless flight
                        edge from every side (never in, never stuck), hops over it, laps round Sizzle;
                        misty.test.js: Misty (#46): its orbit, the lakes' placement, the crash, landings beside them from all round
                        and after trips there (🤖 and 🧭), every buggy through every lake, laps across one
-                       garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37)
+                       garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
+                       orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
+                       world no orbit line through its ground (#48)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
 ```
 
@@ -564,5 +568,15 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   lava's edge `lavaEdge()` turns it with the steering directly.
 - A custom `ShaderMaterial` isn't converted to the output colour space by itself; add
   `#include <colorspace_fragment>` (the sea's colours came out wrong without it).
+- **Orbit lines run through worlds** (#48). Every orbit line and the path lie in the flight plane
+  (z = 0), and a world's own orbit line goes through its middle; so can its planet's (Nibble and
+  Flip sit right on it twice a lap) and the comet's ellipse, which crosses the planets' orbits. The
+  flight camera looks at the plane from the front, so the ground hides most of that, but from the
+  buggy's chase camera (and low beside a small moon) the line rose out of the ground as a thin
+  straight line across the sky (seen in the #44 to #46 screenshots; it isn't a headless artefact).
+  So `updateLines()` hides the whole `lineGroup` and the ghosts while driving, and in the flight
+  view `lineShown()` fades any orbit line that passes within 1.5 to 2 radii of the world we're at,
+  unless the camera is far enough out (3 to 8 radii) for the world to be small. The map shows
+  everything. Anything else drawn in the flight plane (a new line or marker mesh) needs the same care.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).
