@@ -1164,53 +1164,72 @@ same soft style, reusing the cloud layer rather than building a parallel system.
   as wider, fainter streaks pulled out 2.2 times (`wisp`), three long streaky bands (`fronts`
   with `stretch`, `dens`, `h`) and only the odd small clump, fainter than a wisp
   (`puffDens`). The whole layer shows at most 42% (`opacity`), in a pale white with a lilac
-  shade. Their bases are 29 to 34 m up (the air's glow reaches about 31 m on Dusty, so at the
-  limb they stand as faint streaks and puffs just at its edge; higher, they floated out in
-  space as bright arcs), well above the storms and under the 50 m space line. No shadows
-  (`shadow: 0`: nothing baked, the ground's shader untouched): they're far too thin.
+  shade. Their bases are 29 to 34 m up (the air's glow reaches about 31 m on Dusty; higher,
+  they floated out in space as bright arcs), well above the storms' haze and under the 50 m
+  space line. No shadows (`shadow: 0`: nothing baked, the ground's shader untouched).
+- **Puffs at the edge, not arcs.** Seen side-on at the limb a thin layer's streaks were thin
+  arcs round the planet; the owner prefers Homestead's soft puffs standing above the glow. So
+  with `limbRound` the vertex shader turns a sprite that is seen side-on (its up nearly square
+  to the line of sight) round, up to 2.3 times bigger and denser: at the edge the streaks merge
+  into a soft band of puffs just above the glow. Homestead has no `limbRound`, so its shader
+  sums are the same.
 - **Dust storms from space.** Two regional storms (`STORM_LOOK`): one in the middle of the face
   the map and orbit views see, one across the flight plane (so a landing, now and then, is in
-  it; about an eighth of the flight plane is under it at any time). Each is a lumpy ellipse
-  (about 240 × 160 m and 185 × 130 m on a 220 m world; together about 5% of the surface) filled
-  with cells on a jittered grid, and each cell is a cloud of the cloud layer's own kind (95 in
-  all, 466 sprites), in a second layer with dusty colours: in its front (the edge it drifts
-  towards) tall billowing clumps, inside a low flat haze drawn out a little along the wind,
-  and at its back frayed streaks; thinner towards its edges except at the front. They sit 11 m
-  up (most hills stay under; the volcano pokes through, like Olympus Mons above Mars's
-  storms) and are drawn before the high clouds. The first colours matched the ground so well
-  the storms vanished; they're a paler dusty cream, so from space they read as a soft veil over
-  the red ground with a lumpy bright front. The layer turns about z at 0.002 rad/s of real
-  time (the storm across the plane passes a landing site in about 7 minutes).
+  it). Each is a lumpy ellipse (about 270 × 180 m and 200 × 145 m on a 220 m world; together
+  about 6% of the surface, so most of the ground stays clear) filled with cells on a jittered
+  grid, and each cell is a cloud of the cloud layer's own kind (113 in all, 539 sprites), in a
+  second layer. The first version was too faint (its colours matched the ground, and it was
+  thin): the owner asked for bolder storms. Now they're a light ochre-cream veil (`lit`
+  0xfbe0a8) that is dense enough to hide the terrain's detail under it: inside, a low haze of
+  few big sprites drawn out a little along the wind; at the back frayed streaks; and along the
+  front (the edge it drifts towards) a wall of big billowing clumps, 16 to 34 m tall (tallest
+  right at the edge, their tops under the space line), so from orbit the front is a lumpy bright
+  rim and at the limb the storm stands up as big dusty puffs. The cells' bases sit 11 m up
+  (most hills stay under; the volcano pokes through, like Olympus Mons above Mars's storms);
+  the layer is drawn before the high clouds. It turns about z at 0.002 rad/s of real time (the
+  storm across the plane passes a landing site in about 8 minutes).
 - **Where the storms are is pure** (`stormAt()`): the direction turned back by the drift, then a
   few multiplies per storm, soft between 55% and 100% of the way to the lumpy edge. The haze
-  asks it once a frame about the camera.
+  asks it once a frame about the camera. `stormNear()` says the same for one coming: from its
+  edge out to 2.6 times as far, how close, which way along the ground and how wide it looks.
+- **Seeing one coming.** Dusty is so small that its horizon is only 40 to 80 m off, and even a
+  40 m wall 150 m away is below it, so the real cells only show once a storm is close. The sky
+  dome (`hazeSky`, its `bank` uniforms, set in `updateHaze()`) paints a bank of billowing dust
+  along the horizon the way the storm is: rounded lobes along its top that churn slowly, dark
+  dusty brown at its foot and lit at the top, higher and wider as it nears, counted from the
+  real horizon (which dips well below level when the camera is up high: the first try, counted
+  from level, filled the whole sky). It fades as the camera goes in (the haze takes over), and
+  with height. A few multiplies in the dome's shader, no extra draw call; 0 on every other
+  world.
 - **Down in a storm** (`SKY_LOOK.dusty.storm`, `FlightScene.updateHaze()`, only the #61 sky
   machinery): as deep as the camera is in one (full below 45 m up, gone by 110 m), the sky dome
-  turns dusty tan (dark by night), its sun glow and blue sunset band are smothered, it hides
-  more of space (`veil` 0.96: the stars nearly go), and the distance fogs over in the horizon's
-  colour, from what the camera follows out to 75 m beyond it: the far hills go soft, the buggy
-  and rocket stay crisp (a mood, not a whiteout; on a world this small the horizon is only 40 to
-  80 m away). The storm's own cells fade to 10% around the camera, since from inside they were
-  only brown blotches in the sky.
-- **Blowing dust** (`createStreams()`): 340 thin streaks and 44 faint puffs in a 44 m box round
-  what the camera follows (the buggy, or the ground under the rocket), 0.3 to 4.5 m up, blowing
-  east on the wind. Each is a loop in the vertex shader (like the embers): it fades in, is
-  carried along with its own gust, fades out and starts again somewhere else. They're anchored
-  to the ground, not the camera: the CPU only adds the wind to an offset each frame, wrapped
-  every 44 m (the box repeats along x, y and z, so the wrap never jumps). Streaks are drawn out
-  along the wind; everything fades near the lens, at the box's sides, when big on screen, and
-  across the line of sight to the rocket and buggy (the clouds' foci). Hidden, with no draw
-  call, outside a storm.
+  turns dusty tan, its sun glow and blue sunset band are smothered, it hides more of space
+  (`veil` 0.96: the stars nearly go), and the distance fogs over in the horizon's colour, from
+  what the camera follows out to 75 m beyond it: the far hills go soft, the buggy and rocket
+  stay crisp (a mood, not a whiteout). By night it's a faint dusty glow low down under a dark
+  sky, not one flat brown. The storm's own cells round the camera fade out (they're faded as if
+  3.5 times bigger, so they're dropped rather than drawn faint) and the rest thin to 10%.
+- **Blowing dust** (`createStreams()`): 380 streaks and 36 faint puffs in a 56 m box round what
+  the camera follows (the buggy, or the ground under the rocket), 0.6 to 7 m up (buggy and
+  rocket height, so they stream across the view rather than lie on the ground like marks, as the
+  first try's did), blowing east on the wind. Each is a loop in the vertex shader (like the
+  embers): it fades in, is carried along with its own gust, fades out and starts again
+  somewhere else. They're anchored to the ground, not the camera: the CPU only adds the wind to
+  an offset each frame, wrapped every 56 m (the box repeats along x, y and z, so the wrap never
+  jumps). Streaks are drawn out along the wind; they fade within 1.5 to 4 m of the lens, at the
+  box's sides, when too wide on screen (a streak's width, and more loosely its length; a puff's
+  size), and across the line of sight to the rocket and buggy (the clouds' foci). Hidden, with
+  no draw call, outside a storm.
 - **Cost** (measured, 844 × 390): draw calls +2 on Dusty (the two layers; +3 in a storm), e.g. 85
   → 87 on the pad, 94 → 96 in orbit; Homestead unchanged (149). Soft-sprite overdraw of all
-  three meshes 0.06 (orbit) to 0.85 (in a storm on the pad) and 1.21 (landed zoomed out, the
-  storm around the horizon) layers per screen pixel, 0.54 for the map's globe. Per-frame script
-  for the fades, the haze and the dust about 0.04 ms more (both layers' ~190 cells); nothing
-  allocated. Plans take about 20 ms at load.
+  three meshes: 0.08 (orbit), 0.12 (flight-view globe), 0.74 (the map's globe), 0.44 (landed
+  with a storm coming), 0.51 (landed in a storm; the blowing dust alone about 0.4), 0.45 driving
+  in one, and at most 1.41 landed zoomed out beside one (the wall filling the view), within the
+  clouds' budget (Homestead's worst is 1.38). Per-frame script for the fades, the haze and the
+  dust under 0.1 ms (both layers' ~200 cells); nothing allocated. Plans take about 20 ms at load.
 - **Not done:** the storms don't grow, shrink or change shape (a rigid turn is what keeps them
-  free), and the storm near the flight plane is often beyond the horizon from the pad (the world
-  is so small that a 30 m tall storm 150 m away is below it), so you meet it by driving or when it
-  drifts over.
+  free), and the horizon bank is painted on the sky, so it doesn't sit behind nearer hills
+  exactly the way the real wall would (it's at the sky's distance, behind every hill).
 
 ## Ideas for later
 

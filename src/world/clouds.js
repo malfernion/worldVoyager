@@ -44,7 +44,9 @@ import { mulberry32 } from '../physics/noise.js';
  * optionally how far their sprites are drawn out (`stretch`), how dense (`dens`) and tall (`h`,
  * of the width). Optional for thinner layers (Dusty): `bandWisps`, the share of wisps in the
  * `sky` and `plane` bands (else half of `wisps`); `wisp`, how a wisp is drawn (see WISP);
- * `puffDens`, how dense a puffy clump's sprites are (a share);
+ * `puffDens`, how dense a puffy clump's sprites are (a share); `limbRound` (0..1): at the world's
+ * edge, seen side-on, its streaks become fuller round puffs (so a thin layer stands above the glow
+ * as soft puffs, like Homestead's, rather than thin arcs);
  * `opacity`, how much of the layer shows at most. `shadow: 0`: no shadows at all (none baked).
  */
 export const CLOUD_LOOK = {
@@ -86,6 +88,7 @@ export const CLOUD_LOOK = {
     shade: 0xcfc6dc,
     night: 0x5c5478,
     opacity: 0.42,
+    limbRound: 1,
     shadow: 0,
   },
 };
@@ -381,6 +384,7 @@ const VERT = /* glsl */ `
   uniform float fades[CLOUDS];
   uniform float time;
   uniform vec3 sunDir;
+  uniform float limbRound;
   varying vec2 vUv;
   varying vec2 vNoise;
   varying float vH;
@@ -395,19 +399,23 @@ const VERT = /* glsl */ `
     vec3 up = normalize((modelViewMatrix * vec4(offset, 0.0)).xyz);
     // Sized in world units (the map draws worlds bigger).
     float scale = length(modelMatrix[0].xyz);
-    float s = puff.x * scale;
+    // Seen side-on at the world's edge, a thin layer's streaks would be thin arcs: there they
+    // turn into round, fuller puffs instead (limbRound: Dusty's; 0 leaves a layer as it is).
+    float limb = limbRound * smoothstep(0.55, 0.9, 1.0 - abs(dot(up, normalize(-mvPosition.xyz))));
+    float sw = mix(stretch.w, 1.0, limb);
+    float s = puff.x * scale * (1.0 + 1.3 * limb);
     // What's left of it (see spriteFade()): its cloud's fade, its density, and where it is on
     // screen. Nothing left: dropped before any pixel is drawn.
     float depth = -mvPosition.z;
     vec4 c = projectionMatrix * mvPosition;
     vec2 ndc = c.xy / max(c.w, 1e-3);
-    float rs = s * mix(1.0, stretch.w, 0.5) * projectionMatrix[1][1] / max(depth, 1e-3);
+    float rs = s * mix(1.0, sw, 0.5) * projectionMatrix[1][1] / max(depth, 1e-3);
     float fade = smoothstep(s * ${NEAR[0].toFixed(2)}, s * ${NEAR[1].toFixed(2)}, depth)
       * (1.0 - smoothstep(${BIG[0].toFixed(2)}, ${BIG[1].toFixed(2)}, rs))
       * (1.0 - smoothstep(${EDGE[0].toFixed(2)}, ${EDGE[1].toFixed(2)}, max(abs(ndc.x), abs(ndc.y)) + rs) * smoothstep(0.04, 0.14, rs));
     vCloud = fades[int(puff.z + 0.5)];
     vScreen = fade;
-    vDens = look.w;
+    vDens = min(1.0, look.w * (1.0 + 2.5 * limb));
     vec2 corner = position.xy * 2.0;
     // Drawn out along its way (wisps and fronts), as far as that shows from here.
     vec2 q = corner;
@@ -415,7 +423,7 @@ const VERT = /* glsl */ `
     float dl = length(dv.xy);
     if (dl > 0.001) {
       vec2 d2 = dv.xy / dl;
-      q += d2 * dot(q, d2) * (stretch.w - 1.0) * dl;
+      q += d2 * dot(q, d2) * (sw - 1.0) * dl;
     }
     mvPosition.xy += q * s;
     // Metres above the cloud's base, at this corner (it thins out below it).
@@ -581,6 +589,7 @@ export function createCloudLayer(look, { clouds, puffs }, radius, sunDir, name) 
     shadeColor: { value: colour(look.shade) },
     nightColor: { value: colour(look.night) },
     opacity: { value: look.opacity ?? 1 },
+    limbRound: { value: look.limbRound ?? 0 },
   };
   // One draw call: every sprite blended (premultiplied), none writing depth, so the ground,
   // the atmosphere's glow and each other all show through their soft edges.
@@ -620,15 +629,17 @@ export function createCloudLayer(look, { clouds, puffs }, radius, sunDir, name) 
     },
     /**
      * Fade each cloud for this frame. `cam`: the camera (scene coordinates); `foci`: n points
-     * that must stay visible; `group`: the world's group (floating origin and map scale).
+     * that must stay visible; `group`: the world's group (floating origin and map scale);
+     * `near`: how many times further out than usual clouds fade round the camera (the storms,
+     * down in one: their nearby cells go, rather than being drawn faint).
      */
-    fade(cam, foci, n, group) {
+    fade(cam, foci, n, group, near = 1) {
       const g = group.position, sc = group.scale.x;
       const c = Math.cos(layer.spin), s = Math.sin(layer.spin);
       for (let i = 0; i < clouds.length; i++) {
         const cl = clouds[i];
         const x = g.x + sc * (cl.x * c - cl.y * s), y = g.y + sc * (cl.x * s + cl.y * c), z = g.z + sc * cl.z;
-        fades[i] = layer.noFade ? 1 : cloudFade(x, y, z, cl.r * sc, cam.x, cam.y, cam.z, foci, n);
+        fades[i] = layer.noFade ? 1 : cloudFade(x, y, z, cl.r * sc * near, cam.x, cam.y, cam.z, foci, n);
       }
     },
     /** The flight-plane angle now of a cloud just in front of the plane, the closest to angle `near` (for the screenshots). */

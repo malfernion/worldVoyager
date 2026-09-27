@@ -102,10 +102,11 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   the rocket: a cloud close to the camera, or in front of the rocket (or the buggy, or the
   ground where you're landing), thins away to a faint veil. Dusty has thin, pale, high wisps
   and streaks instead, like Mars's icy clouds.
-- **Dust storms:** one or two big dust storms drift slowly round Dusty: from space a soft dusty
-  patch with a billowing front edge. Land or drive into one and the sky turns dusty, the far
-  hills go hazy and streams of dust blow past along the ground (the rocket and buggy always
-  stay easy to see). Drive out of it, or wait for it to drift away.
+- **Dust storms:** two big dust storms drift slowly round Dusty: from space a thick, pale dusty
+  patch with a billowing wall along its front edge. When one is coming you can see its wall of
+  dust on the horizon. Land or drive into one and the sky turns dusty, the far hills go hazy
+  and streams of dust blow past (the rocket and buggy always stay easy to see). Drive out of
+  it, or wait for it to drift away.
 - **Lava:** Sizzle has glowing pools and flows of lava by its volcanoes (they glow at night
   and you can see them from orbit). Glowing embers drift up from them and wink out, brighter by
   night, and the air over them wobbles with wavy heat. Lava is much too hot to land on: touching it is a sizzling,

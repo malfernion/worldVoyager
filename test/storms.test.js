@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { CLOUD_LOOK, PUFF_STRIDE, cloudPlan } from '../src/world/clouds.js';
-import { STORM_LOOK, INSIDE, stormShapes, stormAt, stormPlan, streamPlan, createStreams, createStorms, STREAM_STRIDE } from '../src/world/storms.js';
+import { STORM_LOOK, INSIDE, APPROACH, stormShapes, stormAt, stormNear, stormPlan, streamPlan, createStreams, createStorms, STREAM_STRIDE } from '../src/world/storms.js';
 import { FlightScene } from '../src/scenes/flight.js';
 import { hazeSky, SKY_LOOK } from '../src/world/planets.js';
 import { createSystem } from '../src/physics/bodies.js';
@@ -46,6 +46,8 @@ describe('Homestead is left as it was (#54 stage 3)', () => {
     expect(createStorms(home, new THREE.Vector3())).toBeNull();
     expect(CLOUD_LOOK.homestead.shadow).toBeGreaterThan(0);
     expect(CLOUD_LOOK.homestead.opacity).toBeUndefined();
+    expect(CLOUD_LOOK.homestead.limbRound).toBeUndefined(); // its puffs at the edge as they were
+    expect(CLOUD_LOOK.dusty.limbRound).toBeGreaterThan(0); // Dusty's streaks turn into puffs there
   });
 });
 
@@ -133,9 +135,40 @@ describe('Dusty\'s dust storms: where they are (#54 stage 3)', () => {
     expect(stormAt(look, R, Math.cos(lon), Math.sin(lon), 0, 0)).toBe(1);
   });
 
-  it('lie low over the ground, under the high clouds', () => {
+  it('lie low over the ground, but for a towering wall at the front (under the space line)', () => {
     for (const c of plan.clouds) expect(c.base - R).toBeCloseTo(look.alt, 5);
-    for (const p of ps) expect(Math.hypot(p.x, p.y, p.z) - R).toBeLessThan(CLOUD_LOOK.dusty.alt[0]);
+    let front = 0;
+    for (const p of ps) {
+      const h = Math.hypot(p.x, p.y, p.z) - R;
+      if (plan.clouds[p.cloud].front) front = Math.max(front, h + p.size * 0.5);
+      else expect(h).toBeLessThan(CLOUD_LOOK.dusty.alt[0] - 5);
+      expect(h).toBeLessThan(dusty.spaceLine);
+    }
+    // Tall enough to show over this small world's near horizon as it comes.
+    expect(front).toBeGreaterThan(look.alt + 25);
+  });
+
+  it('show coming over the horizon before they arrive, and only near one', () => {
+    const c = shapes[1].c, lon = Math.atan2(c[1], c[0]);
+    const out = {};
+    // Walking in towards its middle along the flight plane, from well outside it.
+    let last = -1;
+    for (let a = lon + 1.4; a > lon; a -= 0.01) {
+      stormNear(look, R, Math.cos(a), Math.sin(a), 0, 0, out);
+      expect(out.k).toBeGreaterThanOrEqual(last - 1e-9);
+      last = out.k;
+      if (out.k > 0) {
+        // It points (along the ground) towards the storm: back towards lower angles here.
+        const east = [-Math.sin(a), Math.cos(a), 0];
+        expect(out.x * east[0] + out.y * east[1]).toBeLessThan(0);
+        expect(Math.hypot(out.x, out.y, out.z)).toBeCloseTo(1, 6);
+        expect(out.x * Math.cos(a) + out.y * Math.sin(a)).toBeCloseTo(0, 6);
+      }
+    }
+    expect(last).toBe(1);
+    stormNear(look, R, 0, 0, -1, 0, out); // far from both
+    expect(out.k).toBe(0);
+    expect(APPROACH).toBeGreaterThan(INSIDE[1]);
   });
 });
 
@@ -225,7 +258,7 @@ describe('down in a dust storm (#54 stage 3)', () => {
     Object.assign(s, {
       spaceColour: s.scene.background.clone(), sky: new THREE.Group(), camera: new THREE.PerspectiveCamera(50, 2, 0.2, 3e6),
       visuals: [v, sun], sunVisual: sun, mode: 'flight', underwater: false, drive: { active: false },
-      flight: { state: { body: dusty, x: R, y: 0, landed: true } }, time: 0, stormTint: new THREE.Color(), storm: 0,
+      flight: { state: { body: dusty, x: R, y: 0, landed: true } }, time: 0, stormTint: new THREE.Color(), storm: 0, stormBank: {},
     });
     return { s, v };
   };
@@ -266,6 +299,28 @@ describe('down in a dust storm (#54 stage 3)', () => {
     s.updateStorms(1 / 60);
     expect(v.storms.layer.opacity.value).toBeLessThan(look.opacity * 0.2);
     expect(v.storms.streams.mesh.visible).toBe(true);
+  });
+
+  it('coming, a bank of dust stands on the horizon the way it is; gone inside it and far away', () => {
+    const { s, v } = setup();
+    noon(s);
+    const u = v.hazeSky.material.uniforms;
+    at(s, 2, [Math.cos(-0.5), Math.sin(-0.5), 0]); // outside, ahead of its front
+    s.updateHaze();
+    expect(s.storm).toBe(0);
+    expect(u.bankK.value).toBeGreaterThan(0.3);
+    expect(u.bank.value.y).toBeGreaterThan(0); // towards the storm (at angle 0)
+    expect(u.bankBase.value).toBeLessThanOrEqual(0);
+    at(s, 2, inside);
+    s.updateHaze();
+    expect(u.bankK.value).toBeLessThan(0.05);
+    at(s, 2, [0, 0, -1]);
+    s.updateHaze();
+    expect(u.bankK.value).toBe(0);
+    // Up high the horizon dips below level, and the bank is counted from there.
+    at(s, 30, [Math.cos(-0.5), Math.sin(-0.5), 0]);
+    s.updateHaze();
+    expect(u.bankBase.value).toBeLessThan(-0.3);
   });
 
   it('comes in and goes smoothly: driving into one, and climbing out of one', () => {

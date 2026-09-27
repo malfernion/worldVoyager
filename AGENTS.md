@@ -106,7 +106,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js;
                        in a sea (#44) spray, a splash going in or out, a bow wave, and bubbles (`FLOAT_*`: they pop at the surface);
                        at lava's edge (#45) `steam()` puffs and `wisp()`s
-src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46; the skies over the ground, `SKY_LOOK`, and their dome `hazeSky()`: Misty's haze #58, Homestead's and Dusty's skies #61), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
+src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46; the skies over the ground, `SKY_LOOK`, and their dome `hazeSky()`: Misty's haze #58, Homestead's and Dusty's skies #61, a dust storm's bank on the horizon #54), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
                        lava's own glowing crust shader, #45; methane: the water shader, dark and still, mirroring the haze, #46), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
@@ -120,7 +120,7 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        `createClouds()` / `createCloudLayer()` the one-draw-call sprite layer, `shadowFaces()` / `cloudShadows()` their soft
                        shadows baked into a small cube map for the ground's shader; none with `shadow: 0`)
                        storms (#54 stage 3: Dusty's dust storms, `STORM_LOOK`: `stormAt()` how deep in one a direction
-                       is (pure, drifting on the real clock), `stormPlan()` their cells for a cloud layer of their own,
+                       is (pure, drifting on the real clock), `stormNear()` one coming (for the sky's horizon bank), `stormPlan()` their cells for a cloud layer of their own,
                        `createStreams()` the dust blowing along the ground in one (a shader loop per streak, one draw call),
                        `createStorms()`)
                        embers (#54 stage 2: sparks and heat haze over lava, `EMBER_LOOK` per liquid kind, only Sizzle's lava:
@@ -258,10 +258,13 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   Clouds are only the look: the physics never sees them. Dusty's dust storms (#54 stage 3,
   `src/world/storms.js`) are a second layer of the same kind (their own plan, faded the same way
   in `updateClouds()`), plus one draw call of blowing dust that is hidden outside a storm. Where
-  the storms are is only `stormAt()` (pure, real time: the layer's turn), and down in one the
-  sky only goes through `updateHaze()` (`SKY_LOOK.dusty.storm`): the fog is counted from what the
-  camera follows, so the rocket and buggy stay clear. New `CLOUD_LOOK` knobs must default to the
-  old behaviour (a test pins Homestead's plan).
+  the storms are is only `stormAt()` / `stormNear()` (pure, real time: the layer's turn), and down
+  in one (or with one coming: the sky dome's horizon `bank`) the sky only goes through
+  `updateHaze()` (`SKY_LOOK.dusty.storm`): the fog is counted from what the camera follows, so
+  the rocket and buggy stay clear. Down in one its nearby cells are faded out (dropped), not
+  drawn faint, and the blowing dust fades near the lens and when big on screen: that's what
+  keeps a storm within the clouds' overdraw (measured at most 1.41). New `CLOUD_LOOK` knobs must default to the
+  old behaviour (a test pins Homestead's plan; `limbRound`, the side-on puffs at the world's edge, is 0 there).
 - **Lava's embers and heat haze are all in the shader** (#54, `src/world/embers.js`). Every spark
   and haze sheet of a world is one instanced billboard in one draw call (premultiplied, no depth
   write); each spark is a loop on the real clock (never the warp) worked out in the vertex

@@ -115,6 +115,7 @@ export class FlightScene {
     this.cloudFoci = new Float64Array(9); // what clouds must never hide (#54, updateClouds)
     this.stormTint = new THREE.Color(); // scratch for a dust storm's sky (#54, updateHaze)
     this.storm = 0; // how deep in a dust storm the camera is (#54, updateHaze)
+    this.stormBank = { k: 0, x: 1, y: 0, z: 0, w: 0.5, h: 0.2 }; // one coming (#54, updateHaze)
     this.tmp3 = {};
     this.discoverUntil = 0;
 
@@ -1057,7 +1058,7 @@ export class FlightScene {
     let k = 0;
     const v = look && this.mode !== 'map' && !this.underwater ? this.visuals.find((x) => x.body === body) : null;
     const c = this.camera.position;
-    let st = 0;
+    let st = 0, bank = 0;
     if (v) {
       const g = v.group.position;
       const r = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
@@ -1067,7 +1068,11 @@ export class FlightScene {
       const sl = look.storm;
       if (sl && v.storms && k > 0) {
         const h = Math.max(0, Math.min(1, (r - body.radius - sl.low) / (sl.top - sl.low)));
-        st = v.storms.at((c.x - g.x) / r, (c.y - g.y) / r, (c.z - g.z) / r, this.time || 0) * (1 - h * h * (3 - 2 * h));
+        const hk = 1 - h * h * (3 - 2 * h);
+        st = v.storms.at((c.x - g.x) / r, (c.y - g.y) / r, (c.z - g.z) / r, this.time || 0) * hk;
+        // One coming: its bank of dust on the horizon (gone as we get into it).
+        v.storms.near((c.x - g.x) / r, (c.y - g.y) / r, (c.z - g.z) / r, this.time || 0, this.stormBank);
+        bank = Math.sqrt(this.stormBank.k) * hk * (1 - st);
       }
     }
     this.storm = st;
@@ -1121,6 +1126,20 @@ export class FlightScene {
       u.glow.value.multiplyScalar(1 - 0.6 * st);
       u.dusk.value.multiplyScalar(1 - 0.85 * st);
       u.veil.value += (look.storm.veil - u.veil.value) * st;
+    }
+    u.bankK.value = bank;
+    if (bank > 0) {
+      const b = this.stormBank, sc = look.storm.colours, cl = v.storms.colours;
+      u.bank.value.set(b.x, b.y, b.z);
+      u.bankW.value = b.w;
+      u.bankH.value = b.h;
+      // The horizon dips below level as the camera climbs (sine of that angle; the ground
+      // taken a few metres up).
+      const rg = Math.min(1, (body.radius + 4) / ul);
+      u.bankBase.value = -Math.sqrt(1 - rg * rg);
+      u.bankLit.value.lerpColors(sc.night.horizon, cl.lit, day);
+      u.bankShade.value.lerpColors(sc.night.zenith, cl.shade, day).multiplyScalar(0.62);
+      u.time.value = (this.time || 0) % 1000;
     }
     u.up.value.set(ux / ul, uy / ul, uz / ul);
     u.sun.value.set(sx / sl, sy / sl, sz / sl);
@@ -1776,7 +1795,8 @@ export class FlightScene {
         m++;
       }
       v.clouds?.fade(this.camera.position, foci, m, v.group);
-      v.storms?.layer.fade(this.camera.position, foci, m, v.group);
+      // (Down in a storm its nearby cells go altogether: drawn faint they'd still cost.)
+      v.storms?.layer.fade(this.camera.position, foci, m, v.group, 1 + 2.5 * this.storm);
     }
   }
 

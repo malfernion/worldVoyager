@@ -568,11 +568,12 @@ export const SKY_LOOK = {
     horizon: 0xe3c19c, zenith: 0x8f6448, glow: 0x5c5448, veil: [0.35, 0.75],
     dusk: 0x7fa6e0, duskWidth: 0.35, duskPow: 10,
     night: { horizon: 0x251c24, zenith: 0x0c0a16, glow: 0x000000 },
-    // Down in a dust storm (#54, storms.js): the sky's colours (by day; `night` dims them),
+    // Down in a dust storm (#54, storms.js): the sky's colours by day and by night (a faint
+    // dusty glow low down, dark overhead, so the night isn't one flat brown),
     // how much of space it hides, and the distance fogging over (as `fog` above); full below
     // `low` metres up, gone by `top`.
     storm: {
-      horizon: 0xd9a476, zenith: 0xc2895e, night: 0.09, veil: 0.96, fog: { near: 0, far: 75 }, low: 45, top: 110,
+      horizon: 0xd9a476, zenith: 0xc2895e, night: { horizon: 0x4a3324, zenith: 0x0c090d }, veil: 0.96, fog: { near: 0, far: 75 }, low: 45, top: 110,
     },
   },
 };
@@ -589,7 +590,7 @@ for (const look of Object.values(SKY_LOOK)) {
   const st = look.storm;
   if (st) {
     const sd = { horizon: new THREE.Color(st.horizon), zenith: new THREE.Color(st.zenith) };
-    st.colours = { day: sd, night: { horizon: sd.horizon.clone().multiplyScalar(st.night), zenith: sd.zenith.clone().multiplyScalar(st.night) } };
+    st.colours = { day: sd, night: { horizon: new THREE.Color(st.night.horizon), zenith: new THREE.Color(st.night.zenith) } };
   }
 }
 
@@ -602,6 +603,12 @@ for (const look of Object.values(SKY_LOOK)) {
  * light added over what's behind it. FlightScene.updateHaze() sets its colours, `up` (world
  * space, the camera's up), the sun's direction, `veil` and `k`, how much sky there is; hidden
  * when there's none. Not fogged; the ground in front of it hides the lower half. One draw call.
+ * A dust storm coming (#54, Dusty): a bank of billowing dust along the horizon the way it is
+ * (`bank`: the direction along the ground, `bankK` how much, `bankH` how high it towers above
+ * the horizon (`bankBase`: where that is, below level), `bankW` how wide, the cosine of its
+ * half-angle; lit and shaded colours; `time` churns its top). The
+ * real storm's cells are mostly beyond this small world's horizon until it's close, so the
+ * sky shows it coming. `bankK` 0 (every other world, and most of the time) leaves it out.
  */
 export function hazeSky(radius, look) {
   const mat = new THREE.ShaderMaterial({
@@ -615,6 +622,14 @@ export function hazeSky(radius, look) {
       sun: { value: new THREE.Vector3(1, 0, 0) },
       veil: { value: 1 },
       k: { value: 0 },
+      bank: { value: new THREE.Vector3(1, 0, 0) },
+      bankK: { value: 0 },
+      bankH: { value: 0.2 },
+      bankW: { value: 0.5 },
+      bankBase: { value: 0 },
+      bankLit: { value: new THREE.Color() },
+      bankShade: { value: new THREE.Color() },
+      time: { value: 0 },
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -638,11 +653,20 @@ export function hazeSky(radius, look) {
       uniform vec3 sun;
       uniform float veil;
       uniform float k;
+      uniform vec3 bank;
+      uniform float bankK;
+      uniform float bankH;
+      uniform float bankW;
+      uniform float bankBase;
+      uniform vec3 bankLit;
+      uniform vec3 bankShade;
+      uniform float time;
       varying vec3 vW;
       void main() {
         #include <logdepthbuf_fragment>
         vec3 d = normalize(vW - cameraPosition);
-        float e = clamp(dot(d, up), 0.0, 1.0);
+        float ev = dot(d, up);
+        float e = clamp(ev, 0.0, 1.0);
         float se = sqrt(e);
         vec3 c = mix(horizon, zenith, se);
         float s = max(0.0, dot(d, sun));
@@ -652,6 +676,29 @@ export function hazeSky(radius, look) {
         c += dusk * (h * h * h) * pow(0.5 + 0.5 * dot(d, sun), duskPow);
         // Thicker towards the horizon (a thin sky hides more of the stars low down).
         float a = mix(0.5 + 0.5 * veil, veil, se);
+        if (bankK > 0.0) {
+          // A storm's wall of dust on the horizon: lumpy billows along its top (churning slowly),
+          // highest towards the storm's middle, soft at its sides; darker at its foot.
+          vec3 dh = d - up * ev;
+          float dl = length(dh);
+          if (dl > 1e-3) {
+            dh /= dl;
+            float ca = dot(dh, bank);
+            float ph = atan(dot(dh, cross(up, bank)), ca);
+            float side = smoothstep(bankW - 0.25, bankW + 0.1, ca);
+            // (Rounded lobes, cusps between them: billows, not waves.)
+            float lumps = 0.5 + 0.28 * sqrt(abs(sin(ph * 6.0 + time * 0.05))) + 0.16 * sqrt(abs(sin(ph * 15.0 - time * 0.08))) + 0.06 * sin(ph * 41.0 + time * 0.1);
+            float top = bankH * lumps * (0.5 + 0.5 * side);
+            // (Counted from the real horizon: on a small world, seen from up high, it dips well
+            // below level.)
+            float rel = ev - bankBase;
+            float b = (1.0 - smoothstep(top * 0.7, top, rel)) * side * bankK;
+            // Dark dusty brown low down, the billows' tops lit.
+            vec3 bc = mix(bankShade, bankLit, smoothstep(top * 0.15, top * 0.95, rel) * (0.75 + 0.25 * sin(ph * 31.0 + rel * 40.0)));
+            c = mix(c, bc, b);
+            a = mix(a, 1.0, b);
+          }
+        }
         gl_FragColor = vec4(c, a);
         #include <colorspace_fragment>
         gl_FragColor *= k; // premultiplied

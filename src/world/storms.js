@@ -33,27 +33,27 @@ export const STORM_LOOK = {
     seed: 26,
     drift: 0.002,
     storms: [
-      { lon: 0.9, z: 0.8, size: [120, 80], tilt: 0.3, lumps: [0.16, 0.1] },
-      { lon: -2.4, z: -0.08, size: [92, 66], tilt: -0.15, lumps: [0.14, 0.12] },
+      { lon: 0.9, z: 0.78, size: [135, 90], tilt: 0.3, lumps: [0.16, 0.1] },
+      { lon: -2.4, z: -0.08, size: [100, 72], tilt: -0.15, lumps: [0.14, 0.12] },
     ],
     cell: 24,
     alt: 11,
-    lit: 0xfad6a6,
-    shade: 0xd49a70,
+    lit: 0xfbe0a8,
+    shade: 0xd8a468,
     night: 0x3e3448,
-    opacity: 0.9,
+    opacity: 1,
     shadow: 0,
     streams: {
-      streaks: 340,
-      puffs: 44,
-      box: 44,
+      streaks: 380,
+      puffs: 36,
+      box: 56,
       wind: 9,
       gust: [0, 6],
-      streak: [0.1, 0.2],
-      stretch: [7, 13],
-      puff: [1.4, 3],
-      high: [0.3, 4.5],
-      puffHigh: [0.4, 2.5],
+      streak: [0.14, 0.28],
+      stretch: [8, 14],
+      puff: [1.6, 3],
+      high: [0.6, 7],
+      puffHigh: [0.8, 4],
       life: [1.6, 3.2],
       lit: 0xffe4c0,
       shade: 0xc49270,
@@ -131,6 +131,38 @@ export function stormAt(look, R, x, y, z, time) {
   return k;
 }
 
+// A storm coming: from its edge (q = 1) out to this far (q, shares of the way to its edge) it
+// shows as a bank of dust on the horizon (FlightScene.updateHaze(), the sky dome's `bank`).
+export const APPROACH = 2.6;
+
+/**
+ * The storm nearest to coming over the horizon at unit direction (x, y, z), `time` s on (pure;
+ * nothing allocated). Into `out`: `k` (0: none near .. 1: at its edge), `x, y, z` the way to
+ * its middle along the ground (unit, planet frame), `w` the cosine of how wide it looks
+ * (half-angle), `h` how high its bank towers (as the sine of its angle above the horizon).
+ */
+export function stormNear(look, R, x, y, z, time, out) {
+  const a = time * look.drift, c = Math.cos(a), s = Math.sin(a);
+  const px = x * c + y * s, py = -x * s + y * c;
+  out.k = 0;
+  for (const sh of stormShapes(look)) {
+    place(sh, px, py, z, R, spot);
+    const k = 1 - smooth(INSIDE[1], APPROACH, spot.q);
+    if (k <= out.k) continue;
+    out.k = k;
+    // Its middle now (turned by the drift), along the ground from here.
+    const mx = sh.c[0] * c - sh.c[1] * s, my = sh.c[0] * s + sh.c[1] * c, mz = sh.c[2];
+    const dot = mx * x + my * y + mz * z;
+    let tx = mx - x * dot, ty = my - y * dot, tz = mz - z * dot;
+    const tl = Math.hypot(tx, ty, tz) || 1;
+    out.x = tx / tl; out.y = ty / tl; out.z = tz / tl;
+    const D = Math.acos(Math.max(-1, Math.min(1, dot))) * R, S = (sh.A + sh.B) / 2;
+    out.w = Math.cos(Math.max(0.5, Math.min(1.5, 1.4 * Math.atan(S / Math.max(D - 0.5 * S, 1)))));
+    out.h = 0.07 + 0.13 * k;
+  }
+  return out;
+}
+
 /**
  * Where every cell and sprite of the storms goes (pure, seeded), as cloudPlan() returns it:
  * `clouds` (one per cell: centre, reach `r`, `base`, `storm` its storm's index, `edge` how far
@@ -158,7 +190,7 @@ export function stormPlan(look, R) {
         const d = Math.hypot(u, v) / R;
         const t = d > 1e-6 ? sh.e.map((c, m) => (c * u + sh.n[m] * v) / (d * R)) : sh.e;
         const up = sh.c.map((c, m) => c * Math.cos(d) + t[m] * Math.sin(d));
-        const front = a > 0.15 && q > 0.6;
+        const front = a > 0.1 && q > 0.55;
         const trail = a < -0.2 && q > 0.72;
         const base = R + look.alt;
         // Along the drift there (east), tilted as the storm is.
@@ -170,7 +202,9 @@ export function stormPlan(look, R) {
         const ci = clouds.length;
         // Thinner towards the edge (the storm fades out softly all round, except its front).
         const edgeK = front ? 1 : 1 - 0.55 * smooth(0.5, 0.97, q);
-        const H = front ? 12 + rand() * 8 : trail ? 3 : 5 + rand() * 3;
+        // The front is a wall of dust towering over the rest (so it shows over the horizon as it
+        // comes: this world is small, and its horizon near), tallest right at the edge.
+        const H = front ? (16 + 18 * smooth(0.55, 0.9, q)) * (0.8 + rand() * 0.4) : trail ? 3 : 6 + rand() * 3;
         const heart = up.map((c) => c * H * 0.35);
         let reach = 0;
         const put = (du, dv, lift, size, dens, stretch) => {
@@ -183,26 +217,27 @@ export function stormPlan(look, R) {
         };
         if (front) {
           // A billowing clump: a dome of big soft sprites, towering over the haze behind it.
-          const count = 6 + Math.floor(rand() * 2);
+          const count = 7 + Math.floor(rand() * 2);
           for (let k = 0; k < count; k++) {
             const du = (rand() + rand() - 1) * step * 0.6, dv = (rand() + rand() - 1) * step * 0.6;
             const mid = Math.max(0, 1 - (Math.hypot(du, dv) / (step * 0.7)) ** 2);
-            const size = step * (0.45 + 0.2 * mid + rand() * 0.1);
-            const lift = Math.max(size * 0.3, Math.min(rand() * H * (0.3 + 0.7 * mid), H + 2 - size));
-            put(du, dv, lift, size, 0.4 + 0.3 * mid, 1);
+            const size = step * (0.45 + 0.2 * mid + rand() * 0.12);
+            // Stacked up the wall: from its foot to the top of its dome.
+            const lift = Math.max(size * 0.3, Math.min(((k + rand()) / count) * H * (0.5 + 0.5 * mid), H + 2 - size * 0.6));
+            put(du, dv, lift, size, 0.65 + 0.35 * mid, 1);
           }
         } else if (trail) {
           // Frayed streaks at the back, drawn out along the wind.
           const count = 3 + Math.floor(rand() * 2);
           for (let k = 0; k < count; k++) {
-            put((rand() - 0.5) * step, (rand() - 0.5) * step * 0.8, 1.5 + rand() * 2, step * (0.22 + rand() * 0.1), 0.3 * edgeK, 2.6);
+            put((rand() - 0.5) * step, (rand() - 0.5) * step * 0.8, 1.5 + rand() * 2, step * (0.24 + rand() * 0.1), 0.4 * edgeK, 2.6);
           }
         } else {
           // The body of the storm: a low, flat haze, a little streaky along the wind.
-          const count = 4 + Math.floor(rand() * 2);
+          const count = 3 + Math.floor(rand() * 2);
           for (let k = 0; k < count; k++) {
-            const size = step * (0.5 + rand() * 0.2);
-            put((rand() - 0.5) * step, (rand() - 0.5) * step * 0.9, size * 0.3 + rand() * H * 0.5, size, (0.4 + rand() * 0.2) * edgeK, 1.5);
+            const size = step * (0.6 + rand() * 0.2);
+            put((rand() - 0.5) * step, (rand() - 0.5) * step * 0.9, size * 0.3 + rand() * H * 0.5, size, (0.6 + rand() * 0.25) * edgeK, 1.5);
           }
         }
         clouds.push({ x: centre[0], y: centre[1], z: centre[2], r: reach, base, storm: si, edge: q, front, wisp: false });
@@ -229,7 +264,7 @@ export function streamPlan(look) {
     const puff = i >= s.streaks;
     // Streaks mostly low down (where the dust is thickest), a few higher.
     const r = rand();
-    const high = puff ? between(s.puffHigh) : s.high[0] + (s.high[1] - s.high[0]) * r ** 1.5;
+    const high = puff ? between(s.puffHigh) : s.high[0] + (s.high[1] - s.high[0]) * r;
     out.push(rand(), rand(), rand(), rand(), puff ? PUFF : STREAK, puff ? between(s.puff) : between(s.streak),
       puff ? 1.8 : between(s.stretch), between(s.life) * (puff ? 1.6 : 1), high, between(s.gust));
   }
@@ -302,10 +337,11 @@ const VERT = /* glsl */ `
     float alpha = smoothstep(0.0, 0.2, age) * (1.0 - smoothstep(0.6, 1.0, age));
     // Softly gone towards the box's sides (never a wall of dust ending), and near the lens.
     alpha *= 1.0 - smoothstep(0.3 * box, 0.5 * box, length(rel));
-    alpha *= smoothstep(max(len, s) * 1.2, max(len, s) * 4.0, depth);
-    // Never big on screen (overdraw; a puff right in front of the lens is only a blur).
-    float rs = max(len, s) * projectionMatrix[1][1] / max(depth, 1e-3);
-    alpha *= 1.0 - smoothstep(0.25, 0.5, rs);
+    alpha *= smoothstep(1.5, 4.0, depth);
+    // Never big on screen (overdraw; a puff right in front of the lens is only a blur): a
+    // puff's size, a streak's width and (more loosely) its length.
+    float pr = projectionMatrix[1][1] / max(depth, 1e-3);
+    alpha *= shape.x > 0.5 ? 1.0 - smoothstep(0.16, 0.32, s * pr) : (1.0 - smoothstep(0.04, 0.09, s * pr)) * (1.0 - smoothstep(0.5, 1.0, len * pr));
     alpha *= sight((modelMatrix * vec4(p, 1.0)).xyz, max(len, s));
     alpha *= strength;
     vec3 upV = normalize((modelViewMatrix * vec4(up, 0.0)).xyz);
@@ -344,7 +380,7 @@ const FRAG = /* glsl */ `
     if (r2 > 1.0) discard;
     float f = (1.0 - r2) * (1.0 - r2);
     // A streak: a thin soft line of dust; a puff: a faint soft ball.
-    float a = vAlpha * (vKind > 0.5 ? 0.22 * f : 0.7 * f);
+    float a = vAlpha * (vKind > 0.5 ? 0.28 * f : 0.75 * f);
     a *= mix(0.35, 1.0, vDay);
     if (a < 0.003) discard;
     vec3 c = mix(shadeColor, litColor, vDay) * mix(0.25, 1.0, vDay);
@@ -449,8 +485,8 @@ export function createStreams(look, sunDir) {
 
 /**
  * A world's dust storms, or null if it has none. Returns { look, layer (a cloud layer:
- * mesh, update(time), fade(...)), streams (see createStreams()), at(x, y, z, time) (how deep in
- * a storm a unit direction is: stormAt()) }.
+ * mesh, update(time), fade(...)), streams (see createStreams()), colours, at(x, y, z, time) (how
+ * deep in a storm a unit direction is: stormAt()), near(x, y, z, time, out) (stormNear()) }.
  */
 export function createStorms(body, sunDir) {
   const look = STORM_LOOK[body.id];
@@ -461,6 +497,8 @@ export function createStorms(body, sunDir) {
     look,
     layer,
     streams,
+    colours: { lit: new THREE.Color(look.lit), shade: new THREE.Color(look.shade) },
     at: (x, y, z, time) => stormAt(look, body.radius, x, y, z, time),
+    near: (x, y, z, time, out) => stormNear(look, body.radius, x, y, z, time, out),
   };
 }
