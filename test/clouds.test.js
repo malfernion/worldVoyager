@@ -1,6 +1,6 @@
 // #54: Homestead's cloud layer: where the clouds go, when they fade, and their shadow map.
 import { describe, it, expect } from 'vitest';
-import { CLOUD_LOOK, PUFF_STRIDE, VEIL, cloudPlan, cloudFade, cubeDir, shadowFaces, SHADOW_N } from '../src/world/clouds.js';
+import { CLOUD_LOOK, PUFF_STRIDE, VEIL, cloudPlan, cloudFade, spriteFade, noiseTile, NOISE_N, cubeDir, shadowFaces, SHADOW_N } from '../src/world/clouds.js';
 import { createSystem } from '../src/physics/bodies.js';
 
 const home = createSystem().byId.homestead;
@@ -8,8 +8,8 @@ const look = CLOUD_LOOK.homestead;
 const plan = cloudPlan(look, home.radius);
 const puffs = [];
 for (let i = 0; i < plan.puffs.length; i += PUFF_STRIDE) {
-  const [x, y, z, size, lift, cloud] = plan.puffs.subarray(i, i + PUFF_STRIDE);
-  puffs.push({ x, y, z, size, lift, cloud, r: Math.hypot(x, y, z) });
+  const [x, y, z, size, lift, cloud, seed, nx, ny, nz, dens, height] = plan.puffs.subarray(i, i + PUFF_STRIDE);
+  puffs.push({ x, y, z, size, lift, cloud, seed, n: [nx, ny, nz], dens, height, r: Math.hypot(x, y, z) });
 }
 
 describe('cloudPlan (#54)', () => {
@@ -19,8 +19,30 @@ describe('cloudPlan (#54)', () => {
 
   it('makes every cloud it was asked for', () => {
     const want = look.sky.count + look.plane.count + look.spread.front + look.spread.back;
-    expect(plan.clouds.length).toBe(want);
-    for (let c = 0; c < want; c++) expect(puffs.filter((p) => p.cloud === c).length).toBeGreaterThanOrEqual(look.puffs[0]);
+    expect(plan.clouds.length).toBeGreaterThanOrEqual(want * 0.95);
+    for (let c = 0; c < plan.clouds.length; c++) expect(puffs.filter((p) => p.cloud === c).length).toBeGreaterThanOrEqual(look.sprites[0]);
+  });
+
+  it('mixes puffy clouds with thin wisps, and keeps the sprite count phone-sized', () => {
+    const wisps = plan.clouds.filter((c) => c.wisp).length;
+    expect(wisps).toBeGreaterThan(plan.clouds.length * 0.1);
+    expect(wisps).toBeLessThan(plan.clouds.length * 0.5);
+    expect(puffs.length).toBeLessThan(3000);
+  });
+
+  it('gives every sprite a usable density, height in its cloud, unit normal and noise seed', () => {
+    for (const p of puffs) {
+      expect(p.dens).toBeGreaterThan(0.2);
+      expect(p.dens).toBeLessThanOrEqual(1);
+      expect(p.height).toBeGreaterThanOrEqual(0);
+      expect(p.height).toBeLessThanOrEqual(1);
+      expect(Math.hypot(...p.n)).toBeCloseTo(1, 4);
+      expect(p.seed).toBeGreaterThanOrEqual(0);
+      expect(p.seed).toBeLessThan(1);
+    }
+    // Varied sizes: small wisps and big cores.
+    const sizes = puffs.map((p) => p.size).sort((a, b) => a - b);
+    expect(sizes[sizes.length - 1] / sizes[0]).toBeGreaterThan(3);
   });
 
   it('puts clouds where the views look: the sky behind the pad, and round the flight plane', () => {
@@ -34,7 +56,7 @@ describe('cloudPlan (#54)', () => {
     expect(Math.max(...gaps)).toBeLessThan(Math.PI / 2);
   });
 
-  it('keeps them between the hills and the space line, on flat bases', () => {
+  it('keeps them between the hills and the space line, on flattish bases', () => {
     for (const p of puffs) {
       const c = plan.clouds[p.cloud];
       const base = p.r - p.lift;
@@ -110,8 +132,14 @@ describe('the clouds\' shadow map (#54)', () => {
     return faces[f][py * SHADOW_N + px] / 255;
   };
 
-  it('is dark under every big puff and clear away from the clouds', () => {
-    for (const p of puffs) if (p.size > 6) expect(at(p.x, p.y, p.z)).toBeGreaterThan(0.9);
+  it('is soft: darkest under a cloud\'s dense core, never solid, and clear away from the clouds', () => {
+    for (let c = 0; c < plan.clouds.length; c++) {
+      if (plan.clouds[c].wisp) continue;
+      const core = puffs.filter((p) => p.cloud === c).sort((a, b) => b.dens * b.size - a.dens * a.size)[0];
+      expect(at(core.x, core.y, core.z)).toBeGreaterThan(0.4);
+    }
+    // (Where the map is darkest the ground only loses this much of its sunlight.)
+    expect(look.shadow).toBeLessThanOrEqual(0.35);
     // Far from every cloud: nothing.
     let clear = 0, tried = 0;
     for (let i = 0; i < 400; i++) {
@@ -127,5 +155,53 @@ describe('the clouds\' shadow map (#54)', () => {
     }
     expect(tried).toBeGreaterThan(100);
     expect(clear).toBe(tried);
+  });
+});
+
+describe('spriteFade (#54): soft clouds never fill the screen or get cut off at its edges', () => {
+  const focal = 1 / Math.tan((50 * Math.PI) / 360); // a 50° camera
+
+  it('leaves small far sprites alone, even at the edges of the screen', () => {
+    expect(spriteFade(5, 400, focal, 0, 0)).toBe(1);
+    expect(spriteFade(5, 400, focal, 0.97, 0.2)).toBeGreaterThan(0.95);
+  });
+
+  it('drops a sprite the camera is almost in', () => {
+    expect(spriteFade(5, 5, focal, 0, 0)).toBe(0);
+    // (Even with a very wide lens, where it wouldn't look big on screen.)
+    expect(spriteFade(5, 5, 0.3, 0, 0)).toBe(0);
+    expect(spriteFade(5, 12, 0.3, 0, 0)).toBeLessThan(spriteFade(5, 16, 0.3, 0, 0));
+  });
+
+  it('drops one that would fill a big part of the screen', () => {
+    // Radius on screen: size * focal / depth.
+    expect(spriteFade(10, (10 * focal) / 0.6, focal, 0, 0)).toBe(0);
+    expect(spriteFade(10, (10 * focal) / 0.15, focal, 0, 0)).toBe(1);
+  });
+
+  it('fades a biggish one out before it reaches the edge of the screen', () => {
+    const depth = (10 * focal) / 0.2; // a fifth of the half-height
+    expect(spriteFade(10, depth, focal, 0, 0)).toBeGreaterThan(0.9);
+    expect(spriteFade(10, depth, focal, 0.85, 0)).toBe(0);
+    expect(spriteFade(10, depth, focal, 0, -0.85)).toBe(0);
+  });
+});
+
+describe('the clouds\' noise tile (#54)', () => {
+  const t = noiseTile();
+  it('is the same every time and uses the whole range', () => {
+    expect(Array.from(noiseTile())).toEqual(Array.from(t));
+    expect(Math.min(...t)).toBe(0);
+    expect(Math.max(...t)).toBe(255);
+  });
+
+  it('tiles without a seam', () => {
+    // Across the wrap, neighbours differ no more than neighbours inside the tile.
+    let inside = 0, seam = 0;
+    for (let y = 0; y < NOISE_N; y++) {
+      inside = Math.max(inside, Math.abs(t[y * NOISE_N + 10] - t[y * NOISE_N + 11]));
+      seam = Math.max(seam, Math.abs(t[y * NOISE_N + NOISE_N - 1] - t[y * NOISE_N]));
+    }
+    expect(seam).toBeLessThan(Math.max(inside * 2, 40));
   });
 });

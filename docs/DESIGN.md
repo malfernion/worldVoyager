@@ -920,49 +920,69 @@ agreed was Homestead's clouds, then Sizzle's embers and heat shimmer, then Dusty
 Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no setting.
 
 - **One layer per world, from a table.** `CLOUD_LOOK` says how high the clouds' bases are, how
-  big they are, how many puffs each has, where they go, how fast the layer drifts, their
-  colours and how dark their shadows are. Only Homestead has an entry so far; other worlds
-  (Dusty's thin high clouds, Misty's haze bands, Tumble's and Ringo's streaks) can reuse it,
-  with new shapes where they need them.
+  big they are, how many sprites make one, how many are thin wisps, where they go, how fast the
+  layer drifts, their colours and how dark their shadows are. Only Homestead has an entry so
+  far; other worlds (Dusty's thin high clouds, Misty's haze bands, Tumble's and Ringo's
+  streaks) can reuse it, with new shapes where they need them.
 - **Where they go.** The views all look at the flight plane from its +z side, so clouds are
   placed for them rather than evenly: a band behind the plane that the landed and launch views
   see as their sky (16 clouds), a ring right round the plane that a launch climbs past (7), and
-  more over the face the map and the orbit views see (18) and round the back for driving there
-  (10). Their flat bases are 30 to 40 m up (Homestead's tallest peaks poke through), and their
-  tops stay under the 70 m space line, so every launch climbs through the layer.
-- **The look.** Each puff is a billboard drawn as a ball: a disc lit like a sphere by the sun and
-  the sky, with two crisp toon tones (white and a pale periwinkle), a soft outline that shows
-  the bumps where puffs overlap, and brighter higher up the cloud. Every puff is cut off at its
-  cloud's base, so from the ground clouds have the flat bottoms of cartoon cumulus, and from
-  space they're round puffy blobs. The middle puffs are biggest and highest (a crown on top).
-  On the night side they turn a soft slate-blue, in step with the ground's moonlight fill.
-  They breathe a little (a few percent, slowly) and the whole layer turns about z at 0.004
-  rad/s of real time (about a metre a second at their height; time warp doesn't speed them up).
-- **Shadows.** A soft shadow under each puff, baked once into a 6 × 128 × 128 one-channel cube
-  map (even detail all round; an equirectangular map had its pole in the middle of the globe
-  view and looked blocky there). The ground's toon shader looks along the sun's direction up to
-  the layer (not too far when the sun is low, so a shadow stays near its cloud), turns that by
-  the layer's drift and takes up to half the direct sunlight off. It fades out towards the
-  night side, since the toon light still lights the back of the world a little. The sea and
-  the trees don't get shadows (yet).
+  more over the face the map and the orbit views see (90) and round the back for driving there
+  (30), those in loose fields of a few clouds each, so from space the cover is patchy with
+  clear sky between. A quarter of the clouds are thin wisps. Their bases are 30 to 38 m up
+  (Homestead's tallest peaks poke through), and their tops stay under the 70 m space line, so
+  every launch climbs through the layer.
+- **The look: soft, made of particles.** The first try drew each cloud as a few big toon balls
+  with outlines and flat cut-off bases; the owner found them too much like solid arcs
+  (popcorn from space, big white shapes cut off by the screen's edges near the camera). Now
+  each cloud is a loose cluster of 14 to 20 soft sprites: big, dense ones in its core, higher
+  in the middle, smaller and fainter towards its edges; a wisp is a gently bent streak of
+  fainter ones. A sprite is a soft falloff bent and eaten away by a small baked noise tile
+  (64 × 64 tileable value noise; each sprite reads its own turned patch, slowly scrolling, so
+  clouds billow a little), so edges are feathered and see-through and no sprite looks like a
+  disc. It thins out softly just below its cloud's base, so from the ground cumulus still have
+  flattish bottoms. The shading is gentle rather than two crisp tones: brighter on the sun's
+  side of the cloud and higher up, a pale periwinkle underneath, with a soft step between. On
+  the night side they turn a soft slate-blue, in step with the ground's moonlight fill. The
+  whole layer turns about z at 0.004 rad/s of real time (about a metre a second at their
+  height; time warp doesn't speed them up).
+- **Never big, never cut off, cheap to fill.** Many overlapping see-through sprites are what
+  costs on a phone (overdraw), and a sprite that fills the screen stops looking soft. So the
+  vertex shader drops a sprite (before any pixel is drawn) when the camera is within a few of
+  its radii or when it would be more than about half the screen's half-height across, and
+  fades any biggish sprite out before it reaches the screen's edges; small far ones are left
+  alone, so the globe keeps its clouds right to the limb. Fading thins a sprite's density
+  before its alpha step, so a fading cloud evaporates from its rims inwards instead of turning
+  into grey discs. Measured with a counting shader over the standard views (844 × 390): 0.1
+  (orbit) to 1.25 (the globe) sprite pixels per screen pixel counting every rasterised pixel,
+  0.05 to 0.6 counting only drawn ones, at most about 40 layers in the thickest spot, against
+  0.03 to 0.5 for the first try's solid balls. So at worst about one extra full-screen pass of
+  a cheap shader (one texture read).
+- **Shadows.** A soft round blot under each sprite, as dense as it and piling up where they
+  overlap, baked once into a 6 × 96 × 96 one-channel cube map (even detail all round; an
+  equirectangular map had its pole in the middle of the globe view and looked blocky there).
+  The ground's toon shader looks along the sun's direction up to the layer (not too far when
+  the sun is low, so a shadow stays near its cloud), turns that by the layer's drift and takes
+  up to 30% of the direct sunlight off, so they read as soft dimming, not dark shapes. It fades
+  out towards the night side, since the toon light still lights the back of the world a
+  little. The sea and the trees don't get shadows (yet).
 - **Readability.** Clouds must never hide the rocket, the landing site or what a marker points
   at (the markers themselves are HTML over the canvas). Each frame the flight scene fades each
   cloud (`cloudFade()`, pure and tested): it fades out as the camera comes within about two of
   its reaches (gone with the camera inside it), and down to a thin veil (18%) when it's across
   the line from the camera to the rocket, to the ground under the rocket while flying (where it
   would land), or to the buggy. A cloud behind the rocket is left alone: the rocket is drawn in
-  front of it. So a launch rises past the clouds behind it and through a veil of the ones in
-  front.
-- **Two draw calls.** The solid clouds write depth, so their puffs cover each other the right way
-  round from any side, and only their thin soft edges blend. Faded clouds are drawn by a second
-  mesh over the same puffs that doesn't write depth (drawn solid, a faded cloud hid the
-  atmosphere's glow behind it and looked like a dark smudge). Each mesh skips the other's
-  clouds in its vertex shader.
-- **Cost** (Homestead: 51 clouds, 412 puffs). Two draw calls and about 1,650 triangles more;
-  one cube-map lookup and a few multiplies per ground pixel for the shadows; the fades take about
-  10 µs of script per frame on a desktop, and nothing is allocated. Placing the clouds and
-  baking the shadow map take about 20 ms at load (about 90 ms the first time, before the
-  script is warmed up).
+  front of it. So a launch rises past soft clouds behind it and through a faint mist of the ones
+  in front.
+- **One draw call.** Every sprite is blended (premultiplied alpha) and none writes depth, so the
+  ground, the atmosphere's glow and the clouds behind all show through the soft edges. They are
+  sorted far-to-near for the +z cameras once, at load; from other angles the order is a little
+  off, but white-on-white soft sprites hide it.
+- **Cost** (Homestead: 143 clouds, 2,441 sprites). One draw call and about 4,900 triangles; the
+  fill above; one cube-map lookup and a few multiplies per ground pixel for the shadows; the
+  per-cloud fades take tens of µs of script per frame, and nothing is allocated. Placing the
+  clouds and baking the shadow map take about 25 to 35 ms at load in the browser (more the first
+  time in a cold script engine).
 
 ## Ideas for later
 
