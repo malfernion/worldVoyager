@@ -78,7 +78,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        `shoreDist()`: metres to the nearest pool's shore, #45)
   terrain.js           Height + colour functions per world (shared by physics and meshes), each world's liquid (`liquid: { kind, level }`,
                        the seabed shape `seabedDepth()`; #44), pools carved below a liquid's level (`makePools()`, Sizzle's lava
-                       `SIZZLE_LAVA`; #45; Misty's methane lakes and dunes `MISTY_LAKES`; #46), gas giants' spin axes (+ `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
+                       `SIZZLE_LAVA`; #45; Misty's methane lakes `MISTY_LAKES`; #46, and its ground, dune fields `MISTY_DUNES` and soft lake banks, #59), gas giants' spin axes (+ `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
                        the ring gap, flares, seeing Tumble's hexagon `hexagonSeen()`, #55), and the ✨ compass's targets
@@ -139,6 +139,7 @@ test/                  vitest suites; missions.js has the shared headless flight
                        edge from every side (never in, never stuck), hops over it, laps round Sizzle;
                        misty.test.js: Misty (#46): its orbit, the lakes' placement, the crash, landings beside them from all round
                        and after trips there (🤖 and 🧭), every buggy through every lake, laps across one;
+                       its ground (#59): no bands, no walls, lakes in low ground, dunes in fields;
                        haze.test.js: Misty's haze (#58): on the ground, from orbit down with no jump, driving (and
                        after a lake), the buggy and rocket kept clear, other worlds untouched
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
@@ -537,6 +538,10 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   facets. Keep ground shapes smooth (smoothstep / polynomial blends that join level) and a
   feature at least three or four vertex spacings across (`DETAIL` in `planets.js`); the
   shading baked or worked out per vertex follows the same vertices (#56: Pebble's craters).
+- **`max()` / `min()` of two ground shapes leaves a crease too** (#59): where Misty's two dune
+  sets met, and where a lake's bank met the ground, a thin bright line showed in the shading.
+  Join them softly (`a + b - ab` for 0..1 shapes, the smooth minimum in `makePools(…, soft)`),
+  and give region masks edges wide enough in noise units (Perlin noise can be steep).
 - **Screen markers: don't animate `scale` on the marker itself.** Markers are placed with
   `transform: translate(...)`, and CSS applies the `scale` property on top of that, so a
   bobbing marker drifted away from its spot by up to 30% of its screen position (the 🚀 pin

@@ -652,11 +652,30 @@ moon, has methane lakes (#46, below).
   limits didn't need to move (Ringo's default view is its whole SOI), and its label is a moon's,
   so it hides behind Ringo or shrinks to its icon when crowded (#33). The stress sweep, the
   mission tests and Round the World all include it.
-- **The ground.** Tan-brown plains, brighter uplands, and a belt of long, dark, parallel dunes
-  round the middle (ridges about 16 m apart, bent a little by noise). Its mesh is detail 56
-  (about 63,000 triangles, like Homestead's) so the dune crests and lake shores are smooth.
+- **The ground** (#59). Smooth plains with a slow swell, rolling brighter uplands (Titan's
+  Xanadu) and fields of long dark dunes, all from `makeMisty()` in `terrain.js`. It began as a
+  belt of parallel ridges right round the middle (`sin(z)`: bands, which the owner rightly
+  said looked computer-made); now:
+  - One broad field (`g`, 3 octaves at 1.3) gives the plains' swell and, where it's high, the
+    uplands' hills. The ground dips up to 2.2 m within about 60 m of each lake (the edge
+    wobbled by noise), so the lakes sit in low ground; the lakes' banks round over into it
+    (`makePools(…, soft)`, a smooth minimum, #59; Sizzle's lava keeps its crisp banks).
+  - Dunes (`MISTY_DUNES`): two sets, each ridged across its own tilted axis, so the ridges'
+    heading changes across the moon (mostly east-west round the middle, like Titan's), 17 and
+    21 m apart, 2.2 m tall at most (no steeper than the old ones: the buggy drives over them).
+    A domain warp bends them; noise stretched along the ridges makes each crest rise, fall and
+    break off (30 to 150 m long); one set's fields here, the other's there, crossing only in
+    a narrow strip; gaps between fields; none on the uplands, near the poles or on the lakes'
+    banks. Near a set's own poles its ridges would curl into rings, so they fade out there. The
+    sets are joined with a soft union (`a + b − ab`), since `max()` leaves a crease.
+  - Colour: the dune fields' sand is dark (the region, not each ridge, so fields read as
+    patches like Titan's sand seas), crests paler; uplands brighter; damp shores dark.
+  - Region edges must be wide enough in noise units (a steep bit of Perlin noise made a sharp
+    dark wedge at first). Its mesh is still detail 56 (about 63,000 triangles, like Homestead's);
+    height and colour share one evaluation per vertex (the last point is kept), and baking it
+    costs about 1.5× the old banded one (roughly 75 ms against 50 ms on a desktop).
 - **The lakes** are carved like Sizzle's lava (`MISTY_LAKES`, `makePools()`): one methane
-  level 5 m below the base radius (the natural ground never dips below about -3.1 m), and ten
+  level 5 m below the base radius (the natural ground never dips below about -3.5 m, #59), and ten
   basins 2.2 to 3.8 m deep, with gentle banks (0.2, so the buggy drives in and out). Like
   Titan's, most are round the poles (here z = ±1: the northern ones face the camera from
   orbit): a long northern sea with a southern arm, a round one, a small one right by the pole,
