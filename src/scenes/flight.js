@@ -14,7 +14,8 @@ import { groundHeading, vec } from '../physics/buggy.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
 import { DriveMode } from './drive.js';
-import { landingFinds, ringGapCrossed, flareSeen, sunDirection } from '../physics/discoveries.js';
+import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, HEX_POLE, sunDirection } from '../physics/discoveries.js';
+import { HEXAGON } from '../world/richLook.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
 import { TAP_RADIUS, clockAllowed, clockOnPath, clockWindow, pickOnPath, travelWarp, arrived } from '../ui/fastTravel.js';
@@ -1404,7 +1405,8 @@ export class FlightScene {
 
   /**
    * Discoveries found while flying (#15): diving through the gap between Ringo and its rings
-   * (counted a few seconds later, if we didn't crash), and Ember's solar flares up close.
+   * (counted a few seconds later, if we didn't crash), Ember's solar flares up close, and
+   * seeing Tumble's hexagon (#55).
    */
   checkDiscoveries() {
     const s = this.flight.state;
@@ -1422,6 +1424,29 @@ export class FlightScene {
     last.x = s.x;
     last.y = s.y;
     if (!p.has('find-flare') && flareSeen(s)) this.found('find-flare');
+    if (!p.has('find-hexagon') && this.hexagonInView()) this.found('find-hexagon');
+  }
+
+  /**
+   * Is Tumble's hexagon (#55) in view, big enough to make out? From where the camera was last
+   * frame (flight view or map); no allocation.
+   */
+  hexagonInView() {
+    const v = this.tumbleVisual ??= this.visuals.find((x) => x.body.id === 'tumble');
+    if (!v) return false;
+    const cam = this.camera;
+    const hv = this.hexView ??= { x: 0, y: 0, behind: false, facing: 0, px: 0, p: new THREE.Vector3(), to: new THREE.Vector3() };
+    const r = v.body.radius * v.group.scale.x;
+    hv.p.set(HEX_POLE.x, HEX_POLE.y, HEX_POLE.z).multiplyScalar(r).add(v.group.position);
+    hv.to.copy(cam.position).sub(hv.p);
+    const dist = hv.to.length();
+    hv.facing = (hv.to.x * HEX_POLE.x + hv.to.y * HEX_POLE.y + hv.to.z * HEX_POLE.z) / dist;
+    hv.px = (r * HEXAGON.size * window.innerHeight) / (2 * dist * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
+    hv.p.project(cam);
+    hv.x = hv.p.x;
+    hv.y = hv.p.y;
+    hv.behind = hv.p.z > 1;
+    return hexagonSeen(hv);
   }
 
   updateMood() {

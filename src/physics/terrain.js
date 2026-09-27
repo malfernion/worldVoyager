@@ -444,6 +444,16 @@ export const TUMBLE_AXIS = (() => {
 /** Spin axis of each gas giant (bands, rings and the slow spin of the mesh). */
 export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS };
 
+/**
+ * The pole of a spin axis that the game's cameras see (#55: Tumble's hexagon). They all look at
+ * the flight plane from its front (+z), so it's the end of the axis leaning towards +z (Tumble's
+ * lies nearly in the plane, tipped a little towards the camera). A unit direction.
+ */
+export function facingPole(axis) {
+  const k = (axis.z < 0 ? -1 : 1) / Math.hypot(axis.x, axis.y, axis.z);
+  return { x: axis.x * k, y: axis.y * k, z: axis.z * k };
+}
+
 function makeBanded(axis, bands, seed, { warp = 0.25, stripes = 1.6 } = {}) {
   const { fbm } = makeNoise(seed);
   const al = Math.hypot(axis.x, axis.y, axis.z);

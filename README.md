@@ -134,7 +134,7 @@ get close Pip steers you in. Drive over its fizzy gas jets and they'll bounce yo
 science: an old observatory on a hill near home, footprints and a flag and a shiny laser mirror
 on Pebble, a sleepy rover and swirly dust devils on Dusty, Nibble's giant crater, the gap
 between Ringo and its rings, Sizzle's biggest volcano, Frosty's glowing cracks (park by one
-at night), a little probe that floated down on a parachute by one of Misty's lakes, Ember's solar flares (fly close, not too close), Flip's dark geyser streaks and a
+at night), a little probe that floated down on a parachute by one of Misty's lakes, Ember's solar flares (fly close, not too close), Tumble's giant six-sided storm (can you spot it?), Flip's dark geyser streaks and a
 little lander hiding in the shade on Ducky. While you drive, a ✨ next to the rocket compass
 points to the nearest secret still to find on that world, and grows and twinkles as you get
 close. Finding one plays a chime, pops a sticker and Pip tells you the real fact.

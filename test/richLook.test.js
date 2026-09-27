@@ -3,7 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { reliefShade, bakeRelief } from '../src/world/richLook.js';
+import { reliefShade, bakeRelief, GAS_LOOK, HEXAGON } from '../src/world/richLook.js';
+import { SPIN_AXES, facingPole } from '../src/physics/terrain.js';
 
 // A closed sphere mesh (like a world's), with each vertex's unit direction.
 function sphere(detail = 12) {
@@ -84,5 +85,31 @@ describe('reliefShade softening (#56)', () => {
     for (let f = 0; f < idx.length && nb < 0; f += 3) for (let e = 0; e < 3; e++) if (idx[f + e] === at) nb = idx[f + ((e + 1) % 3)];
     expect(soft[nb]).toBeLessThan(1);
     expect(Math.abs(soft[at] - soft[nb])).toBeLessThan(Math.abs(hard[at] - hard[nb]));
+  });
+});
+
+describe('Tumble\'s hexagon (#55)', () => {
+  it('sits on the pole the cameras see (they look at the flight plane from +z)', () => {
+    const p = facingPole(SPIN_AXES.tumble);
+    expect(Math.hypot(p.x, p.y, p.z)).toBeCloseTo(1, 9);
+    expect(p.z).toBeGreaterThan(0);
+    expect(facingPole({ x: -p.x, y: -p.y, z: -p.z })).toEqual(p); // either end of the axis
+  });
+
+  it('is all on the side the cameras see, whichever way the planet has turned', () => {
+    // The band's outer corners are the farthest from the pole (seen from above: size + width, over cos 30°).
+    const corner = Math.asin((HEXAGON.size + HEXAGON.width) / Math.cos(Math.PI / 6));
+    const poleTilt = Math.acos(facingPole(SPIN_AXES.tumble).z); // the pole's angle from the camera
+    expect(poleTilt + corner).toBeLessThan(Math.PI / 2);
+    // Close up only the near part of the band shows (it wraps over the horizon), but the vortex
+    // in the middle still does, from the map's globe view (about 3 radii out).
+    expect(poleTilt + Math.asin(HEXAGON.eye)).toBeLessThan(Math.acos(1 / 3));
+    // ...and it's a small storm round the pole, with its vortex well inside.
+    expect(HEXAGON.eye + HEXAGON.width).toBeLessThan(HEXAGON.size * 0.6);
+  });
+
+  it('is Tumble\'s alone: Ringo keeps its approved look', () => {
+    expect(GAS_LOOK.tumble.hexagon).toBe(HEXAGON);
+    expect(GAS_LOOK.ringo.hexagon).toBeUndefined();
   });
 });

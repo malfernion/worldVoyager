@@ -7,7 +7,7 @@
 // A world opts in by having an entry in ROCKY_LOOK (rocky worlds) or GAS_LOOK (gas giants,
 // whose bands come from GAS_BANDS in terrain.js); every other world keeps the plain toon look.
 import * as THREE from 'three';
-import { SPIN_AXES, GAS_BANDS, SIZZLE_VENTS, FROSTY_GLOWS } from '../physics/terrain.js';
+import { SPIN_AXES, GAS_BANDS, SIZZLE_VENTS, FROSTY_GLOWS, facingPole } from '../physics/terrain.js';
 import { toonGradient } from './materials.js';
 
 // Colours are used as raw 0..1 values, like the terrain's vertex colours (so the palettes match).
@@ -340,10 +340,23 @@ const ROCKY_COLOR = /* glsl */ `
 // ---- Gas giants --------------------------------------------------------------------------------
 
 /**
+ * Tumble's hexagon (#55), Saturn's six-sided polar storm: a crisp jet-stream band round the
+ * pole (`size`: its flat sides' distance from the pole, `width`: the band's, both seen from
+ * straight above the pole, in planet radii), with a little vortex (`eye`) in the middle.
+ * Colours: the band, its pale core, inside the hexagon, and the vortex's rim, body and eye.
+ * `turn` is how fast the vortex swirls; the hexagon turns with the planet.
+ */
+export const HEXAGON = {
+  size: 0.32, width: 0.055, eye: 0.09, turn: 0.12,
+  colors: { band: 0x0f3f8a, core: 0xa8f0ff, inside: 0x3a88c4, rim: 0x0a2656, body: 0x1f5aa8, eye: 0xeafcff },
+  glow: 0x8fe8ff, // its jet glows softly on the night side, like an aurora
+};
+
+/**
  * Each gas giant's cloud look: storms (latitude `lat` along the spin axis, -1..1, longitude `lon`,
  * size across and up in radians, colours from the rim in to the eye, and how fast they turn),
- * how much its bands drift (`drift`, radians) and its rim colour. Generic over the axis and
- * palette, so another gas giant (Tumble) opts in with an entry here.
+ * how much its bands drift (`drift`, radians), its rim colour, and optionally a polar `hexagon`
+ * (#55). Generic over the axis and palette, so another gas giant (Tumble) opts in with an entry here.
  */
 export const GAS_LOOK = {
   ringo: {
@@ -356,9 +369,11 @@ export const GAS_LOOK = {
     night: 0x1c2250,
     nightK: 0.12,
   },
-  // Tipped on its side, pale blue-green, with a dark Neptune-style spot (#52).
+  // Tipped on its side, pale blue-green, with a dark Neptune-style spot (#52) and, like
+  // Saturn's, a six-sided jet stream round the pole the cameras see (#55).
   tumble: {
     storms: [{ lat: 0.2, lon: 3.6, size: [0.2, 0.12], colors: [0x2f5f86, 0x3f7fa8, 0x8fcfe0], turn: 0.1 }],
+    hexagon: HEXAGON,
     drift: 0.2,
     rim: 0xe0fffb,
     rimK: 0.18,
@@ -408,6 +423,25 @@ export function gasMaterial(body, sunDir) {
       turn: { value: s?.turn ?? 0 }, on: { value: on ? 1 : 0 },
     });
   }
+  // The hexagon (#55): a frame round the pole the cameras see.
+  const hex = look.hexagon;
+  const hexU = {};
+  if (hex) {
+    const f = facingPole(axis);
+    const pole = new THREE.Vector3(f.x, f.y, f.z);
+    const h1 = new THREE.Vector3(1, 0, 0).addScaledVector(pole, -pole.x).normalize();
+    const hc = hex.colors;
+    Object.assign(hexU, {
+      gHexPole: { value: pole },
+      gHexE1: { value: h1 },
+      gHexE2: { value: new THREE.Vector3().crossVectors(pole, h1) },
+      gHexSize: { value: new THREE.Vector3(hex.size, hex.width, hex.eye) },
+      gHexTurn: { value: hex.turn },
+      gHexBand: { value: raw(hc.band) }, gHexCore: { value: raw(hc.core) }, gHexIn: { value: raw(hc.inside) },
+      gHexRim: { value: raw(hc.rim) }, gHexBody: { value: raw(hc.body) }, gHexEye: { value: raw(hc.eye) },
+      gHexGlowC: { value: raw(hex.glow) },
+    });
+  }
   const palette = [];
   for (let i = 0; i < 8; i++) palette.push(raw(bands.bands[i % bands.bands.length]));
   const r = body.rings;
@@ -431,10 +465,12 @@ export function gasMaterial(body, sunDir) {
     gStorm0A: stormU[0].col0, gStorm0B: stormU[0].col1, gStorm0D: stormU[0].col2, gStorm0T: stormU[0].turn, gStorm0On: stormU[0].on,
     gStorm1C: stormU[1].c, gStorm1E: stormU[1].east, gStorm1N: stormU[1].north,
     gStorm1A: stormU[1].col0, gStorm1B: stormU[1].col1, gStorm1D: stormU[1].col2, gStorm1T: stormU[1].turn, gStorm1On: stormU[1].on,
+    ...hexU,
   };
   const defs = defines([
     ['RL_STORM', storms.length > 0], // (faint rings, like Tumble's, cast no shadow worth drawing)
     ['RL_RINGSHADOW', !!r && !r.faint],
+    ['RL_HEX', !!hex],
   ]);
   const mat = new THREE.MeshToonMaterial({ gradientMap: toonGradient() });
   mat.onBeforeCompile = (shader) => {
@@ -448,7 +484,7 @@ export function gasMaterial(body, sunDir) {
     let frag = shader.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb = gasColor(normalize(rlObj));`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>\n${RING_SHADOW_ON_PLANET}`)
-      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n#include <opaque_fragment>`);
+      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${HEX_GLOW}\n#include <opaque_fragment>`);
     frag = frag.replace('#include <gradientmap_pars_fragment>', SOFT_GRADIENT)
       .replace('#include <lights_toon_fragment>', 'rlViewDir = normalize(vViewPosition);\n#include <lights_toon_fragment>');
     shader.fragmentShader = defs + FRAG_PARS + GAS_PARS + frag;
@@ -504,6 +540,12 @@ const GAS_PARS = /* glsl */ `
   uniform vec3 gStorm1C, gStorm1E, gStorm1N, gStorm1A, gStorm1B, gStorm1D;
   uniform float gStorm1T, gStorm1On;
   varying vec3 gSunObj;
+  #ifdef RL_HEX
+    uniform vec3 gHexPole, gHexE1, gHexE2, gHexSize;
+    uniform float gHexTurn;
+    uniform vec3 gHexBand, gHexCore, gHexIn, gHexRim, gHexBody, gHexEye, gHexGlowC;
+  #endif
+  float gHexGlow = 0.0; // how much of the hexagon's jet is here (for its night glow)
 
   vec3 gBand(float i) {
     return gBands[int(mod(i, float(gCount)))];
@@ -531,7 +573,48 @@ const GAS_PARS = /* glsl */ `
     return mix(wake, s, edge);
   }
 
+  #ifdef RL_HEX
+  // Tumble's hexagon (#55), like Saturn's: a jet stream round the pole with six straight
+  // sides (a hexagon in q, the point seen from straight above the pole), a pale core streaming
+  // along it, and a little vortex swirling in the middle. Edges are antialiased by their
+  // on-screen size (fwidth), so they stay crisp near and far without shimmering.
+  vec3 gHex(vec3 p, vec3 c) {
+    if (dot(p, gHexPole) < 0.5) return c; // (well clear of the hexagon, so its derivatives are fine)
+    vec2 q = vec2(dot(p, gHexE1), dot(p, gHexE2));
+    float h = max(abs(q.x), max(abs(0.5 * q.x + 0.8660254 * q.y), abs(-0.5 * q.x + 0.8660254 * q.y)));
+    float R = gHexSize.x, W = gHexSize.y;
+    float aa = max(fwidth(h), 0.0015);
+    float d = h - R;
+    // Inside the hexagon: a calmer, deeper blue than the pale cap round it.
+    c = mix(c, gHexIn, 1.0 - smoothstep(-W - aa, -W + aa, d));
+    // The band, with a dark edge and a pale core streaming round (dashes along the sides).
+    float band = 1.0 - smoothstep(W - aa, W + aa, abs(d));
+    float ang = atan(q.y, q.x);
+    float flow = 0.5 + 0.5 * sin(ang * 12.0 - gTime * 0.05 + d * 40.0);
+    vec3 b = mix(gHexRim, gHexBand, 1.0 - smoothstep(W * 0.78 - aa, W * 0.78 + aa, abs(d)));
+    float core = 1.0 - smoothstep(W * 0.28 - aa, W * 0.28 + aa, abs(d));
+    b = mix(b, gHexCore, core * (0.55 + 0.45 * smoothstep(0.35, 0.65, flow)));
+    c = mix(c, b, band);
+    gHexGlow = band * (0.6 + 0.4 * core);
+    // The vortex in the middle: dark rim, two spiral arms turning, a pale eye. (Derivatives
+    // are taken outside the branch: they're undefined where neighbouring pixels branch apart.)
+    float r = length(q) / gHexSize.z;
+    float arm = sin(ang * 2.0 - r * 7.0 + gTime * gHexTurn);
+    float aw = fwidth(arm) + 0.12;
+    float ra = max(fwidth(r), 0.02);
+    if (r < 1.3) {
+      vec3 v = mix(gHexBody, mix(gHexBody, gHexEye, 0.55), smoothstep(-aw, aw, arm) * smoothstep(0.3, 0.45, r));
+      v = mix(gHexEye, v, smoothstep(0.28 - ra, 0.28 + ra, r));
+      v = mix(v, gHexRim, smoothstep(0.84 - ra, 0.84 + ra, r));
+      c = mix(c, v, 1.0 - smoothstep(1.0 - ra, 1.0 + ra, r));
+      gHexGlow = max(gHexGlow, 0.5 * (1.0 - smoothstep(0.28 - ra, 0.28 + ra, r)));
+    }
+    return c;
+  }
+  #endif
+
   vec3 gasColor(vec3 p) {
+    vec3 p0 = p; // (the hexagon doesn't drift with the bands: it stays crisp)
     float lat = dot(p, gAxis);
     // Neighbouring bands drift at different speeds (jets): turn p round the axis by a
     // latitude-dependent angle.
@@ -576,6 +659,9 @@ const GAS_PARS = /* glsl */ `
     c = mix(c, mix(gBand(0.0), vec3(1.0, 0.97, 0.9), 0.35), smoothstep(0.86, 0.95, pole) * 0.75);
     // A little more colour than the vertex bands had (kids like it bright).
     c = mix(vec3(dot(c, vec3(0.333))), c, 1.25);
+    #ifdef RL_HEX
+      c = gHex(p0, c);
+    #endif
     #ifdef RL_STORM
       c = gStorm(p, c, gStorm0C, gStorm0E, gStorm0N, gStorm0A, gStorm0B, gStorm0D, gStorm0T, gStorm0On);
       c = gStorm(p, c, gStorm1C, gStorm1E, gStorm1N, gStorm1A, gStorm1B, gStorm1D, gStorm1T, gStorm1On);
@@ -595,6 +681,17 @@ const GAS_PARS = /* glsl */ `
     a *= mix(0.35, 1.0, smoothstep(0.0, 0.06, t) * (1.0 - smoothstep(0.94, 1.0, t)));
     return clamp(a * soft, 0.0, 1.0);
   }
+`;
+
+// The hexagon's jet glows softly on the night side (#55; Saturn's and Uranus's poles have
+// auroras), so it still shows when Tumble's pole is turned away from Ember.
+const HEX_GLOW = /* glsl */ `
+  #ifdef RL_HEX
+  {
+    float dark = 1.0 - smoothstep(-0.3, 0.1, dot(normalize(rlRadial), rlSun));
+    outgoingLight += gHexGlowC * gHexGlow * dark * 0.22;
+  }
+  #endif
 `;
 
 // The rings' shadow on the planet: follow the sun's ray from here to the ring plane.

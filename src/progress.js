@@ -147,6 +147,11 @@ export const STICKERS = {
     say: 'Whoa, a solar flare! Ember threw out a giant loop of glowing gas. Flares from the Sun can make the lights in Earth\'s sky glow. They are called auroras!',
     hint: 'Sometimes Ember flares up! Fly close to it, but not too close!',
   },
+  'find-hexagon': {
+    icon: '🐝', name: 'Hexagon Hunter', world: 'tumble',
+    say: 'Look, a storm with six straight sides, like a honeycomb! Saturn has one at its north pole. Two Earths could fit inside it!',
+    hint: 'Tumble has a storm with six sides. Can you spot it?',
+  },
   'find-streak': {
     icon: '🌬️', name: 'Streak Spotter', world: 'flip',
     say: 'A long dark streak! The wind blew the geyser\'s dust across the ice. Voyager 2 saw streaks like this on Triton. It is the only spacecraft that ever went there!',
