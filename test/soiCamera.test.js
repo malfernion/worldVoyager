@@ -22,7 +22,7 @@ function setup(m, mode = 'flight') {
     flight: m.flight, autopilot: m.ap, system: m.sys, time: 0, crashed: false, target: null, mode: 'flight', pause: null, clock: null,
     input: { left: false, right: false, go: false, fine: false }, warpIndex: 0, manualWarp: false,
     snapshots: [], snapTimer: 0, predTimer: 0, prediction: null, origin: { x: 0, y: 0 }, tmp: {}, tmp2: {}, tmp3: {}, kindAt: {},
-    pan: { x: 0, y: 0 }, mapDist: 2000, zoom: 1, carry: 1, camSettle: false, soiGlow: null,
+    mapAt: { x: 0, y: 0 }, mapOff: { x: 0, y: 0 }, mapGoalAt: { x: 0, y: 0 }, mapDist: 2000, zoom: 1, carry: 1, camSettle: false, soiGlow: null,
     camera: new THREE.PerspectiveCamera(50, 844 / 390, 1, 3e6), camUp: new THREE.Vector3(0, 1, 0), rocket: { height: 6 },
     drive: { active: false, cancel() {} }, showing: null, coachKey: null, coachSpent: null, coachWait: 0,
   });
@@ -42,14 +42,7 @@ function frame(s, dt = 1 / 60) {
     s.glideMap(dt);
   }
   const rw = f.worldPos({});
-  if (s.mode === 'flight') {
-    s.origin.x = rw.x;
-    s.origin.y = rw.y;
-  } else {
-    const fw = s.mapFocus.worldPos(f.state.t, {});
-    s.origin.x = fw.x + s.pan.x;
-    s.origin.y = fw.y + s.pan.y;
-  }
+  s.placeOrigin(rw);
   s.updateCamera(dt);
   const c = s.camera;
   const rocket = new THREE.Vector3(rw.x - s.origin.x, rw.y - s.origin.y, 0);
@@ -123,11 +116,12 @@ describe('the camera across an SOI hand-off (#49)', () => {
     }
   });
 
-  it('map: keeps its focus and zoom, the rocket doesn\'t jump on screen, the new world\'s label glows', () => {
+  it('map: keeps its focus, centre and zoom, the rocket doesn\'t jump on screen, the new world\'s label glows', () => {
     const m = parkAt(mission(), 'homestead', 0);
     const s = setup(m, 'map');
     const focus = s.mapFocus;
     const dist = s.mapDist;
+    const centre = { ...s.mapAt };
     m.ap.start('goto', m.sys.byId.pebble);
     for (const to of ['pebble', 'homestead']) {
       if (to === 'homestead') m.ap.start('goto', m.sys.byId.homestead);
@@ -137,10 +131,11 @@ describe('the camera across an SOI hand-off (#49)', () => {
       expect(after.mapDist).toBe(dist);
       expect(change(before, after).screen).toBeLessThan(0.01);
       expect(s.soiGlow.body.id).toBe(to);
+      // The rocket then flies on across the map (fast, on a trip), but the map itself never moves (#57).
       const w = worstOver(s, after, 60 * 3);
-      expect(w.screen).toBeLessThan(0.01);
       expect(w.dist).toBe(0);
       expect(s.mapFocus).toBe(focus);
+      expect(s.mapAt).toEqual(centre);
     }
     // Back in the flight view, the flight camera has settled meanwhile (it eases on the map too).
     s.toggleMap();

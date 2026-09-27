@@ -54,7 +54,7 @@ export class FlightHud {
     click('show-btn', () => this.scene.showMeHow());
     click('coach-toggle', () => this.scene.tapCoach());
     click('target-close', () => this.scene.setTarget(null));
-    click('center-btn', () => this.scene.focusMapOn(this.scene.flight.state.body, true));
+    click('center-btn', () => this.scene.findRocket());
     click('crash-rewind', () => this.scene.rewind());
     click('crash-pad', () => this.scene.resetToPad());
     click('crash-build', () => this.app.toBuilder());
@@ -179,8 +179,8 @@ export class FlightHud {
       } else if (pts.size === 1 && s.mode === 'map') {
         const worldPerPx = (2 * s.camera.position.z * Math.tan((s.camera.fov * Math.PI) / 360)) / window.innerHeight;
         s.mapEase = false;
-        s.pan.x -= (cur.x - prev.x) * worldPerPx;
-        s.pan.y += (cur.y - prev.y) * worldPerPx;
+        s.mapAt.x -= (cur.x - prev.x) * worldPerPx;
+        s.mapAt.y += (cur.y - prev.y) * worldPerPx;
       }
     });
     const end = (e) => {

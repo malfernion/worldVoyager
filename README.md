@@ -26,8 +26,10 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
 - **Zoom:** pinch, scroll, or the slider on the right. The camera follows further back as you
   climb, but you can always zoom right up to the rocket (about 12 m) or out to see a whole
   world; on the map, from one world up close out to the whole solar system. Flying into a new
-  world's space never moves the camera by itself; on the map, that world's label glows (🎯
-  centres the map on the world you're in).
+  world's space never moves the camera by itself; on the map, that world's label glows.
+- **The map** opens centred on your rocket, then stays still: worlds, your rocket and their
+  orbits move across it, and drag it with a finger to look somewhere else. It stays where you
+  put it. 🎯 brings it back to your rocket.
 - **You're the pilot.** Pip only flies when you ask her with a 🤖 button, and she only tells you
   what to do when you ask for that too. On your very first launch she explains: "You're the
   pilot! Want me to tell you what to do? Tap the compass. Or tap the swirly button, and I'll
