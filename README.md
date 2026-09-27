@@ -122,7 +122,8 @@ way, so to catch it you have to go round Tumble backwards too (Pip turns you rou
 don't).
 
 **Misty** is Ringo's big outer moon, like Titan: wrapped in a thick orange haze (down on the
-ground the sky is hazy orange, even in the daytime), with long dark dunes and lakes of liquid
+ground, landed or driving, the sky is hazy orange, even in the daytime, and the hills fade into
+the murk), with long dark dunes and lakes of liquid
 methane.
 
 **Ducky** is a comet shaped like a rubber duck, on a long, stretched orbit: it zooms in close

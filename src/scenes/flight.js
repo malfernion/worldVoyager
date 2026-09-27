@@ -33,8 +33,10 @@ export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SKIP_AGAIN = 30; // real seconds between two of Pip's "tap ⏩" hints (#50)
 const FOG_OFF = 1e9;
 // Misty's haze (#46, updateHaze): full up to `low` metres above the ground, gone by `top`; the
-// fog starts `near` and is solid `far` metres from the camera (divided by how hazy it is).
-const HAZE = { low: 30, top: 200, near: 18, far: 280 };
+// fog starts `near` and is solid `far` metres beyond what the camera follows (divided by how hazy
+// it is). Close enough that the murk shows while driving, where the horizon is only a few dozen
+// metres away (#58). The sky overhead (`zenith`) and the sun's glow through it.
+const HAZE = { low: 30, top: 200, near: 2, far: 80, zenith: 0x7a3f16, glow: 0xffd28a };
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
 const CONFETTI = [0xff6b6b, 0xffd166, 0x06d6a0, 0x4cc9f0, 0xf78c6b, 0xc77dff];
 // Longest (real seconds) a new coached action waits for Pip to stop talking (#36).
@@ -992,10 +994,13 @@ export class FlightScene {
 
   /**
    * Misty's thick orange haze (#46), only the look: near its ground (driving, landed, or flying
-   * low) the sky turns hazy orange, even by day, the stars fade out, and the distance fogs over
-   * in the same colour. It thins out as the camera climbs, gone by `HAZE.top` metres up. It
-   * reuses the scene's always-there fog (#44), so no material changes; nothing is allocated.
-   * Under a methane lake the underwater fog wins.
+   * low) the sky turns hazy orange, even by day (a dome, `hazeSky`: amber at the horizon, browner
+   * overhead, the sun a soft glow; #58), the stars fade out, and the distance fogs over in the
+   * horizon's colour. It thins out as the camera climbs, gone by `HAZE.top` metres up, while the
+   * glowing shell seen from outside fades in, so nothing pops between the views. Every frame,
+   * flying or driving (#58: driving never updated it, so a dip in a lake or a zoomed-out view
+   * before 🚙 left it off). It reuses the scene's always-there fog (#44), so no material changes;
+   * nothing is allocated. Under a methane lake the underwater fog wins.
    */
   updateHaze() {
     const s = this.flight.state;
@@ -1011,9 +1016,15 @@ export class FlightScene {
     }
     if (k === this.haze && k === 0) return;
     this.haze = k;
-    // Down in it, the fog is the haze; the shell seen from so close would only glare.
-    if (v) this.hazeShell = v.atmosphere;
-    if (this.hazeShell) this.hazeShell.material.uniforms.fade.value = 1 - 0.85 * k;
+    // Down in it, the fog and the dome are the haze; the shell (only seen from outside) fades out.
+    if (v) {
+      this.hazeShell = v.atmosphere;
+      if (this.hazeSkyMesh && this.hazeSkyMesh !== v.hazeSky) this.hazeSkyMesh.visible = false;
+      this.hazeSkyMesh = v.hazeSky;
+    }
+    if (this.hazeShell) this.hazeShell.material.uniforms.fade.value = 1 - k;
+    const sky = this.hazeSkyMesh;
+    if (sky) sky.visible = k >= 0.01;
     if (this.underwater) return;
     const fog = this.scene.fog;
     if (k < 0.01) {
@@ -1027,13 +1038,26 @@ export class FlightScene {
     const g = v.group.position, sun = this.sunVisual.group.position;
     const ux = c.x - g.x, uy = c.y - g.y, uz = c.z - g.z;
     const sx = sun.x - g.x, sy = sun.y - g.y, sz = sun.z - g.z;
-    const cos = (ux * sx + uy * sy + uz * sz) / ((Math.hypot(ux, uy, uz) * Math.hypot(sx, sy, sz)) || 1);
+    const ul = Math.hypot(ux, uy, uz) || 1, sl = Math.hypot(sx, sy, sz) || 1;
+    const cos = (ux * sx + uy * sy + uz * sz) / (ul * sl);
     const day = 0.3 + 0.7 * Math.max(0, Math.min(1, (cos + 0.2) / 0.5));
     fog.color.set(body.haze).multiplyScalar(day);
-    fog.near = HAZE.near / k;
-    fog.far = HAZE.far / k;
+    // Counted from what the camera follows (the rocket or buggy, at the floating origin), so
+    // that stays clear however far out the camera is, and only what's beyond it fogs over.
+    const d = Math.hypot(c.x, c.y, c.z);
+    fog.near = (HAZE.near + d) / k;
+    fog.far = (HAZE.far + d) / k;
     this.scene.background.copy(this.spaceColour).lerp(fog.color, k);
     this.sky.visible = k < 0.6;
+    if (sky) {
+      const u = sky.material.uniforms;
+      u.k.value = k;
+      u.horizon.value.copy(fog.color);
+      u.zenith.value.set(HAZE.zenith).multiplyScalar(day);
+      u.glow.value.set(HAZE.glow).multiplyScalar(Math.max(0, (day - 0.3) / 0.7));
+      u.up.value.set(ux / ul, uy / ul, uz / ul);
+      u.sun.value.set(sx / sl, sy / sl, sz / sl);
+    }
   }
 
   /** Leaving the flight screen: out of any sea, and no more lapping (or lava's hiss). */
@@ -1384,6 +1408,7 @@ export class FlightScene {
     this.updateMarkers();
     this.updateMood();
     this.updateUnderwater(dt);
+    this.updateHaze();
     this.checkBand(dt, this.drive.buggy?.body === this.system.home);
   }
 

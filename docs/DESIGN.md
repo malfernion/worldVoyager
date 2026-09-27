@@ -674,11 +674,23 @@ moon, has methane lakes (#46, below).
 - **The haze** (only the look; real atmospheres are #12). `haze` on the body makes its
   atmosphere shell thicker: further out (1.22 × radius), and tinting the whole face (`fill`),
   not only the rim, so Misty reads as a hazy orange ball from orbit with its dark lakes
-  showing through. Near the ground (`FlightScene.updateHaze()`, `HAZE`): full up to 30 m above
-  the ground, gone by 200 m, the scene's background turns hazy orange (dimmer on the night
-  side), the stars go, the always-there fog (#44) closes in to 18–280 m in the haze's colour,
-  and the shell fades (seen from so close it would only glare). No material changes, nothing
-  allocated per frame; under a lake the underwater fog wins.
+  showing through. Near the ground (`FlightScene.updateHaze()`, `HAZE`, every frame, flying
+  *and* driving): full up to 30 m above the ground, gone by 200 m, the sky turns hazy orange
+  (dimmer on the night side), the stars go, and the always-there fog (#44) closes in, in the
+  haze's colour. The sky is a dome round the world (`hazeSky()` in `planets.js`, 260 m above
+  the ground so the camera is always inside it while there's haze; one draw call, only then):
+  the fog's colour at the horizon, so the far ground melts into it, browner overhead, with the
+  sun a soft bright patch, like Titan's murk. The fog is counted from what the camera follows
+  (the rocket or buggy, at the floating origin): it starts 2 m beyond it and is solid 80 m
+  beyond (divided by how hazy it is), so the buggy and the rocket stay clear at any zoom while
+  the ground a few dozen metres off (the horizon, on a world this small, from the buggy) goes
+  orange. The shell fades out as the haze comes in (it's only seen from outside: from inside,
+  its back faces are culled), so going down or up nothing pops between shell, fog and dome.
+  No material changes, nothing allocated per frame; under a lake the underwater fog wins.
+  (#58: at first driving never updated the haze: it kept whatever the last flight frame left,
+  so a zoomed-out view before 🚙, or a dip in a lake, which turns the fog off on the way out,
+  left the buggy under a black, starry sky. And the fog, 18–280 m from the camera, barely
+  touched ground only 20 to 60 m away.)
 - **The rocket** crashes on a lake (reason `methane`): an amber splash and "Splash! That lake is
   made of methane. Let's land on the ground!". The helpers land beside the lakes as by the sea;
   coached, "Oops, a lake! I'll fly us over to dry land." (tested from 48 points round the orbit,

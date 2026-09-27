@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), orbit lines never through the ground (#48), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), orbit lines never through the ground (#48), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -102,7 +102,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js;
                        in a sea (#44) spray, a splash going in or out, a bow wave, and bubbles (`FLOAT_*`: they pop at the surface);
                        at lava's edge (#45) `steam()` puffs and `wisp()`s
-src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
+src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46, and its sky dome `hazeSky()`, #58), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
                        lava's own glowing crust shader, #45; methane: the water shader, dark and still, mirroring the haze, #46), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
@@ -114,7 +114,7 @@ src/rocket/            Parts catalogue + stats, procedural rocket and buggy mesh
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
                        `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
-                       Misty's orange haze near its ground `updateHaze()`, #46; orbit lines and the path: `updateLines()`, hidden
+                       Misty's orange haze near its ground `updateHaze()`, #46, flying and driving, #58; orbit lines and the path: `updateLines()`, hidden
                        while driving, and in the flight view a line through the world we're at fades close up: `lineShown()`, #48),
                        drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
@@ -138,7 +138,9 @@ test/                  vitest suites; missions.js has the shared headless flight
                        lava.test.js: Sizzle's lava (#45): placement, the crash, landings beside it from all round, the buggy's
                        edge from every side (never in, never stuck), hops over it, laps round Sizzle;
                        misty.test.js: Misty (#46): its orbit, the lakes' placement, the crash, landings beside them from all round
-                       and after trips there (🤖 and 🧭), every buggy through every lake, laps across one
+                       and after trips there (🤖 and 🧭), every buggy through every lake, laps across one;
+                       haze.test.js: Misty's haze (#58): on the ground, from orbit down with no jump, driving (and
+                       after a lake), the buggy and rocket kept clear, other worlds untouched
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
                        orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
                        world no orbit line through its ground (#48)
@@ -566,7 +568,10 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   every material's shader program, which would stall phones on each dive. Custom shaders that
   should fog (the sea) include the fog chunks and set `fog: true`; the stars have `fog: false`,
   so the sky is hidden under water instead. Misty's haze (#46, `updateHaze()`) uses the same fog
-  (colour, near, far only); under a lake the underwater fog wins.
+  (colour, near, far only); under a lake the underwater fog wins. **`updateDriving()` is a
+  separate frame**: anything the flight frame keeps up to date (the haze, the sea) must be called
+  there too, or driving keeps whatever the last flight frame left (#58: after a dip in a lake,
+  the haze was gone for the rest of the drive). Test with `test/haze.test.js`.
 - **The drive camera's spot in the world's frame** (`DriveMode.updateCamera`) must add the 1.2 m
   lift along the buggy's up, like the camera itself; it used to add it along z, so on shallow
   lakes (#46) the "dive after the buggy" check thought the camera was 1.2 m lower than it was.
