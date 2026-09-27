@@ -23,10 +23,11 @@ const raw = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 
  * triangles of a closed mesh. Each vertex is compared with the average height round it at a few
  * sizes (its neighbours, then wider and wider after more smoothing passes: about 1, 2.5 and 6
  * triangles out): below the average is a hollow (crater floors, valleys), above is a ridge or a crater's
- * rim. Scaled by how bumpy the whole world is, so one setting works for every world. Runs once
- * when the mesh is built (a few tens of milliseconds).
+ * rim. Scaled by how bumpy the whole world is, so one setting works for every world, then
+ * softened `soften` times over the neighbours (#56) so small hollows shade as soft blobs, not
+ * triangle-shaped patches. Runs once when the mesh is built (a few tens of milliseconds).
  */
-export function reliefShade(heights, index, { dark = 0.3, light = 0.14, scales = [[1, 0.3], [6, 0.35], [32, 0.35]] } = {}) {
+export function reliefShade(heights, index, { dark = 0.3, light = 0.14, scales = [[1, 0.3], [6, 0.35], [32, 0.35]], soften = 2 } = {}) {
   const n = heights.length;
   const sum = new Float64Array(n);
   const count = new Uint16Array(n);
@@ -58,9 +59,21 @@ export function reliefShade(heights, index, { dark = 0.3, light = 0.14, scales =
     }
     for (let i = 0; i < n; i++) cav[i] += weight * (heights[i] - s[i]);
   }
+  // (Its strength is set before softening, so broad hollows keep their depth.)
   let rms = 0;
   for (let i = 0; i < n; i++) rms += cav[i] * cav[i];
   rms = Math.sqrt(rms / n) || 1;
+  // Soften it (#56): a vertex's shade halfway to its neighbours' average, so on a coarse mesh
+  // small hollows shade as soft blobs rather than triangle-shaped patches.
+  for (let pass = 0; pass < soften; pass++) {
+    sum.fill(0);
+    for (let k = 0; k < m; k += 2) {
+      const a = nb[k], b = nb[k + 1];
+      sum[a] += cav[b];
+      sum[b] += cav[a];
+    }
+    for (let i = 0; i < n; i++) cav[i] = count[i] ? 0.5 * (cav[i] + sum[i] / count[i]) : cav[i];
+  }
   const shade = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const t = Math.tanh(cav[i] / (2 * rms)); // soft: -1 deep hollow .. 1 sharp ridge
@@ -266,10 +279,11 @@ export function richRocky(mat, body, sunDir) {
   const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface]]);
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\n'
-      + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}\nrlRich = rich;`);
+    shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\nvarying float rlLevel;\n'
+      + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}\nrlRich = rich;\nrlLevel = abs(dot(normalize(normal), normalize(position)));`);
     shader.fragmentShader = defs + FRAG_PARS + /* glsl */ `
       varying float rlRich;
+      varying float rlLevel;
       uniform vec3 rlRock;
       uniform vec3 rlDust;
       uniform vec3 rlSpeck;
@@ -300,10 +314,10 @@ const ROCKY_COLOR = /* glsl */ `
     #else
       vec3 rockC = rlRock, dustC = rlDust, speckC = rlSpeck, streakC = rlStreak;
     #endif
-    // Each triangle's own slope (from screen derivatives), so the colour keeps the facets.
-    vec3 faceN = normalize(cross(dFdx(rlObj), dFdy(rlObj)));
-    float level = abs(dot(faceN, normalize(rlObj)));
-    float steep = 1.0 - smoothstep(0.84, 0.87, level);
+    // The ground's slope from the smooth vertex normals, blended across each triangle (#56:
+    // each triangle's own slope made jagged, triangle-shaped rock patches in small craters).
+    float level = rlLevel;
+    float steep = 1.0 - smoothstep(0.84, 0.92, level);
     diffuseColor.rgb = mix(diffuseColor.rgb, rockC, steep * 0.72 * rlRich);
     diffuseColor.rgb = mix(diffuseColor.rgb, dustC, smoothstep(0.93, 0.975, level) * 0.22 * rlRich);
     // How many metres one pixel covers: detail finer than a few pixels fades out (no grain from far).

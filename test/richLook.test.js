@@ -67,3 +67,22 @@ describe('bakeRelief (#52)', () => {
     }
   });
 });
+
+describe('reliefShade softening (#56)', () => {
+  it('shades a single-vertex dip as a soft blob, not one dark vertex', () => {
+    const { geo, n, dirs } = sphere();
+    const at = nearest(dirs, n, { x: 0, y: 1, z: 0 });
+    const heights = new Float32Array(n);
+    heights[at] = -1;
+    const hard = reliefShade(heights, geo.index.array, { soften: 0 });
+    const soft = reliefShade(heights, geo.index.array);
+    // The dip itself is darkened less sharply...
+    expect(1 - soft[at]).toBeLessThan(1 - hard[at]);
+    // ...and its neighbours share it.
+    const idx = geo.index.array;
+    let nb = -1;
+    for (let f = 0; f < idx.length && nb < 0; f += 3) for (let e = 0; e < 3; e++) if (idx[f + e] === at) nb = idx[f + ((e + 1) % 3)];
+    expect(soft[nb]).toBeLessThan(1);
+    expect(Math.abs(soft[at] - soft[nb])).toBeLessThan(Math.abs(hard[at] - hard[nb]));
+  });
+});
