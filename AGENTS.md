@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -98,6 +98,10 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        WorldLap: have we driven all the way round the world? (#29), driving back in through the garage door
                        (#37: `GARAGE`, `atGarage()`, `Garage`, and `homeAim()` for the compass), `groundHeading()`: which way
                        round the world the compasses point (#41)
+  exhaust.js           The rocket's exhaust in the air (#60): each world's air (`AIR`, `airOf()`, `airAt()`: thick at the
+                       ground, thinning with height, gone by the space line; none in a vacuum), the smoke trail, ground
+                       billows at lift-off / touchdown (`groundBlast()`, `touchdown()`), turning-thruster puffs, dust
+                       kicked up; one fixed ring of particles (`ExhaustPool`) driven by `RocketExhaust`; `warpThin()`
   dust.js              Buggy dust (#26): a fixed pool of particles in typed arrays (tyre dust, landing thumps, the Hopper's
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js;
                        in a sea (#44) spray, a splash going in or out, a bow wave, and bubbles (`FLOAT_*`: they pop at the surface);
@@ -115,6 +119,8 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        the camera, big on screen, at the screen's edges), `noiseTile()` the noise that feathers them,
                        `createClouds()` the one-draw-call sprite layer, `shadowFaces()` / `cloudShadows()` their soft
                        shadows baked into a small cube map for the ground's shader)
+                       exhaust (#60: draws the rocket's exhaust pool, one instanced soft-sprite mesh in the clouds' look;
+                       veiled in front of the rocket, dropped near the camera or when big on screen, `SMOKE_BIG`)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
@@ -219,7 +225,12 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   never by looping over all of them each step. Every buggy particle effect (tyre dust, jumps,
   jets, landing, fizz) goes into the one fixed `DustPool` (#26, `src/physics/dust.js`): no
   per-particle objects or materials, two draw calls. Add new buggy effects there, not as
-  sprites in the flight scene's `Particles`. A liquid is one mesh per world (only the triangles
+  sprites in the flight scene's `Particles`. The rocket's smoke, billows, thruster puffs and
+  kicked-up dust (#60) go into the one fixed `ExhaustPool` (`src/physics/exhaust.js`, 400
+  particles, oldest reused first): one draw call, typed arrays, nothing allocated per frame; it
+  replaced the pad's old dust sprites (about 85 fewer draw calls with the engine on the pad).
+  Its sprites are dropped when big on screen and the ground billows are few and big, so it stays
+  at about 1 to 2 screens of sprite pixels at the pad (measured) and under 1 in flight. A liquid is one mesh per world (only the triangles
   near or under it), with depth baked per vertex: no per-frame CPU work for it (lava's crust
   is a few sines in its shader, no textures).
 - **Clouds never hide what the child looks at, and never flood the screen** (#54,

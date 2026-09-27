@@ -21,6 +21,8 @@ export function createFlame(scale = 1) {
   glow.scale.setScalar(3.2);
   glow.position.y = -0.6;
   g.add(outer, inner, glow);
+  // Glowing over the exhaust's smoke (renderOrder 2, #60).
+  for (const m of g.children) m.renderOrder = 3;
   g.scale.setScalar(scale);
   g.visible = false;
   return {

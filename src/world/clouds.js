@@ -471,7 +471,7 @@ export function noiseTile(n = NOISE_N, seed = 54) {
   return bytes;
 }
 
-function noiseTexture() {
+export function noiseTexture() {
   const t = new THREE.DataTexture(noiseTile(), NOISE_N, NOISE_N, THREE.RedFormat, THREE.UnsignedByteType);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.magFilter = THREE.LinearFilter;

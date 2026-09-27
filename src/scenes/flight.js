@@ -12,6 +12,8 @@ import { buildRocket } from '../rocket/rocketMesh.js';
 import { rocketStats } from '../rocket/parts.js';
 import { groundHeading, vec } from '../physics/buggy.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
+import { ExhaustPool, RocketExhaust } from '../physics/exhaust.js';
+import { createExhaustMesh } from '../world/exhaust.js';
 import { createSky } from '../world/sky.js';
 import { SKY_LOOK } from '../world/planets.js';
 import { DriveMode } from './drive.js';
@@ -125,6 +127,13 @@ export class FlightScene {
     this.scene.add(this.rocketHolder);
     this.particles = new Particles(this.scene);
     this.debris = new Debris(this.scene);
+    // The rocket's exhaust in the air (#60): one fixed pool, one draw call.
+    this.exhaust = new RocketExhaust(new ExhaustPool());
+    this.exhaustMesh = createExhaustMesh(this.exhaust.pool.capacity);
+    this.scene.add(this.exhaustMesh.mesh);
+    this.visualOf = new Map(this.visuals.map((v) => [v.body, v]));
+    this.focusV = new THREE.Vector3();
+    this.stepWarp = 1;
 
     this.lineGroup = new THREE.Group();
     this.scene.add(this.lineGroup);
@@ -222,6 +231,7 @@ export class FlightScene {
     this.crashed = false;
     this.debris.clear();
     this.particles.clear();
+    this.exhaust.clear();
     this.camUp.set(0, 1, 0);
     this.camUpAngle = undefined;
     this.carry = 1;
@@ -245,6 +255,7 @@ export class FlightScene {
       this.rocket.group.add(f.group);
       return f;
     });
+    this.exhaust.setRocket(this.rocket.engines, this.rocket.height);
     this.rocketHolder.visible = true;
   }
 
@@ -254,6 +265,7 @@ export class FlightScene {
     this.flight.resetToPad();
     this.crashed = false;
     this.debris.clear();
+    this.exhaust.clear();
     this.rocketHolder.visible = true;
     this.snapshots = [];
     this.clock = null;
@@ -432,6 +444,7 @@ export class FlightScene {
     this.clearClock();
     this.coachSpent = null; // coaching picks up again from here
     this.flight.restore(snap);
+    this.exhaust.reset(); // the smoke stays where it was, but no trail back to here
     this.crashed = false;
     this.debris.clear();
     this.rocketHolder.visible = true;
@@ -756,7 +769,7 @@ export class FlightScene {
       case 'landed': {
         const b = d.body;
         app.audio.play('land');
-        this.burst(b, 'dust');
+        this.exhaust.touchdown(this.flight.state, d.speed); // billows and dust (#60)
         if (this.autopilot.coachSession) this.goLatched = true;
         if (!d.afterFlight) break;
         const id = `land-${b.id}`;
@@ -988,6 +1001,7 @@ export class FlightScene {
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
+    this.updateExhaust();
     this.updateClouds();
     this.updateMarkers();
     this.updateUnderwater(dt);
@@ -1183,6 +1197,7 @@ export class FlightScene {
         }
       }
     }
+    this.stepWarp = warp; // for the exhaust (#60): thinner trails at high time speeds
     if (!this.crashed && !paused) {
       this.updateCoaching(dt);
       ap.update(dt);
@@ -1440,6 +1455,7 @@ export class FlightScene {
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
+    this.updateExhaust(dt); // what's left of the smoke drifts away while we drive
     this.updateClouds();
     this.updateMarkers();
     this.updateMood();
@@ -1582,18 +1598,9 @@ export class FlightScene {
   updateEffects(dt) {
     const f = this.flight;
     const s = f.state;
+    // Smoke, steam, billows, thruster puffs and dust kicked up (#60); it stands still while paused.
+    this.exhaust.update(this.pause ? 0 : dt, s, this.crashed ? 0 : f.throttle, f.altitude, this.stepWarp);
     if (!this.crashed && f.throttle > 0) {
-      const alt = f.altitude;
-      const up = Math.atan2(s.y, s.x);
-      if (s.body.solid && alt < 28 && Math.random() < dt * 40 * f.throttle) {
-        // Clouds of dust rolling along the ground.
-        const side = Math.random() < 0.5 ? -1 : 1;
-        const tx = -Math.sin(up) * side, ty = Math.cos(up) * side;
-        const gr = s.body.surfaceAt(up);
-        const sp = 6 + Math.random() * 8;
-        this.particles.spawn('puff', s.body, Math.cos(up) * (gr + 1), Math.sin(up) * (gr + 1), (Math.random() - 0.5) * 4,
-          tx * sp, ty * sp, (Math.random() - 0.5) * 6, { size: 2.2, grow: 2.2, life: 2.2, drag: 1.1, color: s.body.id === 'homestead' ? 0xf4ede0 : s.body.color });
-      }
       if (Math.random() < dt * 25) {
         const back = s.angle + Math.PI + (Math.random() - 0.5) * 0.5;
         const sp = 10 + Math.random() * 8;
@@ -1603,6 +1610,40 @@ export class FlightScene {
     }
     this.particles.update(dt, s.t, this.origin);
     this.debris.update(dt, s.t, this.origin);
+  }
+
+  /**
+   * Draw the exhaust pool (#60) where its world is, lit by its sun; in front of the rocket it's
+   * only a veil (the line from its base to its nose, in view space). After the camera.
+   * `driveDt`: driving, the pool isn't stepped by `updateEffects()`, so it's stepped here.
+   */
+  updateExhaust(driveDt = 0) {
+    const em = this.exhaustMesh;
+    const pool = this.exhaust.pool;
+    const flying = !driveDt;
+    if (driveDt) pool.step(driveDt);
+    const v = pool.body && this.visualOf.get(pool.body);
+    if (!v || this.mode === 'map' || pool.count === 0) {
+      em.mesh.visible = false;
+      return;
+    }
+    em.mesh.position.copy(v.group.position);
+    if (v.sunDir) em.uniforms.sunDir.value = v.sunDir;
+    const a = em.uniforms.rocketA.value;
+    if (flying && !this.crashed) {
+      const s = this.flight.state;
+      const h = this.rocket.height;
+      const view = this.camera.matrixWorldInverse;
+      const fv = this.focusV.copy(this.rocketHolder.position).applyMatrix4(view);
+      a.set(fv.x, fv.y, fv.z, 1.6);
+      fv.copy(this.rocketHolder.position);
+      fv.x += Math.cos(s.angle) * h;
+      fv.y += Math.sin(s.angle) * h;
+      em.uniforms.rocketB.value.copy(fv.applyMatrix4(view));
+    } else {
+      a.w = 0;
+    }
+    em.update(pool);
   }
 
   updateCamera(dt) {

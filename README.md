@@ -90,6 +90,11 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   the path shows 💥 where it would hit the water.
 - **Skies:** down near the ground, Homestead has a blue sky (dark and starry at night, warm at
   sunrise and sunset) and Dusty a thin, dusty butterscotch one; climb away and space comes back.
+- **Rocket smoke:** where there's air, the engine leaves a trail of puffy smoke that drifts
+  and fades as you climb and the air thins: white steam on Homestead, a faint dusty orange on
+  Dusty, murky orange in Misty's haze. Lifting off and landing, big clouds roll out along the
+  ground, and turning in the air puffs little clouds from the nose and tail. On worlds with no
+  air (Pebble, Nibble…) there's no smoke at all, only the flame and some dust kicked up.
 - **Clouds:** soft, fluffy clouds and thin wisps drift slowly round Homestead, with faint
   soft shadows on the ground. You see patchy cloud cover from space, with a few long cloud
   bands and a swirl, clouds in the sky from
@@ -175,7 +180,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds (#54), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

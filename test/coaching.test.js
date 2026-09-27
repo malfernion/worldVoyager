@@ -107,6 +107,7 @@ function setup(m, { done = [], coach = false, explain = false } = {}) {
     showing: null, coachKey: null, coachSpent: null, coachWait: 0, coachAsked: false, introGlow: false, lastPos: { body: null, x: 0, y: 0 },
   });
   s.burst = s.discover = s.checkDiscoveries = s.checkBand = () => {};
+  s.exhaust = { touchdown() {} };
   m.ap.on((e) => s.onPilotMessage(e));
   m.flight.on((type, d) => s.onFlightEvent(type, d));
   const t = { s, m, heard, speech, progress, kid: true, skip: true, ap: m.ap, flight: m.flight, sys: m.sys, lag: 8 };
