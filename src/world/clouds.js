@@ -6,9 +6,9 @@
 // ones in its core, small faint ones round its rim; some clouds are only thin wisps, and a few
 // big systems, long bands and a swirl, give the view from space some larger shapes). A
 // sprite is a soft falloff bent and eaten away by a small baked noise tile, so its rims are
-// feathered and see-through; the noise slowly scrolls, so clouds billow a little. Shading is gentle: lit on
-// the sun's side and on top, a pale periwinkle underneath, softly fading out below the cloud's
-// base (so cumulus still have flattish bottoms from the ground).
+// feathered and see-through; the noise slowly scrolls, so clouds billow a little. Shading is
+// gentle: lit on the sun's side and on top, a pale periwinkle underneath, softly fading out
+// below the cloud's base (so cumulus still have flattish bottoms from the ground).
 //
 // Cheap for phones: every sprite of every cloud is one instanced billboard in ONE draw call,
 // blended (premultiplied) with no depth write. The whole layer turns as one about the z axis
@@ -16,8 +16,6 @@
 // is the drift. Overdraw is capped in the vertex shader: a sprite fades out (and is dropped
 // before any pixel is drawn) as it gets close to the camera or big on screen, and big sprites
 // fade towards the screen's edges, so there are never big white shapes cut off by the edges.
-// Seen from space, sprites side-on at the world's edge are sat down and flattened along it,
-// so they stay inside the atmosphere's glow as a thin rim.
 // The ground's shadows come from a small cube map baked once (the layer's footprint), turned by
 // the drift in the terrain's toon shader.
 //
@@ -336,7 +334,6 @@ const VERT = /* glsl */ `
   attribute vec4 stretch; // the way it's drawn out (layer frame), and how much
   uniform float fades[CLOUDS];
   uniform float time;
-  uniform float radius;
   uniform vec3 sunDir;
   varying vec2 vUv;
   varying vec2 vNoise;
@@ -353,14 +350,6 @@ const VERT = /* glsl */ `
     // Sized in world units (the map draws worlds bigger).
     float scale = length(modelMatrix[0].xyz);
     float s = puff.x * scale;
-    // Seen from high above, a sprite side-on at the world's edge sits down into the layer and
-    // is flattened along it, so the limb has a thin continuous rim of cloud inside the
-    // atmosphere's glow rather than a row of beads sticking out of it.
-    float camAlt = length((modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz) / scale - radius;
-    float ul = length(up.xy);
-    float limb = smoothstep(110.0, 240.0, camAlt) * smoothstep(0.55, 0.95, ul);
-    float lift = puff.y * scale * (1.0 - 0.8 * limb);
-    mvPosition.xyz -= up * puff.y * scale * 0.8 * limb;
     // What's left of it (see spriteFade()): its cloud's fade, its density, and where it is on
     // screen. Nothing left: dropped before any pixel is drawn.
     float depth = -mvPosition.z;
@@ -372,9 +361,9 @@ const VERT = /* glsl */ `
       * (1.0 - smoothstep(${EDGE[0].toFixed(2)}, ${EDGE[1].toFixed(2)}, max(abs(ndc.x), abs(ndc.y)) + rs) * smoothstep(0.04, 0.14, rs));
     vCloud = fades[int(puff.z + 0.5)];
     vScreen = fade;
-    vDens = look.w * (1.0 - 0.35 * limb); // (softer where they pile up along the limb)
+    vDens = look.w;
     vec2 corner = position.xy * 2.0;
-    // Drawn out along its way (wisps and fronts), as far as that shows from here...
+    // Drawn out along its way (wisps and fronts), as far as that shows from here.
     vec2 q = corner;
     vec3 dv = (modelViewMatrix * vec4(stretch.xyz, 0.0)).xyz;
     float dl = length(dv.xy);
@@ -382,15 +371,9 @@ const VERT = /* glsl */ `
       vec2 d2 = dv.xy / dl;
       q += d2 * dot(q, d2) * (stretch.w - 1.0) * dl;
     }
-    // ...and flattened at the limb.
-    if (ul > 0.001) {
-      vec2 u2 = up.xy / ul;
-      vec2 t2 = vec2(-u2.y, u2.x);
-      q += u2 * dot(q, u2) * (-0.55 * limb) + t2 * dot(q, t2) * (1.6 * limb);
-    }
     mvPosition.xy += q * s;
     // Metres above the cloud's base, at this corner (it thins out below it).
-    vH = lift + dot(q, up.xy) * s;
+    vH = puff.y * scale + dot(q, up.xy) * s;
     vSize = s;
     vDay = smoothstep(-0.7, 0.3, dot(up, sunDir));
     // The sprite's own light: its side of the cloud towards the sun, and how high up it is.
@@ -532,7 +515,6 @@ export function createClouds(body, sunDir) {
   const uniforms = {
     fades: { value: fades },
     time: { value: 0 },
-    radius: { value: body.radius },
     sunDir: { value: sunDir },
     noiseMap: { value: noiseTexture() },
     litColor: { value: colour(look.lit) },

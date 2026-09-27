@@ -961,20 +961,17 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
   vertex shader drops a sprite (before any pixel is drawn) when the camera is within a few of
   its radii or when it would be more than about half the screen's half-height across, and
   fades any biggish sprite out before it reaches the screen's edges; small far ones are left
-  alone, so the globe keeps its clouds right to the limb. Fading thins a sprite's density
+  alone, so the globe keeps its clouds right to the limb (seen side-on there they stand up
+  above the atmosphere's glow like a row of little puffs; we tried sitting them down and
+  flattening them into a thin rim, and the owner preferred the puffs). Fading thins a sprite's density
   before its alpha step, so a fading cloud evaporates from its rims inwards instead of turning
   into grey smoke over the dark sky (only the veil over the rocket is see-through as well). By
   night clouds are fainter too, so a big one overhead is a hint of moonlit cloud rather than
   a dark smudge. Measured with a counting shader over the standard views (844 × 390): 0.14
-  (orbit) to 1.41 (the globe) sprite pixels per screen pixel counting every rasterised pixel,
-  0.06 to 0.65 counting only drawn ones, at most about 57 layers in the thickest spot (a swirl
-  seen near the limb), against 0.03 to 0.5 for the first try's solid balls. So at worst about
+  (orbit) to 1.38 (landed at night; the globe 1.21) sprite pixels per screen pixel counting
+  every rasterised pixel, 0.06 to 0.58 counting only drawn ones, at most about 38 layers in the
+  thickest spot (clouds piled up at the globe's edge), against 0.03 to 0.5 for the first try's solid balls. So at worst about
   one and a half extra full-screen passes of a cheap shader (one texture read).
-- **The limb.** Seen from space, clouds at the world's edge stuck out above the atmosphere's
-  glow as a row of beads (their tops reach 60 m, the glow 42 m). When the camera is high above
-  the layer, a sprite seen side-on is sat down towards its cloud's base, squashed up-and-down
-  and drawn out along the edge, so the limb has a thin, nearly continuous rim of cloud inside
-  the glow. Close to the world (launch, landed, driving) nothing changes.
 - **Shadows.** A soft round blot under each sprite, as dense as it and piling up where they
   overlap, baked once into a 6 × 96 × 96 one-channel cube map (even detail all round; an
   equirectangular map had its pole in the middle of the globe view and looked blocky there).

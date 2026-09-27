@@ -226,7 +226,7 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   that must stay visible goes into `cloudFoci`. On top of that the vertex shader drops any
   sprite that is close to the camera or big on screen, and fades big ones before they reach
   the screen's edges (`spriteFade()`, the same sums, tested): that is what keeps overdraw to
-  about one and a half screens' worth at most (measured: 0.14 to 1.41 layers of sprite pixels
+  about one and a half screens' worth at most (measured: 0.14 to 1.38 layers of sprite pixels
   per screen pixel in the standard views) and big shapes off the edges. Keep it if you add sprites.
   Clouds are only the look: the physics never sees them.
 - **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
@@ -621,10 +621,6 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   shader fades by thinning the density before the alpha step (`smoothstep(0, 0.4, d * fade)`),
   so a fading cloud evaporates from its rims inwards; the on-screen fades (near, big, edges)
   only do that, and only the veil over the rocket is also see-through.
-- **Clouds seen side-on stick out of the atmosphere** (#54). From space, sprites at the
-  world's edge showed as a row of beads above the glow (the layer is 30 to 60 m up, the glow
-  only reaches 42 m). The clouds' vertex shader sits them down and flattens them along the limb
-  when the camera is high (`limb`); it needs the world's `radius` uniform and the map's scale.
 - **The toon light still lights the night side** (`MeshToonMaterial`'s gradient looks up
   `dot(N, L) * 0.5 + 0.5`, so the back half gets the lowest steps). Anything that dims direct
   light (cloud shadows, #54) must fade out by itself on the night side.
