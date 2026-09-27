@@ -86,6 +86,11 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   crash (and the 🌊 Splashdown! sticker); land on the ground. Pip's 🛬 Land, 🤖 Take me there
   and her coaching always pick dry land ("Oops, water! I'll fly us over to dry land."), and
   the path shows 💥 where it would hit the water.
+- **Clouds:** puffy cartoon clouds drift slowly round Homestead, with soft shadows on the
+  ground. You see them from space, in the sky from the launch pad and the buggy, and you fly
+  up past them on the way to space. They never hide the rocket: a cloud close to the camera,
+  or in front of the rocket (or the buggy, or the ground where you're landing), fades to a
+  thin veil.
 - **Lava:** Sizzle has glowing pools and flows of lava by its volcanoes (they glow at night
   and you can see them from orbit). Lava is much too hot to land on: touching it is a sizzling,
   smoky crash, and Pip's helpers and coaching land on solid ground beside it ("Oops, lava!
@@ -164,7 +169,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), Homestead's clouds (#54), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

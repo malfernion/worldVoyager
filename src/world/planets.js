@@ -14,6 +14,7 @@ import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
 import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
+import { createClouds, cloudShadows } from './clouds.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
@@ -461,6 +462,14 @@ export function createBodyVisual(body) {
     surfaceFromMesh(body, geo, liquid?.mesh.geometry);
     const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), flatShading: true });
     mesh = new THREE.Mesh(geo, richRocky(mat, body, out.sunDir)); // detail, slopes, rim, night fill (#51)
+    // A cloud layer (#54: Homestead's), and its soft shadows on the ground.
+    const clouds = createClouds(body, out.sunDir);
+    if (clouds) {
+      cloudShadows(mat, clouds, out.sunDir);
+      group.add(clouds.mesh);
+      out.clouds = clouds;
+      out.updates.push(clouds.update);
+    }
     if (liquid) {
       group.add(liquid.mesh);
       out.liquid = liquid;

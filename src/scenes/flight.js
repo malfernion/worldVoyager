@@ -105,6 +105,7 @@ export class FlightScene {
     this.camUp = new THREE.Vector3(0, 1, 0);
     this.tmp = {};
     this.tmp2 = {};
+    this.cloudFoci = new Float64Array(9); // what clouds must never hide (#54, updateClouds)
     this.tmp3 = {};
     this.discoverUntil = 0;
 
@@ -961,6 +962,7 @@ export class FlightScene {
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
+    this.updateClouds();
     this.updateMarkers();
     this.updateUnderwater(dt);
     this.updateHaze();
@@ -1380,6 +1382,7 @@ export class FlightScene {
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
+    this.updateClouds();
     this.updateMarkers();
     this.updateMood();
     this.updateUnderwater(dt);
@@ -1574,6 +1577,45 @@ export class FlightScene {
       d.copy(sun).sub(v.group.position).normalize().transformDirection(view);
       v.sunDir.copy(d);
       if (v.atmosphere) v.atmosphere.material.uniforms.sunDir.value.copy(d);
+    }
+  }
+
+  /**
+   * Clouds (#54) never hide what the child is looking at: each cloud layer fades its clouds near
+   * the camera, and down to a veil across the line of sight to the rocket, the ground under it
+   * (where it lands) and the buggy. A few multiplies per cloud; nothing allocated.
+   */
+  updateClouds() {
+    const foci = this.cloudFoci;
+    const s = this.flight.state;
+    const r = this.rocketHolder.position;
+    let n = 0;
+    const put = (x, y, z) => {
+      foci[n * 3] = x;
+      foci[n * 3 + 1] = y;
+      foci[n * 3 + 2] = z;
+      n++;
+    };
+    if (!this.crashed) {
+      const h = this.rocket.height * 0.5;
+      put(r.x + Math.cos(s.angle) * h, r.y + Math.sin(s.angle) * h, 0);
+    }
+    if (this.drive.active && this.drive.mesh) {
+      const b = this.drive.mesh.group.position;
+      put(b.x, b.y, b.z);
+    }
+    for (const v of this.visuals) {
+      if (!v.clouds) continue;
+      let m = n;
+      if (s.body === v.body && !s.landed && !this.drive.active) {
+        // Where we'd come down: the ground straight under the rocket.
+        const a = Math.atan2(s.y, s.x), g = s.body.surfaceAt(a) * v.group.scale.x;
+        foci[m * 3] = v.group.position.x + Math.cos(a) * g;
+        foci[m * 3 + 1] = v.group.position.y + Math.sin(a) * g;
+        foci[m * 3 + 2] = 0;
+        m++;
+      }
+      v.clouds.fade(this.camera.position, foci, m, v.group);
     }
   }
 

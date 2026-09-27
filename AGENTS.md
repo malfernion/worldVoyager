@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, the camera across SOI hand-offs (#49), orbit lines never through the ground (#48), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, fades, shadow map), the camera across SOI hand-offs (#49), orbit lines never through the ground (#48), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -109,6 +109,9 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails,
                        richLook (#51-#53: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight, Ember's `starShimmer()`;
                        baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
+                       clouds (#54: a world's cloud layer from `CLOUD_LOOK`, only Homestead so far: `cloudPlan()` where clouds
+                       and puffs go, `cloudFade()` when they fade, `createClouds()` the two-draw-call billboard layer,
+                       `shadowFaces()` / `cloudShadows()` their shadows baked into a small cube map for the ground's shader)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
@@ -210,6 +213,14 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   sprites in the flight scene's `Particles`. A liquid is one mesh per world (only the triangles
   near or under it), with depth baked per vertex: no per-frame CPU work for it (lava's crust
   is a few sines in its shader, no textures).
+- **Clouds never hide what the child looks at** (#54, `src/world/clouds.js`). A world's cloud
+  layer is two draw calls (solid, and faded as a veil) whatever the number of clouds; it
+  turns as one about z, so the drift is only the mesh's rotation and a rotation of the shadow
+  lookup (no per-puff CPU work). Every frame `FlightScene.updateClouds()` fades each cloud with
+  the pure `cloudFade()`: out as the camera comes within about two of its reaches, and to a veil
+  (`VEIL`) across the line of sight to the rocket, the ground under it while flying, and the
+  buggy. Anything else that must stay visible goes into `cloudFoci`. Clouds are only the look:
+  the physics never sees them.
 - **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
   multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range
@@ -593,5 +604,13 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - **A new world needs its look** (#52): add a `ROCKY_LOOK` (or `GAS_LOOK`) entry in
   `src/world/richLook.js`, or it keeps the plain toon look. Anything that must stay as painted
   (a glowing spot) goes in its `keep` list; ground under a liquid is left alone by itself.
+- **See-through things that write depth hide what's drawn after them** (#54). The clouds'
+  solid puffs write depth (so they cover each other the right way round from any side); a
+  faded cloud drawn that way hid the atmosphere's glow behind it and showed as a dark smudge.
+  So faded clouds are drawn by a second mesh that doesn't write depth (each mesh skips the
+  other's clouds in its vertex shader).
+- **The toon light still lights the night side** (`MeshToonMaterial`'s gradient looks up
+  `dot(N, L) * 0.5 + 0.5`, so the back half gets the lowest steps). Anything that dims direct
+  light (cloud shadows, #54) must fade out by itself on the night side.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).
