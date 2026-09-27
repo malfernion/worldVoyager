@@ -13,6 +13,7 @@ import { rocketStats } from '../rocket/parts.js';
 import { groundHeading, vec } from '../physics/buggy.js';
 import { createFlame, Particles, Debris } from '../world/effects.js';
 import { createSky } from '../world/sky.js';
+import { SKY_LOOK } from '../world/planets.js';
 import { DriveMode } from './drive.js';
 import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, HEX_POLE, sunDirection } from '../physics/discoveries.js';
 import { HEXAGON } from '../world/richLook.js';
@@ -32,11 +33,6 @@ const AMBER_SPLASH = [0xf4e0bc, 0xb8864a];
 export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SKIP_AGAIN = 30; // real seconds between two of Pip's "tap ⏩" hints (#50)
 const FOG_OFF = 1e9;
-// Misty's haze (#46, updateHaze): full up to `low` metres above the ground, gone by `top`; the
-// fog starts `near` and is solid `far` metres beyond what the camera follows (divided by how hazy
-// it is). Close enough that the murk shows while driving, where the horizon is only a few dozen
-// metres away (#58). The sky overhead (`zenith`) and the sun's glow through it.
-const HAZE = { low: 30, top: 200, near: 2, far: 80, zenith: 0x7a3f16, glow: 0xffd28a };
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
 const CONFETTI = [0xff6b6b, 0xffd166, 0x06d6a0, 0x4cc9f0, 0xf78c6b, 0xc77dff];
 // Longest (real seconds) a new coached action waits for Pip to stop talking (#36).
@@ -1022,71 +1018,81 @@ export class FlightScene {
   }
 
   /**
-   * Misty's thick orange haze (#46), only the look: near its ground (driving, landed, or flying
-   * low) the sky turns hazy orange, even by day (a dome, `hazeSky`: amber at the horizon, browner
-   * overhead, the sun a soft glow; #58), the stars fade out, and the distance fogs over in the
-   * horizon's colour. It thins out as the camera climbs, gone by `HAZE.top` metres up, while the
-   * glowing shell seen from outside fades in, so nothing pops between the views. Every frame,
-   * flying or driving (#58: driving never updated it, so a dip in a lake or a zoomed-out view
-   * before 🚙 left it off). It reuses the scene's always-there fog (#44), so no material changes;
-   * nothing is allocated. Under a methane lake the underwater fog wins.
+   * A world's sky near its ground (`SKY_LOOK` in planets.js), only the look: Misty's thick orange
+   * haze (#46, #58), Homestead's blue sky and Dusty's thin butterscotch one (#61). Near the
+   * ground (driving, landed, or flying low) a dome (`hazeSky`: the horizon's colour low down,
+   * deeper overhead, the sun a soft glow, a band of sunset round it at dawn and dusk) hides
+   * space, less where the sky is thin (by night the stars shine through); on Misty the stars go
+   * and the distance fogs over in the horizon's colour too. It thins out as the camera climbs,
+   * gone by the look's `top`, while the glowing shell seen from outside fades in, so nothing
+   * pops between the views. Every frame, flying or driving (#58: driving never updated it, so a
+   * dip in a lake or a zoomed-out view before 🚙 left it off). It reuses the scene's always-there
+   * fog (#44), so no material changes; nothing is allocated. Under a sea the underwater fog wins.
    */
   updateHaze() {
     const s = this.flight.state;
     const body = this.drive.active ? this.drive.buggy.body : s.body;
+    const look = SKY_LOOK[body.id];
     let k = 0;
-    const v = body.haze && this.mode !== 'map' && !this.underwater ? this.visuals.find((x) => x.body === body) : null;
+    const v = look && this.mode !== 'map' && !this.underwater ? this.visuals.find((x) => x.body === body) : null;
     const c = this.camera.position;
     if (v) {
       const g = v.group.position;
       const r = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
-      const t = Math.max(0, Math.min(1, (r - body.radius - HAZE.low) / (HAZE.top - HAZE.low)));
+      const t = Math.max(0, Math.min(1, (r - body.radius - look.low) / (look.top - look.low)));
       k = 1 - t * t * (3 - 2 * t);
     }
     if (k === this.haze && k === 0) return;
     this.haze = k;
-    // Down in it, the fog and the dome are the haze; the shell (only seen from outside) fades out.
+    // Down in it, the fog and the dome are the sky; the shell (only seen from outside) fades out.
     if (v) {
+      if (this.hazeShell && this.hazeShell !== v.atmosphere) this.hazeShell.material.uniforms.fade.value = 1;
       this.hazeShell = v.atmosphere;
+      this.hazeShellFade = look.shell;
       if (this.hazeSkyMesh && this.hazeSkyMesh !== v.hazeSky) this.hazeSkyMesh.visible = false;
       this.hazeSkyMesh = v.hazeSky;
     }
-    if (this.hazeShell) this.hazeShell.material.uniforms.fade.value = 1 - k;
+    if (this.hazeShell) this.hazeShell.material.uniforms.fade.value = 1 - this.hazeShellFade * k;
     const sky = this.hazeSkyMesh;
     if (sky) sky.visible = k >= 0.01;
     if (this.underwater) return;
     const fog = this.scene.fog;
-    if (k < 0.01) {
+    if (k < 0.01 || !look.fog) {
       fog.near = FOG_OFF;
       fog.far = FOG_OFF * 2;
       this.scene.background.copy(this.spaceColour);
       this.sky.visible = true;
-      return;
+      if (k < 0.01) return;
     }
-    // Dimmer on the night side (the sun's direction from the world against the camera's "up").
+    // Day or night: the sun's direction from the world against the camera's "up".
     const g = v.group.position, sun = this.sunVisual.group.position;
     const ux = c.x - g.x, uy = c.y - g.y, uz = c.z - g.z;
     const sx = sun.x - g.x, sy = sun.y - g.y, sz = sun.z - g.z;
     const ul = Math.hypot(ux, uy, uz) || 1, sl = Math.hypot(sx, sy, sz) || 1;
     const cos = (ux * sx + uy * sy + uz * sz) / (ul * sl);
-    const day = 0.3 + 0.7 * Math.max(0, Math.min(1, (cos + 0.2) / 0.5));
-    fog.color.set(body.haze).multiplyScalar(day);
+    const day = Math.max(0, Math.min(1, (cos - look.dawn[0]) / (look.dawn[1] - look.dawn[0])));
+    const { day: lit, night: dark } = look.colours;
+    const u = sky.material.uniforms;
+    u.k.value = k;
+    u.horizon.value.lerpColors(dark.horizon, lit.horizon, day);
+    u.zenith.value.lerpColors(dark.zenith, lit.zenith, look.zenithLag ? day ** look.zenithLag : day);
+    if (look.deepen) u.horizon.value.lerp(u.zenith.value, look.deepen * (1 - k));
+    u.glow.value.lerpColors(dark.glow, lit.glow, day);
+    // Sunrise and sunset: strongest with the sun on the horizon.
+    const dusk = look.dusk === undefined ? 0 : Math.max(0, 1 - Math.abs(cos) / look.duskWidth);
+    u.dusk.value.copy(look.colours.dusk).multiplyScalar(dusk * dusk * (3 - 2 * dusk));
+    u.veil.value = look.veil[0] + (look.veil[1] - look.veil[0]) * day;
+    u.up.value.set(ux / ul, uy / ul, uz / ul);
+    u.sun.value.set(sx / sl, sy / sl, sz / sl);
+    if (!look.fog) return;
+    fog.color.copy(u.horizon.value);
     // Counted from what the camera follows (the rocket or buggy, at the floating origin), so
     // that stays clear however far out the camera is, and only what's beyond it fogs over.
     const d = Math.hypot(c.x, c.y, c.z);
-    fog.near = (HAZE.near + d) / k;
-    fog.far = (HAZE.far + d) / k;
+    fog.near = (look.fog.near + d) / k;
+    fog.far = (look.fog.far + d) / k;
     this.scene.background.copy(this.spaceColour).lerp(fog.color, k);
-    this.sky.visible = k < 0.6;
-    if (sky) {
-      const u = sky.material.uniforms;
-      u.k.value = k;
-      u.horizon.value.copy(fog.color);
-      u.zenith.value.set(HAZE.zenith).multiplyScalar(day);
-      u.glow.value.set(HAZE.glow).multiplyScalar(Math.max(0, (day - 0.3) / 0.7));
-      u.up.value.set(ux / ul, uy / ul, uz / ul);
-      u.sun.value.set(sx / sl, sy / sl, sz / sl);
-    }
+    this.sky.visible = look.stars || k < 0.6;
   }
 
   /** Leaving the flight screen: out of any sea, and no more lapping (or lava's hiss). */

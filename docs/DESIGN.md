@@ -705,7 +705,7 @@ moon, has methane lakes (#46, below).
 - **The haze** (only the look; real atmospheres are #12). `haze` on the body makes its
   atmosphere shell thicker: further out (1.22 × radius), and tinting the whole face (`fill`),
   not only the rim, so Misty reads as a hazy orange ball from orbit with its dark lakes
-  showing through. Near the ground (`FlightScene.updateHaze()`, `HAZE`, every frame, flying
+  showing through. Near the ground (`FlightScene.updateHaze()`, `SKY_LOOK.misty` in `planets.js`, every frame, flying
   *and* driving): full up to 30 m above the ground, gone by 200 m, the sky turns hazy orange
   (dimmer on the night side), the stars go, and the always-there fog (#44) closes in, in the
   haze's colour. The sky is a dome round the world (`hazeSky()` in `planets.js`, 260 m above
@@ -955,6 +955,39 @@ ground stays the visible mesh), and nothing adds draw calls or textures
     icosphere and `mergeVertices`.
   - Still faceted: the toon light's steps follow the triangles, so its band edges stay a little
     angular on the smallest worlds (Nibble, Ducky). That's the game's chunky look everywhere.
+
+## Skies over the ground (#61)
+
+The owner loved Misty's haze (#58) and asked for the same on Homestead and Dusty, "just so they
+have a sky vs looking right at space". It's the same machinery, generalised into a table,
+`SKY_LOOK` in `src/world/planets.js` (Misty's entry is its old `HAZE`, unchanged), and one look,
+no setting:
+
+- **Homestead**: a pale blue sky low down, deeper blue overhead, the sun a soft warm patch; by
+  night dark navy with the stars through it; at sunrise and sunset a warm peach band along the
+  horizon on the sun's side. **Dusty**: a thinner, paler butterscotch sky (like Mars), browner
+  overhead, more of space through it, and a blue glow round the sun as it sets.
+- **Much thinner than Misty's**: no fog at all, so the ground, the horizon, the rocket, the
+  buggy and the markers stay exactly as crisp as before; only the sky changes. (Fogging would also
+  have turned Pebble and the sun into flat discs of the horizon's colour.)
+- **The dome** is `hazeSky()`, one draw call (~1,000 triangles), only drawn while there's sky
+  to see (camera below the look's `top`: 170 m on Homestead, 120 m on Dusty; full below `low`),
+  `top + 60` m up so the camera is always inside it. It's blended premultiplied: the sky's light
+  is added and only a `veil` of what's behind is hidden (day: 0.93 on Homestead, 0.75 on Dusty;
+  night: 0.5 and 0.35, and more low down), so by night the stars and moons shine through, the
+  scene's own starfield untouched. The colours go from night to day with the sun's height where
+  the camera is (`dawn`), overhead a little later (`zenithLag`), and the sunset band (`dusk`)
+  peaks with the sun on the horizon. `updateHaze()` mixes them into the uniforms each frame;
+  nothing allocated.
+- **No pop, orbit to ground**: the dome fades in as the camera comes down, the atmosphere
+  shell half fades out (`shell`, so the limb's glow stays from a low approach), and climbing out
+  the pale horizon deepens to the zenith's colour as it thins (`deepen`), so a launch goes pale
+  blue → deep blue → space instead of through grey. From orbit and the map nothing changes.
+  Driving keeps it (the drive frame calls `updateHaze()`), and a dip in Homestead's sea hides it
+  for the sea's own murk, then brings it back (`test/haze.test.js`).
+- **Clouds** (#54) are drawn after the dome (it's `renderOrder` -5, and doesn't write depth), so
+  they sit in the sky as before; white on the pale horizon they read a little softer than they
+  did on black space, and their night tint reads as moonlit cloud on the navy.
 
 ## Clouds (#54)
 

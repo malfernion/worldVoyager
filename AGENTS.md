@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -102,7 +102,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js;
                        in a sea (#44) spray, a splash going in or out, a bow wave, and bubbles (`FLOAT_*`: they pop at the surface);
                        at lava's edge (#45) `steam()` puffs and `wisp()`s
-src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46, and its sky dome `hazeSky()`, #58), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
+src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46; the skies over the ground, `SKY_LOOK`, and their dome `hazeSky()`: Misty's haze #58, Homestead's and Dusty's skies #61), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
                        lava's own glowing crust shader, #45; methane: the water shader, dark and still, mirroring the haze, #46), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
@@ -119,7 +119,7 @@ src/rocket/            Parts catalogue + stats, procedural rocket and buggy mesh
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
                        `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
-                       Misty's orange haze near its ground `updateHaze()`, #46, flying and driving, #58; the map's fixed centre `mapAt`, `toggleMap()`,
+                       a world's sky near its ground `updateHaze()` (Misty's orange haze, #46, flying and driving, #58; Homestead's and Dusty's skies, #61); the map's fixed centre `mapAt`, `toggleMap()`,
                        `focusMapOn()`, 🎯 `findRocket()`, #57; orbit lines and the path: `updateLines()`, hidden
                        while driving, and in the flight view a line through the world we're at fades close up: `lineShown()`, #48),
                        drive.js (buggy mode)
@@ -147,7 +147,9 @@ test/                  vitest suites; missions.js has the shared headless flight
                        and after trips there (🤖 and 🧭), every buggy through every lake, laps across one;
                        its ground (#59): no bands, no walls, lakes in low ground, dunes in fields;
                        haze.test.js: Misty's haze (#58): on the ground, from orbit down with no jump, driving (and
-                       after a lake), the buggy and rocket kept clear, other worlds untouched
+                       after a lake), the buggy and rocket kept clear, worlds without a sky untouched; Homestead's and
+                       Dusty's skies (#61): no fog, no jump from orbit down (day, dusk, night) or as the sun sets, gone
+                       in orbit, night dark and starry, driving through Homestead's sea
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
                        orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
                        world no orbit line through its ground (#48)
@@ -598,7 +600,8 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   every material's shader program, which would stall phones on each dive. Custom shaders that
   should fog (the sea) include the fog chunks and set `fog: true`; the stars have `fog: false`,
   so the sky is hidden under water instead. Misty's haze (#46, `updateHaze()`) uses the same fog
-  (colour, near, far only); under a lake the underwater fog wins. **`updateDriving()` is a
+  (colour, near, far only); under a lake the underwater fog wins. Homestead's and Dusty's skies
+  (#61) don't fog at all (fogging would turn Pebble and the sun into flat discs): only the dome. **`updateDriving()` is a
   separate frame**: anything the flight frame keeps up to date (the haze, the sea) must be called
   there too, or driving keeps whatever the last flight frame left (#58: after a dip in a lake,
   the haze was gone for the rest of the drive). Test with `test/haze.test.js`.
@@ -647,5 +650,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   feature sits near the limb and its far side wraps over the horizon close up; size it for that
   (a test checks the hexagon stays on the seen side), and antialias thin lines there with `fwidth`,
   since fixed smoothstep widths shimmer where the sphere is foreshortened.
+- **A sky dome is drawn over everything beyond it** (#61): the moons, the sun and the stars are
+  further out than `hazeSky()`, so it's blended premultiplied (its light added, `veil` of space
+  hidden) rather than painted over them; that's how the stars show through by night. Anything
+  that must show in the day sky (a moon) shows only through `1 - veil`. And fading a sky out by
+  plain alpha over the dark sky turns it grey: climbing out, the horizon deepens to the zenith
+  colour first (`deepen`).
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

@@ -504,34 +504,87 @@ export function createBodyVisual(body) {
       : atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4);
     group.add(atm);
     out.atmosphere = atm;
-    // ...and, down in it, a hazy sky (#58).
-    if (body.haze) {
-      out.hazeSky = hazeSky(body.radius);
+    // ...and, down near the ground, its sky (#58 Misty's haze; #61 Homestead's and Dusty's).
+    if (SKY_LOOK[body.id]) {
+      out.hazeSky = hazeSky(body.radius, SKY_LOOK[body.id]);
       group.add(out.hazeSky);
     }
   }
   return out;
 }
 
-// How far out a hazy world's sky dome is: beyond where its haze ends (HAZE.top in flight.js), so
-// the camera is always inside it while there's any haze to see.
-const HAZE_SKY = 260;
+/**
+ * The worlds with a sky over their ground (#58: Misty's thick orange haze, like Titan; #61:
+ * Homestead's blue sky and Dusty's thin butterscotch one, like Mars). FlightScene.updateHaze()
+ * brings it in below `top` metres (the camera's height above the world's radius), full below
+ * `low`, so it's gone before the view looks like space again and nothing pops. Colours by day
+ * and by night (`night`: the same keys; a number instead dims the day's colours), mixed by how
+ * high the sun is where the camera is: night below `dawn[0]` and day above `dawn[1]` (the cosine
+ * of the sun's angle from overhead). `horizon` / `zenith`: the sky's colour low down and
+ * overhead; `glow`: the soft light round the sun; `dusk`: a band along the horizon round the
+ * sun at sunrise and sunset (strongest where the sun is on the horizon, gone `duskWidth` either
+ * side), `duskPow` how tight round the sun it is. `veil`: how much of space the sky hides
+ * overhead (1: none of it; less lets the stars and moons through), [night, day]. `fog`: only
+ * for a thick haze, where the distance fogs over in the horizon's colour (`near` / `far`
+ * metres beyond what the camera follows); worlds without it keep their ground and horizon crisp.
+ * `zenithLag`: overhead goes dark sooner at dusk (the day's weight to that power there).
+ * `deepen`: climbing out, the pale horizon deepens to the colour overhead as the sky thins,
+ * so it goes deep blue, then space, rather than grey.
+ * `stars`: the stars stay out behind the sky (else they go once it's thick). `shell`: how much
+ * the glowing shell seen from outside fades out down in it.
+ */
+export const SKY_LOOK = {
+  misty: {
+    low: 30, top: 200, fog: { near: 2, far: 80 }, stars: false, shell: 1, dawn: [-0.2, 0.3],
+    horizon: 0xd98a3a, zenith: 0x7a3f16, glow: 0xffd28a, veil: [1, 1],
+    night: 0.3,
+  },
+  homestead: {
+    low: 40, top: 170, stars: true, shell: 0.5, dawn: [-0.3, 0.3], zenithLag: 2, deepen: 1,
+    horizon: 0xb4dcf8, zenith: 0x3f8ddc, glow: 0x6f6858, veil: [0.5, 0.93],
+    dusk: 0xff9c5c, duskWidth: 0.4, duskPow: 4,
+    night: { horizon: 0x1a2858, zenith: 0x080e2c, glow: 0x000000 },
+  },
+  dusty: {
+    low: 30, top: 120, stars: true, shell: 0.5, dawn: [-0.3, 0.3], zenithLag: 2, deepen: 1,
+    horizon: 0xe3c19c, zenith: 0x8f6448, glow: 0x5c5448, veil: [0.35, 0.75],
+    dusk: 0x7fa6e0, duskWidth: 0.35, duskPow: 10,
+    night: { horizon: 0x251c24, zenith: 0x0c0a16, glow: 0x000000 },
+  },
+};
+// Each look's colours, made once (updateHaze mixes them into the dome's uniforms every frame).
+for (const look of Object.values(SKY_LOOK)) {
+  const day = {}, night = {};
+  for (const key of ['horizon', 'zenith', 'glow']) {
+    day[key] = new THREE.Color(look[key]);
+    // (A number dims the day's colours; the sun's glow is gone by night.)
+    const dim = key === 'glow' ? 0 : look.night;
+    night[key] = typeof look.night === 'number' ? day[key].clone().multiplyScalar(dim) : new THREE.Color(look.night[key]);
+  }
+  look.colours = { day, night, dusk: new THREE.Color(look.dusk ?? 0) };
+}
 
 /**
- * A hazy world's sky from down in the haze (#58: Misty, like Titan): a dome round the world,
- * seen from inside, the haze's colour at the horizon (where the fog takes the ground into it),
- * deeper and browner overhead, with the sun a soft bright patch. FlightScene.updateHaze() sets
- * its colours, `up` (world space, the camera's up), the sun's direction and `k`, how hazy it is;
- * hidden when there's none. Not fogged; the ground in front of it hides the lower half.
+ * A world's sky from down near its ground (#58, #61): a dome round the world, seen from inside,
+ * `look.top` + 60 m up, so the camera is always inside it while there's any sky to see. The
+ * horizon's colour low down, deeper overhead, the sun a soft bright patch, and at sunrise and
+ * sunset a warm (or, on Dusty, blue) band round it. Where it's thin (`veil` < 1: night, and
+ * Dusty's thin air) space and its stars show through it: it's blended premultiplied, the sky's
+ * light added over what's behind it. FlightScene.updateHaze() sets its colours, `up` (world
+ * space, the camera's up), the sun's direction, `veil` and `k`, how much sky there is; hidden
+ * when there's none. Not fogged; the ground in front of it hides the lower half. One draw call.
  */
-export function hazeSky(radius) {
+export function hazeSky(radius, look) {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       horizon: { value: new THREE.Color() },
       zenith: { value: new THREE.Color() },
       glow: { value: new THREE.Color() },
+      dusk: { value: new THREE.Color() },
+      duskPow: { value: look.duskPow ?? 2 },
       up: { value: new THREE.Vector3(0, 1, 0) },
       sun: { value: new THREE.Vector3(1, 0, 0) },
+      veil: { value: 1 },
       k: { value: 0 },
     },
     vertexShader: /* glsl */ `
@@ -550,25 +603,36 @@ export function hazeSky(radius) {
       uniform vec3 horizon;
       uniform vec3 zenith;
       uniform vec3 glow;
+      uniform vec3 dusk;
+      uniform float duskPow;
       uniform vec3 up;
       uniform vec3 sun;
+      uniform float veil;
       uniform float k;
       varying vec3 vW;
       void main() {
         #include <logdepthbuf_fragment>
         vec3 d = normalize(vW - cameraPosition);
         float e = clamp(dot(d, up), 0.0, 1.0);
-        vec3 c = mix(horizon, zenith, sqrt(e));
+        float se = sqrt(e);
+        vec3 c = mix(horizon, zenith, se);
         float s = max(0.0, dot(d, sun));
         c += glow * (0.35 * pow(s, 24.0) + 0.25 * pow(s, 4.0));
-        gl_FragColor = vec4(c, k);
+        // Sunrise and sunset: low along the horizon, round the sun.
+        float h = 1.0 - e;
+        c += dusk * (h * h * h) * pow(0.5 + 0.5 * dot(d, sun), duskPow);
+        // Thicker towards the horizon (a thin sky hides more of the stars low down).
+        float a = mix(0.5 + 0.5 * veil, veil, se);
+        gl_FragColor = vec4(c, a);
         #include <colorspace_fragment>
+        gl_FragColor *= k; // premultiplied
       }`,
     transparent: true,
+    premultipliedAlpha: true,
     depthWrite: false,
     side: THREE.BackSide,
   });
-  const m = new THREE.Mesh(new THREE.SphereGeometry(radius + HAZE_SKY, 32, 16), mat);
+  const m = new THREE.Mesh(new THREE.SphereGeometry(radius + look.top + 60, 32, 16), mat);
   m.renderOrder = -5;
   m.visible = false;
   return m;
