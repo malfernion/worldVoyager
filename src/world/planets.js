@@ -504,7 +504,73 @@ export function createBodyVisual(body) {
       : atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4);
     group.add(atm);
     out.atmosphere = atm;
+    // ...and, down in it, a hazy sky (#58).
+    if (body.haze) {
+      out.hazeSky = hazeSky(body.radius);
+      group.add(out.hazeSky);
+    }
   }
   return out;
+}
+
+// How far out a hazy world's sky dome is: beyond where its haze ends (HAZE.top in flight.js), so
+// the camera is always inside it while there's any haze to see.
+const HAZE_SKY = 260;
+
+/**
+ * A hazy world's sky from down in the haze (#58: Misty, like Titan): a dome round the world,
+ * seen from inside, the haze's colour at the horizon (where the fog takes the ground into it),
+ * deeper and browner overhead, with the sun a soft bright patch. FlightScene.updateHaze() sets
+ * its colours, `up` (world space, the camera's up), the sun's direction and `k`, how hazy it is;
+ * hidden when there's none. Not fogged; the ground in front of it hides the lower half.
+ */
+export function hazeSky(radius) {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      horizon: { value: new THREE.Color() },
+      zenith: { value: new THREE.Color() },
+      glow: { value: new THREE.Color() },
+      up: { value: new THREE.Vector3(0, 1, 0) },
+      sun: { value: new THREE.Vector3(1, 0, 0) },
+      k: { value: 0 },
+    },
+    vertexShader: /* glsl */ `
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      varying vec3 vW;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vW = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
+      uniform vec3 horizon;
+      uniform vec3 zenith;
+      uniform vec3 glow;
+      uniform vec3 up;
+      uniform vec3 sun;
+      uniform float k;
+      varying vec3 vW;
+      void main() {
+        #include <logdepthbuf_fragment>
+        vec3 d = normalize(vW - cameraPosition);
+        float e = clamp(dot(d, up), 0.0, 1.0);
+        vec3 c = mix(horizon, zenith, sqrt(e));
+        float s = max(0.0, dot(d, sun));
+        c += glow * (0.35 * pow(s, 24.0) + 0.25 * pow(s, 4.0));
+        gl_FragColor = vec4(c, k);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.BackSide,
+  });
+  const m = new THREE.Mesh(new THREE.SphereGeometry(radius + HAZE_SKY, 32, 16), mat);
+  m.renderOrder = -5;
+  m.visible = false;
+  return m;
 }
 

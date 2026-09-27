@@ -295,3 +295,73 @@ describe('the buggy in Misty\'s lakes (#46)', () => {
     }
   }, 60000);
 });
+
+describe('Misty\'s ground looks natural (#59)', () => {
+  // It used to be a belt of parallel dune ridges running right round the middle: bands.
+  const t = misty.terrainFn;
+  const e = 1 / R;
+  const grid = (fn) => {
+    for (let i = 0; i < 240; i++) {
+      for (let j = 0; j < 120; j++) {
+        const a = (i / 240) * Math.PI * 2, z = -0.95 + (1.9 * (j + 0.5)) / 120;
+        const d = dirOf(a, z);
+        if (misty.shoreDist(d.x, d.y, d.z) < 3) continue;
+        fn(a, z, d, t.height(d.x, d.y, d.z));
+      }
+    }
+  };
+
+  it('no bands: round the middle, the ground changes about as much east-west as north-south', () => {
+    let ew = 0, ns = 0;
+    grid((a, z, d, h) => {
+      if (Math.abs(z) > 0.35) return;
+      const s = Math.sqrt(1 - z * z);
+      const p = dirOf(a + e / s, z), q = dirOf(a, z + e * s);
+      ew += Math.abs(t.height(p.x, p.y, p.z) - h);
+      ns += Math.abs(t.height(q.x, q.y, q.z) - h);
+    });
+    expect(ew / ns).toBeGreaterThan(0.5); // the bands were 0.32
+  });
+
+  it('no walls: nowhere on dry ground steeper than the old dunes\' crests', () => {
+    let steepest = 0;
+    grid((a, z, d, h) => {
+      const s = Math.sqrt(1 - z * z);
+      const p = dirOf(a + e / s, z), q = dirOf(a, z + e * s);
+      steepest = Math.max(steepest, Math.hypot(t.height(p.x, p.y, p.z) - h, t.height(q.x, q.y, q.z) - h));
+    });
+    expect(steepest).toBeLessThan(0.8); // metres up per metre (the old terrain: 0.75)
+  });
+
+  it('the lakes sit in low ground', () => {
+    let near = 0, nn = 0, far = 0, nf = 0;
+    for (let i = 0; i < 20000; i++) {
+      const d = dirOf(i * 2.39996, -1 + (2 * (i + 0.5)) / 20000);
+      const s = misty.shoreDist(d.x, d.y, d.z);
+      const h = t.height(d.x, d.y, d.z);
+      if (s > 25 && s < 45) { near += h; nn++; }
+      if (s > 80) { far += h; nf++; }
+    }
+    expect(far / nf - near / nn).toBeGreaterThan(0.8);
+  });
+
+  it('dunes in fields round the middle: some ground is dunes, most of it is not', () => {
+    // A dune crest: higher than the ground 8 m either side across it, in some direction.
+    let crest = 0, n = 0, polar = 0;
+    grid((a, z, d, h) => {
+      n++;
+      const s = Math.sqrt(1 - z * z);
+      for (const [da, dz] of [[8, 0], [0, 8], [5.7, 5.7], [5.7, -5.7]]) {
+        const p = dirOf(a + (da * e) / s, z + dz * e * s), q = dirOf(a - (da * e) / s, z - dz * e * s);
+        if (h - t.height(p.x, p.y, p.z) > 0.6 && h - t.height(q.x, q.y, q.z) > 0.6) {
+          crest++;
+          if (Math.abs(z) > 0.75) polar++;
+          break;
+        }
+      }
+    });
+    expect(crest / n).toBeGreaterThan(0.02);
+    expect(crest / n).toBeLessThan(0.25);
+    expect(polar / crest).toBeLessThan(0.1); // (hilltops up there, not dunes)
+  });
+});

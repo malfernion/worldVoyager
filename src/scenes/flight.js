@@ -33,8 +33,10 @@ export const WARP_LEVELS = [1, 3, 10, 30, 100, 300, 1000];
 const SKIP_AGAIN = 30; // real seconds between two of Pip's "tap ⏩" hints (#50)
 const FOG_OFF = 1e9;
 // Misty's haze (#46, updateHaze): full up to `low` metres above the ground, gone by `top`; the
-// fog starts `near` and is solid `far` metres from the camera (divided by how hazy it is).
-const HAZE = { low: 30, top: 200, near: 18, far: 280 };
+// fog starts `near` and is solid `far` metres beyond what the camera follows (divided by how hazy
+// it is). Close enough that the murk shows while driving, where the horizon is only a few dozen
+// metres away (#58). The sky overhead (`zenith`) and the sun's glow through it.
+const HAZE = { low: 30, top: 200, near: 2, far: 80, zenith: 0x7a3f16, glow: 0xffd28a };
 const SEG_COLORS = [0xffe08a, 0x8fe3ff, 0xffa3d1, 0xb6ff9a];
 const CONFETTI = [0xff6b6b, 0xffd166, 0x06d6a0, 0x4cc9f0, 0xf78c6b, 0xc77dff];
 // Longest (real seconds) a new coached action waits for Pip to stop talking (#36).
@@ -93,8 +95,14 @@ export class FlightScene {
     this.camSettle = false; // a new world took over and the view's "down" hasn't turned to it yet (#49)
     this.soiGlow = null; // the map label of the world we just flew into the space of (#49)
     this.mapDist = 1; // map camera distance (absolute)
-    this.pan = { x: 0, y: 0 };
+    // The map's centre, in the Sun's frame (world coordinates), so it stays put as worlds move,
+    // the origin floats or a new world takes over (#57). `mapFocus` is only the world the map's
+    // zoom range and default view are about; the map never follows it.
+    this.mapAt = { x: 0, y: 0 };
     this.mapFocus = null;
+    this.mapGoal = null; // what a smooth re-centre glides to: a body, or 'rocket'
+    this.mapOff = { x: 0, y: 0 }; // how far the centre still is from the goal, easing to 0
+    this.mapGoalAt = { x: 0, y: 0 };
     this.warpIndex = 0;
     this.target = null;
     this.input = { left: false, right: false, go: false, fine: false };
@@ -265,15 +273,13 @@ export class FlightScene {
     if (this.mode === 'drive') return;
     this.panGlide = null;
     this.mode = this.mode === 'map' ? 'flight' : 'map';
-    if (this.mode === 'map') {
-      this.mapFocus = this.flight.state.body;
-      this.pan = { x: 0, y: 0 };
-      this.fitMap();
-    }
+    // The map opens on the rocket, then stays where it is (or is dragged to), #57.
+    if (this.mode === 'map') this.focusMapOn(this.flight.state.body, false, true);
     this.app.audio.play('whoosh');
   }
 
-  fitMap() {
+  /** The default view of `mapFocus`; `onRocket`: centred on the rocket rather than the world. */
+  fitMap(onRocket = false) {
     const s = this.flight.state;
     const b = this.mapFocus;
     let extent;
@@ -287,6 +293,8 @@ export class FlightScene {
     } else {
       extent = Number.isFinite(b.soi) ? Math.min(b.soi, b.radius * 12) : SYSTEM_VIEW;
     }
+    // Centred on the rocket, what's round the world must still fit: reach past it by as far as the rocket is from the world.
+    if (onRocket && b === s.body) extent += Math.hypot(s.x, s.y);
     // A new default view, always inside the fixed limits, so re-fitting never changes what's reachable.
     const [lo, hi] = this.mapLimits();
     this.mapDist = clamp(fitDist(extent, this.camera.fov, this.camera.aspect), lo, hi);
@@ -327,34 +335,62 @@ export class FlightScene {
     }
   }
 
-  /** Re-centre the map on a world. With `smooth`, glide there instead of jumping. */
-  focusMapOn(body, smooth = false) {
+  /**
+   * Centre the map on a world (or, with `onRocket`, on the rocket in that world's space) and
+   * frame it. With `smooth`, glide there instead of jumping. Either way the map then stays where
+   * that was, in the Sun's frame: it never follows the world as it moves on (#57).
+   */
+  focusMapOn(body, smooth = false, onRocket = false) {
     this.panGlide = null;
-    if (!smooth || !this.mapFocus) {
-      this.mapFocus = body;
-      this.pan = { x: 0, y: 0 };
-      this.fitMap();
-      return;
-    }
-    const t = this.flight.state.t;
-    const oldCentre = this.mapFocus.worldPos(t, {});
-    const newCentre = body.worldPos(t, {});
     const oldDist = this.mapDist;
     this.mapFocus = body;
-    this.pan = { x: oldCentre.x + this.pan.x - newCentre.x, y: oldCentre.y + this.pan.y - newCentre.y };
-    this.fitMap();
+    this.mapGoal = onRocket ? 'rocket' : body;
+    this.fitMap(onRocket);
+    const at = this.mapGoalPos();
+    if (!smooth) {
+      this.mapEase = false;
+      this.mapAt.x = at.x;
+      this.mapAt.y = at.y;
+      return;
+    }
+    // Glide as an offset from the goal, so a moving goal is still reached; then it's left there.
+    this.mapOff.x = this.mapAt.x - at.x;
+    this.mapOff.y = this.mapAt.y - at.y;
     this.mapDistTarget = this.mapDist;
     this.mapDist = oldDist;
     this.mapEase = true;
   }
 
+  /** 🎯: back to the rocket, gliding, framed on the world we're in. */
+  findRocket() {
+    this.focusMapOn(this.flight.state.body, true, true);
+  }
+
+  /** Where a re-centre is going (world coordinates; reused object). */
+  mapGoalPos() {
+    const g = this.mapGoal;
+    if (g === 'rocket') return this.flight.worldPos(this.mapGoalAt);
+    return g.worldPos(this.flight.state.t, this.mapGoalAt);
+  }
+
   easeMap(dt) {
     if (!this.mapEase) return;
     const k = 1 - Math.exp(-dt * 2.5);
-    this.pan.x -= this.pan.x * k;
-    this.pan.y -= this.pan.y * k;
+    const off = this.mapOff;
+    off.x -= off.x * k;
+    off.y -= off.y * k;
     this.mapDist += (this.mapDistTarget - this.mapDist) * k;
-    if (Math.hypot(this.pan.x, this.pan.y) < 1 && Math.abs(this.mapDist / this.mapDistTarget - 1) < 0.01) this.mapEase = false;
+    const at = this.mapGoalPos();
+    this.mapAt.x = at.x + off.x;
+    this.mapAt.y = at.y + off.y;
+    if (Math.hypot(off.x, off.y) < 1 && Math.abs(this.mapDist / this.mapDistTarget - 1) < 0.01) this.mapEase = false;
+  }
+
+  /** The floating origin (#57): the rocket in the flight view, the map's fixed centre on the map. */
+  placeOrigin(rw) {
+    const o = this.mode === 'flight' ? rw : this.mapAt;
+    this.origin.x = o.x;
+    this.origin.y = o.y;
   }
 
   /** Change time speed by a step (+1 / -1), or pass `reset` for normal speed. */
@@ -948,14 +984,7 @@ export class FlightScene {
       this.glideMap(dt);
     }
     const rw = f.worldPos(this.tmp);
-    if (this.mode === 'flight') {
-      this.origin.x = rw.x;
-      this.origin.y = rw.y;
-    } else {
-      const fw = this.mapFocus.worldPos(s.t, this.tmp2);
-      this.origin.x = fw.x + this.pan.x;
-      this.origin.y = fw.y + this.pan.y;
-    }
+    this.placeOrigin(rw);
     this.placeBodies(s.t);
     this.placeRocket(rw);
     this.updateEffects(dt);
@@ -994,10 +1023,13 @@ export class FlightScene {
 
   /**
    * Misty's thick orange haze (#46), only the look: near its ground (driving, landed, or flying
-   * low) the sky turns hazy orange, even by day, the stars fade out, and the distance fogs over
-   * in the same colour. It thins out as the camera climbs, gone by `HAZE.top` metres up. It
-   * reuses the scene's always-there fog (#44), so no material changes; nothing is allocated.
-   * Under a methane lake the underwater fog wins.
+   * low) the sky turns hazy orange, even by day (a dome, `hazeSky`: amber at the horizon, browner
+   * overhead, the sun a soft glow; #58), the stars fade out, and the distance fogs over in the
+   * horizon's colour. It thins out as the camera climbs, gone by `HAZE.top` metres up, while the
+   * glowing shell seen from outside fades in, so nothing pops between the views. Every frame,
+   * flying or driving (#58: driving never updated it, so a dip in a lake or a zoomed-out view
+   * before 🚙 left it off). It reuses the scene's always-there fog (#44), so no material changes;
+   * nothing is allocated. Under a methane lake the underwater fog wins.
    */
   updateHaze() {
     const s = this.flight.state;
@@ -1013,9 +1045,15 @@ export class FlightScene {
     }
     if (k === this.haze && k === 0) return;
     this.haze = k;
-    // Down in it, the fog is the haze; the shell seen from so close would only glare.
-    if (v) this.hazeShell = v.atmosphere;
-    if (this.hazeShell) this.hazeShell.material.uniforms.fade.value = 1 - 0.85 * k;
+    // Down in it, the fog and the dome are the haze; the shell (only seen from outside) fades out.
+    if (v) {
+      this.hazeShell = v.atmosphere;
+      if (this.hazeSkyMesh && this.hazeSkyMesh !== v.hazeSky) this.hazeSkyMesh.visible = false;
+      this.hazeSkyMesh = v.hazeSky;
+    }
+    if (this.hazeShell) this.hazeShell.material.uniforms.fade.value = 1 - k;
+    const sky = this.hazeSkyMesh;
+    if (sky) sky.visible = k >= 0.01;
     if (this.underwater) return;
     const fog = this.scene.fog;
     if (k < 0.01) {
@@ -1029,13 +1067,26 @@ export class FlightScene {
     const g = v.group.position, sun = this.sunVisual.group.position;
     const ux = c.x - g.x, uy = c.y - g.y, uz = c.z - g.z;
     const sx = sun.x - g.x, sy = sun.y - g.y, sz = sun.z - g.z;
-    const cos = (ux * sx + uy * sy + uz * sz) / ((Math.hypot(ux, uy, uz) * Math.hypot(sx, sy, sz)) || 1);
+    const ul = Math.hypot(ux, uy, uz) || 1, sl = Math.hypot(sx, sy, sz) || 1;
+    const cos = (ux * sx + uy * sy + uz * sz) / (ul * sl);
     const day = 0.3 + 0.7 * Math.max(0, Math.min(1, (cos + 0.2) / 0.5));
     fog.color.set(body.haze).multiplyScalar(day);
-    fog.near = HAZE.near / k;
-    fog.far = HAZE.far / k;
+    // Counted from what the camera follows (the rocket or buggy, at the floating origin), so
+    // that stays clear however far out the camera is, and only what's beyond it fogs over.
+    const d = Math.hypot(c.x, c.y, c.z);
+    fog.near = (HAZE.near + d) / k;
+    fog.far = (HAZE.far + d) / k;
     this.scene.background.copy(this.spaceColour).lerp(fog.color, k);
     this.sky.visible = k < 0.6;
+    if (sky) {
+      const u = sky.material.uniforms;
+      u.k.value = k;
+      u.horizon.value.copy(fog.color);
+      u.zenith.value.set(HAZE.zenith).multiplyScalar(day);
+      u.glow.value.set(HAZE.glow).multiplyScalar(Math.max(0, (day - 0.3) / 0.7));
+      u.up.value.set(ux / ul, uy / ul, uz / ul);
+      u.sun.value.set(sx / sl, sy / sl, sz / sl);
+    }
   }
 
   /** Leaving the flight screen: out of any sea, and no more lapping (or lava's hiss). */
@@ -1251,15 +1302,15 @@ export class FlightScene {
     if (at.sx > W * 0.2 && at.sx < W * 0.8 && at.sy > H * 0.4 && at.sy < H * 0.72) return;
     const perPx = (2 * this.mapDist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / H;
     this.mapEase = false;
-    this.panGlide = { x: this.pan.x + at.x, y: this.pan.y + at.y + H * 0.08 * perPx, t: 0 };
+    this.panGlide = { x: this.mapAt.x + at.x, y: this.mapAt.y + at.y + H * 0.08 * perPx, t: 0 };
   }
 
   glideMap(dt) {
     const g = this.panGlide;
     if (!g) return;
     const k = 1 - Math.exp(-dt * 4);
-    this.pan.x += (g.x - this.pan.x) * k;
-    this.pan.y += (g.y - this.pan.y) * k;
+    this.mapAt.x += (g.x - this.mapAt.x) * k;
+    this.mapAt.y += (g.y - this.mapAt.y) * k;
     g.t += dt;
     if (g.t > 2.5 || this.mode !== 'map') this.panGlide = null;
   }
@@ -1387,6 +1438,7 @@ export class FlightScene {
     this.updateMarkers();
     this.updateMood();
     this.updateUnderwater(dt);
+    this.updateHaze();
     this.checkBand(dt, this.drive.buggy?.body === this.system.home);
   }
 

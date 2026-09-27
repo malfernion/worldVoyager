@@ -221,7 +221,7 @@ src/audio/     procedural campfire music + sound effects (WebAudio, no asset fil
 ```
 
 Key techniques:
-- **Floating origin.** Every frame the world is drawn relative to the rocket (or the map focus),
+- **Floating origin.** Every frame the world is drawn relative to the rocket (or the map's fixed centre, #57),
   so float32 precision holds from 1 m to the ~65 km out to Tumble.
 - **Physics surface = visible mesh.** After meshing a planet we slice the mesh at z = 0 and use
   that exact outline as the ground, so legs touch what you see. A world with a liquid has two
@@ -317,7 +317,19 @@ where it was, and it eases back (with the view's "down" turning to the new world
 it's calm, never during a burn or within 30 m of the ground, over about two seconds. The map
 keeps its focus and zoom, even if it was centred on the world we just left: easing it over to
 the new world would slide the rocket across the screen, and following a different world is a
-choice the child makes (tap a world, or 🎯). Instead the new world's label glows for a moment.
+choice the child makes (🎯). Instead the new world's label glows for a moment.
+
+**The map stays where you put it (#57).** The map's centre used to be "the world you were in
+when you opened it, plus however far you'd dragged", so it rode along with that world round the
+Sun: after taking off from Homestead the whole map (the Sun, the other worlds, the spot you'd
+dragged to) slid and wobbled with Homestead, and it opened on Homestead rather than the rocket.
+Now the centre is one fixed point in the Sun's frame (`FlightScene.mapAt`, world coordinates,
+so the floating origin and SOI hand-offs can't move it): opening the map puts it on the rocket
+(framed so the world we're in still fits), and after that only the child moves it (dragging),
+or 🎯, which glides back to the rocket and then stays put again. `focusMapOn(body)` centres on
+a world the same way, once. `mapFocus` is still "the world the map is about" (its zoom range,
+default view, label priority), but the map never follows it: a map that follows something
+moving is exactly what felt wobbly, and a kid who drags the map wants it to stay there.
 
 ## The starter journey (#36)
 
@@ -652,11 +664,30 @@ moon, has methane lakes (#46, below).
   limits didn't need to move (Ringo's default view is its whole SOI), and its label is a moon's,
   so it hides behind Ringo or shrinks to its icon when crowded (#33). The stress sweep, the
   mission tests and Round the World all include it.
-- **The ground.** Tan-brown plains, brighter uplands, and a belt of long, dark, parallel dunes
-  round the middle (ridges about 16 m apart, bent a little by noise). Its mesh is detail 56
-  (about 63,000 triangles, like Homestead's) so the dune crests and lake shores are smooth.
+- **The ground** (#59). Smooth plains with a slow swell, rolling brighter uplands (Titan's
+  Xanadu) and fields of long dark dunes, all from `makeMisty()` in `terrain.js`. It began as a
+  belt of parallel ridges right round the middle (`sin(z)`: bands, which the owner rightly
+  said looked computer-made); now:
+  - One broad field (`g`, 3 octaves at 1.3) gives the plains' swell and, where it's high, the
+    uplands' hills. The ground dips up to 2.2 m within about 60 m of each lake (the edge
+    wobbled by noise), so the lakes sit in low ground; the lakes' banks round over into it
+    (`makePools(…, soft)`, a smooth minimum, #59; Sizzle's lava keeps its crisp banks).
+  - Dunes (`MISTY_DUNES`): two sets, each ridged across its own tilted axis, so the ridges'
+    heading changes across the moon (mostly east-west round the middle, like Titan's), 17 and
+    21 m apart, 2.2 m tall at most (no steeper than the old ones: the buggy drives over them).
+    A domain warp bends them; noise stretched along the ridges makes each crest rise, fall and
+    break off (30 to 150 m long); one set's fields here, the other's there, crossing only in
+    a narrow strip; gaps between fields; none on the uplands, near the poles or on the lakes'
+    banks. Near a set's own poles its ridges would curl into rings, so they fade out there. The
+    sets are joined with a soft union (`a + b − ab`), since `max()` leaves a crease.
+  - Colour: the dune fields' sand is dark (the region, not each ridge, so fields read as
+    patches like Titan's sand seas), crests paler; uplands brighter; damp shores dark.
+  - Region edges must be wide enough in noise units (a steep bit of Perlin noise made a sharp
+    dark wedge at first). Its mesh is still detail 56 (about 63,000 triangles, like Homestead's);
+    height and colour share one evaluation per vertex (the last point is kept), and baking it
+    costs about 1.5× the old banded one (roughly 75 ms against 50 ms on a desktop).
 - **The lakes** are carved like Sizzle's lava (`MISTY_LAKES`, `makePools()`): one methane
-  level 5 m below the base radius (the natural ground never dips below about -3.1 m), and ten
+  level 5 m below the base radius (the natural ground never dips below about -3.5 m, #59), and ten
   basins 2.2 to 3.8 m deep, with gentle banks (0.2, so the buggy drives in and out). Like
   Titan's, most are round the poles (here z = ±1: the northern ones face the camera from
   orbit): a long northern sea with a southern arm, a round one, a small one right by the pole,
@@ -674,11 +705,23 @@ moon, has methane lakes (#46, below).
 - **The haze** (only the look; real atmospheres are #12). `haze` on the body makes its
   atmosphere shell thicker: further out (1.22 × radius), and tinting the whole face (`fill`),
   not only the rim, so Misty reads as a hazy orange ball from orbit with its dark lakes
-  showing through. Near the ground (`FlightScene.updateHaze()`, `HAZE`): full up to 30 m above
-  the ground, gone by 200 m, the scene's background turns hazy orange (dimmer on the night
-  side), the stars go, the always-there fog (#44) closes in to 18–280 m in the haze's colour,
-  and the shell fades (seen from so close it would only glare). No material changes, nothing
-  allocated per frame; under a lake the underwater fog wins.
+  showing through. Near the ground (`FlightScene.updateHaze()`, `HAZE`, every frame, flying
+  *and* driving): full up to 30 m above the ground, gone by 200 m, the sky turns hazy orange
+  (dimmer on the night side), the stars go, and the always-there fog (#44) closes in, in the
+  haze's colour. The sky is a dome round the world (`hazeSky()` in `planets.js`, 260 m above
+  the ground so the camera is always inside it while there's haze; one draw call, only then):
+  the fog's colour at the horizon, so the far ground melts into it, browner overhead, with the
+  sun a soft bright patch, like Titan's murk. The fog is counted from what the camera follows
+  (the rocket or buggy, at the floating origin): it starts 2 m beyond it and is solid 80 m
+  beyond (divided by how hazy it is), so the buggy and the rocket stay clear at any zoom while
+  the ground a few dozen metres off (the horizon, on a world this small, from the buggy) goes
+  orange. The shell fades out as the haze comes in (it's only seen from outside: from inside,
+  its back faces are culled), so going down or up nothing pops between shell, fog and dome.
+  No material changes, nothing allocated per frame; under a lake the underwater fog wins.
+  (#58: at first driving never updated the haze: it kept whatever the last flight frame left,
+  so a zoomed-out view before 🚙, or a dip in a lake, which turns the fog off on the way out,
+  left the buggy under a black, starry sky. And the fog, 18–280 m from the camera, barely
+  touched ground only 20 to 60 m away.)
 - **The rocket** crashes on a lake (reason `methane`): an amber splash and "Splash! That lake is
   made of methane. Let's land on the ground!". The helpers land beside the lakes as by the sea;
   coached, "Oops, a lake! I'll fly us over to dry land." (tested from 48 points round the orbit,

@@ -257,7 +257,7 @@ describe('drawing the predicted path (#19)', () => {
       const ap = nearRadial(seg) ? radialApex(seg) : pointAt(seg.el, Math.PI);
       expect(Math.hypot(ap.x, ap.y)).toBeCloseTo(seg.el.ra, 0);
     }
-  });
+  }, 20000); // 61 launches and predictions: about 3.5 s alone, so it outgrew the 5 s default in a busy full run
 
   it('still draws normal orbits by angle', () => {
     const sys = createSystem();

@@ -84,11 +84,13 @@ export const seabedDepth = (d) => 0.6 * d + 0.08 * d * d;
 // round blob (`a` its middle) or a flow (a line from `a` to `b`), `r` metres from the middle
 // line to the shore (wobbled by noise so it isn't a perfect circle). In it the floor is a
 // bowl `deep` metres below the level in the middle; outside, a bank rises from the shore at
-// `bank` (metres up per metre out) until it meets the natural ground.
+// `bank` (metres up per metre out) until it meets the natural ground. With `soft` (metres; Misty,
+// #59) the bank rounds over into the ground instead of meeting it in a crease; it must stay less
+// than the natural ground's height above the level at every shore, so the shores don't move.
 const WOBBLE = 0.2; // how much a pool's shore wobbles in and out (times its r)
 const NEAR = 15;
 
-export function makePools(defs, radius, level, seed) {
+export function makePools(defs, radius, level, seed, soft = 0) {
   const { noise } = makeNoise(seed);
   const list = defs.map((d) => {
     const a = d.a, b = d.b ?? d.a;
@@ -121,12 +123,16 @@ export function makePools(defs, radius, level, seed) {
       for (const p of list) {
         if (x * p.mid.x + y * p.mid.y + z * p.mid.z < p.cos) continue;
         const d = dist(p, x, y, z);
-        if (d > p.r * (1 + WOBBLE) + (h - level) / p.bank) continue;
+        if (d > p.r * (1 + WOBBLE) + (h + soft - level) / p.bank) continue;
         const shore = shoreAt(p, x, y, z);
-        if (d > shore + (h - level) / p.bank) continue;
+        if (d > shore + (h + soft - level) / p.bank) continue;
         const s = d / shore;
         const bowl = s < 1 ? level - p.deep * (1 - s * s) : level + (d - shore) * p.bank;
-        if (bowl < h) h = bowl;
+        if (soft > 0) {
+          // A smooth minimum: the same as min() once they're `soft` apart.
+          const g = Math.max(0, 1 - Math.abs(h - bowl) / soft);
+          h = Math.min(h, bowl) - soft * 0.25 * g * g;
+        } else if (bowl < h) h = bowl;
       }
       return h;
     },
@@ -374,8 +380,9 @@ function makeFrosty() {
 // Huygens (a discovery, #15, on the pebbly ground by the flight plane's big lake), and of the
 // strip where the rocket lands most of the time. test/misty.test.js checks all of this.
 export const MISTY_LAKES = {
-  level: -5, // below all of Misty's natural ground (its lowest dip is about -3.1 m)
+  level: -5, // below all of Misty's natural ground (its lowest dip, by a lake, is about -3.5 m)
   radius: 160, // Misty's (bodies.js; a test checks they match)
+  soft: 1.2, // the banks round over into the ground (#59; less than the ground's 1.5 m above the level)
   pools: [
     { a: dirOf(2.55, 0.0), r: 15, deep: 3.4, bank: 0.22 }, // across the flight plane: Huygens is on its shore
     { a: dirOf(5.3, 0.1), b: dirOf(5.45, 0.02), r: 8, deep: 2.2, bank: 0.22 }, // a narrow one across the plane, on the camera's side
@@ -390,37 +397,116 @@ export const MISTY_LAKES = {
   ].map((p, i) => ({ ...p, seed: i * 4.3 + 1 })),
 };
 
+// Misty's dunes (#59), like Titan's: long ridges in fields, mostly round the middle, with flat
+// ground between them. Two sets, each ridged across its own direction `axis` (the ridges run
+// round it, so their heading changes across the moon), `k` ridges per radian (about 17 and 21 m
+// apart), bent by a gentle domain warp. Where both sets meet they cross.
+const MISTY_DUNES = [
+  { axis: [0.12, 0.3, 0.95], k: 59, off: 0 },
+  { axis: [0.62, -0.38, 0.69], k: 48, off: 17 },
+].map((d) => {
+  const l = Math.hypot(...d.axis);
+  const a = d.axis.map((c) => c / l);
+  // Two directions square to the axis: coordinates along the ridges.
+  let b = [a[1], -a[0], 0];
+  const bl = Math.hypot(...b);
+  b = b.map((c) => c / bl);
+  const c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  return { ...d, axis: a, b, c };
+});
+
 function makeMisty() {
   const { fbm, noise } = makeNoise(131);
-  const pools = makePools(MISTY_LAKES.pools, MISTY_LAKES.radius, MISTY_LAKES.level, 137);
-  // Titan's dunes: long parallel ridges running east-west in a belt round the middle, bending a
-  // little where the noise pushes them (about 16 m apart, sharp crests).
-  const dune = (x, y, z) => {
-    const belt = 1 - smooth(0.3, 0.55, Math.abs(z));
-    if (belt <= 0) return 0;
-    const u = z * 31 + noise(x * 2.2 + 3, y * 2.2, z * 2.2) * 2.4;
-    const s = 1 - Math.abs(Math.sin(u));
-    return s * s * belt;
+  const pools = makePools(MISTY_LAKES.pools, MISTY_LAKES.radius, MISTY_LAKES.level, 137, MISTY_LAKES.soft);
+  // The lay of the land (#59) comes from one broad field, `g`: the plains' slow swell, and where
+  // it's high, the rolling uplands (like Titan's bright Xanadu): big regions with soft edges.
+  // Metres from the nearest lake's round shore (no wobble: smooth all the way out, where
+  // shoreDist() switches from exact to rough). For the low ground round the lakes and the dunes.
+  const lakeDist = (x, y, z) => {
+    let best = Infinity;
+    for (const p of pools.list) {
+      let t = 0;
+      if (p.ab2 > 0) t = Math.max(0, Math.min(1, ((x - p.a.x) * p.ab[0] + (y - p.a.y) * p.ab[1] + (z - p.a.z) * p.ab[2]) / p.ab2));
+      const dx = x - p.a.x - p.ab[0] * t, dy = y - p.a.y - p.ab[1] * t, dz = z - p.a.z - p.ab[2] * t;
+      best = Math.min(best, Math.sqrt(dx * dx + dy * dy + dz * dz) * MISTY_LAKES.radius - p.r);
+    }
+    return best;
+  };
+  // The low ground round the lakes: 1 at the shore, nothing 60 m out (so the lakes sit in hollows;
+  // wobbled, so the hollows aren't round).
+  const lowland = (s) => 1 - smooth(0, 60, s);
+  // The dunes here: `shape.dune` their height (0..1, 1 on a tall crest) and `shape.sand` how much
+  // dune field this is (0..1, the dark sand between the ridges too).
+  const dune = (x, y, z, up, s) => {
+    shape.dune = 0;
+    shape.sand = 0;
+    // Round the middle, off the uplands, never on the lakes' banks.
+    const where = (1 - smooth(0.4, 0.72, Math.abs(z))) * (1 - 0.9 * up) * smooth(6, 22, s);
+    if (where <= 0) return;
+    // Fields with gaps between (plains, or ground too hard for sand).
+    const where2 = where * smooth(-0.45, 0.2, noise(x * 1.7 + 41, y * 1.7, z * 1.7));
+    if (where2 <= 0) return;
+    shape.sand = where2;
+    // One set's here, the other's there, crossing only in a narrow strip where they meet.
+    const f = noise(x * 2.1 + 5, y * 2.1, z * 2.1);
+    // One gentle warp for both sets (a shift across the ridges): they meander, fork and bend.
+    const warp = noise(x * 3.1 + 11, y * 3.1, z * 3.1) * 0.05;
+    for (let i = 0; i < MISTY_DUNES.length; i++) {
+      const d = MISTY_DUNES[i], a = d.axis;
+      const along = x * a[0] + y * a[1] + z * a[2];
+      // (Near the set's own poles its ridges would curl into rings: faded out there.)
+      const field = smooth(-0.1, 0.15, i ? -f : f) * smooth(0.55, 0.85, Math.sqrt(1 - along * along)) * where2;
+      if (field <= 0) continue;
+      const across = along + warp * (i ? -0.8 : 1);
+      const c = 0.5 + 0.5 * Math.cos(across * d.k);
+      // Each crest rises and falls along its length and breaks off: dunes of all lengths, 30 to
+      // 150 m (noise stretched along the ridges: quick across them, slow along them).
+      const b = d.b, e = d.c;
+      const run = smooth(-0.4, 0.05, noise(across * 6 + d.off, (x * b[0] + y * b[1] + z * b[2]) * 2.6, (x * e[0] + y * e[1] + z * e[2]) * 2.6));
+      // (Added so they join without a crease, as max() would leave.)
+      const h = c * c * field * run;
+      shape.dune += h - shape.dune * h;
+    }
+  };
+  // All of it at once, shared by height and colour (the mesh asks for both at each vertex in
+  // turn, so the last point's answer is kept).
+  const shape = { up: 0, dune: 0, sand: 0, low: 0, h: 0, x: NaN, y: 0, z: 0 };
+  const lay = (x, y, z) => {
+    if (x === shape.x && y === shape.y && z === shape.z) return shape;
+    shape.x = x;
+    shape.y = y;
+    shape.z = z;
+    const s = lakeDist(x, y, z);
+    const g = fbm(x * 1.3 + 7, y * 1.3, z * 1.3, 3);
+    const up = smooth(0.02, 0.32, g); // 0 on the plains, 1 up on the uplands
+    const low = s < 85 ? lowland(s + noise(x * 6 + 3, y * 6, z * 6 + 9) * 25) : 0;
+    // Plains: nearly flat, a slow swell. Uplands: rounded hills. Hollows round the lakes.
+    const swell = g * 2;
+    const hills = up > 0 ? up * (1.6 + 1.9 * fbm(x * 4.5, y * 4.5 + 5, z * 4.5, 3)) : 0;
+    dune(x, y, z, up, s);
+    shape.up = up;
+    shape.low = low;
+    shape.h = swell * 1.4 + hills + shape.dune * 2.2 - low * 2.2;
+    return shape;
   };
   return {
     liquid: { kind: 'methane', level: MISTY_LAKES.level },
     pools,
     height(x, y, z) {
-      const h = fbm(x * 2.4, y * 2.4, z * 2.4, 4) * 5 + dune(x, y, z) * 1.6;
-      return pools.carve(x, y, z, h);
+      return pools.carve(x, y, z, lay(x, y, z).h);
     },
     color(x, y, z, h) {
+      const { up, dune: d, sand, low } = lay(x, y, z);
       // Brown-orange plains, brighter uplands (like Titan's Xanadu), dark brown dune fields.
       const n = fbm(x * 5 + 2, y * 5, z * 5, 3);
       let c = mix(rgb(0x84552c), rgb(0x6c4322), n + 0.5);
-      c = mix(c, rgb(0xb07c44), smooth(0.9, 2.2, h) * 0.8);
+      c = mix(c, rgb(0xb07c44), up * smooth(0.6, 2.4, h) * 0.85);
       // (Troughs darker, crests catching the light, so the dunes read through the haze; #53.)
-      const d = dune(x, y, z);
-      const belt = 1 - smooth(0.25, 0.55, Math.abs(z));
-      c = mix(c, rgb(0x3a2512), belt * (0.85 - 0.45 * d));
-      c = mix(c, rgb(0xa8763f), belt * smooth(0.7, 0.95, d) * 0.7);
-      // Round the lakes: dark, damp shores.
+      c = mix(c, rgb(0x3a2512), smooth(0, 1, sand) * 0.75);
+      c = mix(c, rgb(0xa8763f), smooth(0.35, 0.85, d) * 0.7);
+      // Round the lakes: dark, damp shores in the low ground.
       const s = pools.shoreDist(x, y, z);
+      c = mix(c, rgb(0x4a3019), low * 0.35);
       if (s < 6) c = mix(c, rgb(0x2e2114), 1 - smooth(0, 6, s));
       return c;
     },
