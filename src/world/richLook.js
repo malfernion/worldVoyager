@@ -152,16 +152,20 @@ function defines(list) {
  * Each rocky world's extra colours: `rock` for steep faces, `dust` for flat ground, `speck` and
  * `streak` for the fine detail, `rim` the sunlit edge, `night` the night side's fill (added, so
  * small), `ao` the baked relief's strength and `speckle` [how rare (0..1, higher: fewer), how bright]
- * the pale pebbles are (Pebble's bright regolith and ejecta).
+ * the pale pebbles are (Pebble's bright regolith and ejecta). Optional: `tint` (the four colours
+ * multiply the ground's own), `rimK` / `nightK` (how strong the rim and night fill are), `keep`
+ * (spots left as painted), `rimSurface` (a rim from the real surface), `darken` and `ambientK`
+ * (the comet's coal-dark ice). Night fills lean slate-blue on warm worlds: a pure blue over
+ * orange reads mauve.
  */
 export const ROCKY_LOOK = {
-  dusty: { rock: 0x7e3a22, dust: 0xe79a66, speck: 0xf6c49a, streak: 0x9a452a, rim: 0xffc890, night: 0x24388a, nightK: 0.28, ao: { dark: 0.4, light: 0.16 }, speckle: [0.8, 0.45] },
+  dusty: { rock: 0x7e3a22, dust: 0xe79a66, speck: 0xf6c49a, streak: 0x9a452a, rim: 0xffc890, night: 0x284a66, nightK: 0.28, ao: { dark: 0.4, light: 0.16 }, speckle: [0.8, 0.45] },
   pebble: { rock: 0x746d64, dust: 0xd9d4ca, speck: 0xf4f1ea, streak: 0x8c857b, rim: 0xfff2dc, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.32 }, speckle: [0.8, 0.45] },
   // Worlds of many colours (#52): `tint` makes rock / dust / speck / streak multipliers of the
   // ground's own colour. Grass stays green, beaches sandy, snow white.
   homestead: {
     tint: true, rock: [0.8, 0.76, 0.72], dust: [1.05, 1.05, 0.96], speck: [1.12, 1.12, 1.05], streak: [0.9, 0.95, 0.88],
-    rim: 0xfff4d8, night: 0x24388a, nightK: 0.26, ao: { dark: 0.28, light: 0.14 }, speckle: [0.82, 0.35],
+    rim: 0xfff4d8, rimK: 0.3, night: 0x24388a, nightK: 0.26, ao: { dark: 0.56, light: 0.3 }, speckle: [0.82, 0.35],
   },
   // Tiny, with a coarse mesh: gentler relief, or its big crater swallows the whole moon.
   nibble: {
@@ -171,26 +175,29 @@ export const ROCKY_LOOK = {
   // The vents keep their glow (`keep`: no relief, slope or detail round them).
   sizzle: {
     tint: true, rock: [0.78, 0.66, 0.55], dust: [1.04, 1.02, 0.94], speck: [1.1, 1.1, 1.04], streak: [0.9, 0.82, 0.72],
-    rim: 0xfff0a0, night: 0x2a3070, nightK: 0.26, ao: { dark: 0.32, light: 0.16 }, speckle: [0.8, 0.4], keep: [[SIZZLE_VENTS, 0.07]],
+    rim: 0xfff0a0, night: 0x284a66, nightK: 0.26, ao: { dark: 0.32, light: 0.16 }, speckle: [0.8, 0.4], keep: [[SIZZLE_VENTS, 0.07]],
   },
   // Icy blue-grey cliffs; its glowing cracks stay as they are.
   frosty: {
-    tint: true, rock: [0.78, 0.86, 0.96], dust: [1.03, 1.03, 1.03], speck: [1.08, 1.08, 1.08], streak: [0.92, 0.95, 1.0],
-    rim: 0xeaf8ff, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.32, light: 0.12 }, speckle: [0.84, 0.35], keep: [[FROSTY_GLOWS, 0.22]],
+    tint: true, rock: [0.6, 0.74, 0.95], dust: [1.03, 1.03, 1.03], speck: [1.08, 1.08, 1.08], streak: [0.92, 0.95, 1.0],
+    rim: 0xeaf8ff, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.56, light: 0.3 }, speckle: [0.84, 0.35], keep: [[FROSTY_GLOWS, 0.22]],
   },
   flip: {
     tint: true, rock: [0.84, 0.82, 0.9], dust: [1.03, 1.02, 1.03], speck: [1.08, 1.08, 1.08], streak: [0.93, 0.92, 0.96],
     rim: 0xfff0f4, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.3, light: 0.14 }, speckle: [0.84, 0.35],
   },
-  // The comet: two lobes, far from round, so its rim follows its real surface.
+  // The comet: two lobes, far from round, so its rim follows its real surface. Darker than
+  // coal: `darken` [how dark, from, to] darkens its dusty ice but not the bright frost (by
+  // brightness), and `ambientK` takes most of the sky's blue light off it.
   ducky: {
     tint: true, rock: [0.8, 0.8, 0.86], dust: [1.04, 1.04, 1.06], speck: [1.6, 1.6, 1.65], streak: [0.88, 0.88, 0.92],
-    rim: 0xe8f4ff, rimSurface: true, rimK: 0.3, night: 0x2a408a, nightK: 0.15, ao: { dark: 0.34, light: 0.16 }, speckle: [0.8, 0.5],
+    rim: 0xe8f4ff, rimSurface: true, rimK: 0.3, night: 0x2a408a, nightK: 0.1, ao: { dark: 0.34, light: 0.16 }, speckle: [0.8, 0.5],
+    darken: [0.36, 0.5, 0.72], ambientK: 0.45,
   },
   // Under its thick haze: a faint rim and night fill (the haze glows over them anyway).
   misty: {
     tint: true, rock: [0.78, 0.72, 0.66], dust: [1.05, 1.03, 0.96], speck: [1.12, 1.1, 1.04], streak: [0.88, 0.84, 0.8],
-    rim: 0xffd9a0, rimK: 0.18, night: 0x2a3070, nightK: 0.1, ao: { dark: 0.3, light: 0.14 }, speckle: [0.82, 0.35],
+    rim: 0xffd9a0, rimK: 0.18, night: 0x2a3070, nightK: 0.1, ao: { dark: 0.46, light: 0.36 }, speckle: [0.82, 0.35],
   },
 };
 
@@ -253,6 +260,8 @@ export function richRocky(mat, body, sunDir) {
     rlStreak: { value: col(look.streak) },
     rlSpeckAt: { value: look.speckle[0] },
     rlSpeckK: { value: look.speckle[1] },
+    rlDarken: { value: new THREE.Vector3(...(look.darken ?? [1, 0, 1])) },
+    rlAmbientK: { value: look.ambientK ?? 1 },
   };
   const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface]]);
   mat.onBeforeCompile = (shader) => {
@@ -267,8 +276,11 @@ export function richRocky(mat, body, sunDir) {
       uniform vec3 rlStreak;
       uniform float rlSpeckAt;
       uniform float rlSpeckK;
+      uniform vec3 rlDarken;
+      uniform float rlAmbientK;
     ` + shader.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}`)
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= rlAmbientK;')
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n#include <opaque_fragment>`);
   };
   mat.customProgramCacheKey = () => `rich-rocky:${defs}`;
@@ -281,6 +293,7 @@ export function richRocky(mat, body, sunDir) {
 // grass stays green and snow white; otherwise they're the colours themselves (Dusty, Pebble).
 const ROCKY_COLOR = /* glsl */ `
   {
+    diffuseColor.rgb *= mix(rlDarken.x, 1.0, smoothstep(rlDarken.y, rlDarken.z, dot(diffuseColor.rgb, vec3(0.333))));
     #ifdef RL_TINT
       vec3 base = diffuseColor.rgb;
       vec3 rockC = base * rlRock, dustC = base * rlDust, speckC = min(base * rlSpeck, 1.0), streakC = base * rlStreak;
@@ -334,7 +347,7 @@ export const GAS_LOOK = {
     storms: [{ lat: 0.2, lon: 3.6, size: [0.2, 0.12], colors: [0x2f5f86, 0x3f7fa8, 0x8fcfe0], turn: 0.1 }],
     drift: 0.2,
     rim: 0xe0fffb,
-    rimK: 0.3,
+    rimK: 0.18,
     night: 0x162a50,
     nightK: 0.12,
   },
@@ -616,4 +629,36 @@ export function ringShadow(mat, body, sunDir) {
       }`);
   };
   mat.customProgramCacheKey = () => 'rich-ring-shadow';
+}
+
+// ---- The star ------------------------------------------------------------------------------
+
+/**
+ * Ember's surface (#53): soft granules, a little brighter and darker than its colour, slowly
+ * boiling (two noise lookups, only on the star's own pixels), and a gentle darkening at its
+ * edge. Patches its plain material; returns the per-frame update (real time: the sun boils at
+ * the same pace whatever the time warp).
+ */
+export function starShimmer(mat, body) {
+  const uniforms = { rlTime: { value: 0 }, rlRadius: { value: body.radius } };
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = 'varying vec3 rlObj;\nvarying vec3 rlN;\n' + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      rlObj = position;
+      rlN = normalize(normalMatrix * normal);`);
+    shader.fragmentShader = `uniform float rlTime;\nuniform float rlRadius;\nvarying vec3 rlObj;\nvarying vec3 rlN;\n${NOISE}`
+      + shader.fragmentShader.replace('#include <color_fragment>', /* glsl */ `#include <color_fragment>
+      {
+        vec3 q = rlObj / rlRadius * 14.0;
+        // (The second octave is turned, so value noise's grid never lines up into squares.)
+        mat3 turn = mat3(0.48, -0.6, 0.64, 0.8, 0.6, 0.0, -0.36, 0.52, 0.77);
+        float g = rlNoise(q + vec3(0.0, 0.0, rlTime * 0.05)) * 0.6 + rlNoise(turn * q * 2.3 - vec3(rlTime * 0.04, 0.0, 0.0)) * 0.4;
+        diffuseColor.rgb *= 0.95 + 0.1 * g;
+        // Limb darkening: towards the edge, deeper orange.
+        float mu = clamp(abs(rlN.z), 0.0, 1.0);
+        diffuseColor.rgb *= mix(vec3(0.95, 0.72, 0.5), vec3(1.0), smoothstep(0.0, 0.6, mu));
+      }`);
+  };
+  mat.customProgramCacheKey = () => 'rich-star';
+  return (time) => { uniforms.rlTime.value = time % 10000; };
 }

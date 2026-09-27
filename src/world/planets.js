@@ -13,7 +13,7 @@ import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS, OBSER
 import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
-import { bakeRelief, richRocky, gasMaterial, ringShadow } from './richLook.js';
+import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests.)
@@ -220,6 +220,7 @@ function starVisual(body) {
     new THREE.SphereGeometry(body.radius, 48, 32),
     new THREE.MeshBasicMaterial({ color: 0xffd98a }),
   );
+  const shimmer = starShimmer(core.material, body); // slowly boiling granules (#53)
   group.add(core);
   const glowA = new THREE.Sprite(new THREE.SpriteMaterial({
     map: glowTexture('rgba(255,210,120,1)', 'rgba(255,120,40,0)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
@@ -232,7 +233,7 @@ function starVisual(body) {
   group.add(glowA, glowB);
   const light = new THREE.PointLight(0xfff0d8, 2.6, 0, 0);
   group.add(light);
-  return { group, mesh: core, light, glows: [glowA, glowB] };
+  return { group, mesh: core, light, glows: [glowA, glowB], shimmer };
 }
 
 /** Scatter the forest over Homestead's lowlands; returns the tree list (for collisions). */
@@ -423,6 +424,7 @@ export function createBodyVisual(body) {
     group.add(s.group);
     out.mesh = s.mesh;
     out.light = s.light;
+    out.updates.push(s.shimmer);
     out.landmarks = createLandmarks(body); // solar flares
     group.add(out.landmarks.group);
     return out;
