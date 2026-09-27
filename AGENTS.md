@@ -107,7 +107,7 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails,
-                       richLook (#51: the richer cartoon look; a world opts in via `ROCKY_LOOK` / `GAS_LOOK`;
+                       richLook (#51, #52: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight;
                        baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
@@ -585,5 +585,8 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   `getGradientIrradiance()` can't read it (copy it into a global in `main()` first). `flat` is a
   reserved word in GLSL ES 3 (not a variable name), and avoid `smoothstep(a, b, x)` with a > b
   (undefined); use `1.0 - smoothstep(b, a, x)`.
+- **A new world needs its look** (#52): add a `ROCKY_LOOK` (or `GAS_LOOK`) entry in
+  `src/world/richLook.js`, or it keeps the plain toon look. Anything that must stay as painted
+  (a glowing spot) goes in its `keep` list; ground under a liquid is left alone by itself.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

@@ -813,7 +813,7 @@ Flip, Ducky, Misty and Tumble have no friend: five is a band a child can find, a
 The worlds looked flat: colour only per vertex, one even toon tone per patch, fixed gas-giant
 bands. The owner chose a *richer cartoon* look: keep the chunky shapes and toon light, and add
 depth, detail and motion. It was tried on Ringo, Dusty and Pebble, judged from before/after
-screenshots over three rounds, and approved; the other worlds follow in their own issue. The
+screenshots over three rounds, approved, and rolled out to every world (#52). The
 game has **one look**: no player setting and no switches. Nothing changes geometry (the physics
 ground stays the visible mesh), and nothing adds draw calls or textures
 (`src/world/richLook.js`).
@@ -845,16 +845,27 @@ ground stays the visible mesh), and nothing adds draw calls or textures
   - *Light:* the shared 4-step toon gradient cut hard straight lines across a big sphere (its
     step at half-lit was a vertical stripe down the middle). So a gas giant's day side is one
     tone, with a soft terminator and one soft step into the night, softer at the limb.
-- **A world opts in** with an entry in `ROCKY_LOOK` (its rock, dust, speckle, streak, rim and
-  night colours, the night fill's strength, the relief's strength, how rare and bright its
-  speckles are) or `GAS_LOOK` (storms, drift, rim, night). Its bands come from `GAS_BANDS`. A
-  gas giant's ring shadows follow from its `rings` (faint rings cast none). Every other world
-  keeps the plain toon material.
+- **Every world has it** (#52; Ember, the star, doesn't). Each has an entry in `ROCKY_LOOK`
+  (rock, dust, speckle, streak, rim and night colours, the night fill's and rim's strength
+  `nightK` / `rimK`, the relief's strength `ao`, how rare and bright its speckles are) or in
+  `GAS_LOOK` (storms, drift, rim, night), with its bands in `GAS_BANDS`. A gas giant's ring
+  shadows follow from its `rings` (faint rings cast none on the planet).
+  - *Worlds of many colours* (`tint`: Homestead, Nibble, Sizzle, Frosty, Flip, Ducky, Misty)
+    use rock / dust / speckle / streak as multipliers of the ground's own colour, so grass stays
+    green, beaches sandy, snow white. Dusty and Pebble use the colours themselves.
+  - *Where it mustn't go:* a per-vertex weight (`rich`, baked with the relief) fades relief,
+    slopes and detail out below the world's liquid (seabeds and lake floors seen through water
+    look as before; lava hides its pools) and round the spots in the look's `keep` list
+    (Sizzle's glowing vents, Frosty's glowing cracks).
+  - *Rims:* none from low down (the buggy's camera on tiny Nibble is two radii out); the comet
+    (`rimSurface`) uses its real surface, since its lobes are far from round; Misty's is faint
+    under the haze, like its night fill.
 - **Cost.**
   - Rocky: two noise lookups (16 hashes) and a few mixes per pixel.
   - Gas giant: one noise lookup, an `atan` and a few `sin`s, plus the storms.
   - No textures, and the same draw calls and triangles. Three more shader programs.
-  - The relief bake takes about 60 ms for Dusty (24k vertices) on a desktop, once at load.
+  - The relief bake takes about 240 ms for all nine rocky worlds together on a desktop (Dusty and
+    Homestead about 60 ms each), once at load.
 
 ## Ideas for later
 
