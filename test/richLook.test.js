@@ -1,43 +1,69 @@
-// #51: the baked relief shading darkens hollows and lightens ridges, and leaves flat ground alone.
+// #51 / #52: the baked relief shading darkens hollows and lightens ridges, and leaves smooth
+// ground alone; and its `rich` weights fade it out under a sea.
 import { describe, it, expect } from 'vitest';
-import { reliefShade } from '../src/world/richLook.js';
+import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { reliefShade, bakeRelief } from '../src/world/richLook.js';
 
-// A flat square grid of heights (N × N vertices, two triangles per cell).
-function grid(N, heightAt) {
-  const heights = new Float32Array(N * N);
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) heights[j * N + i] = heightAt(i, j);
-  const index = [];
-  for (let j = 0; j < N - 1; j++) {
-    for (let i = 0; i < N - 1; i++) {
-      const a = j * N + i, b = a + 1, c = a + N, d = c + 1;
-      index.push(a, b, d, a, d, c);
-    }
+// A closed sphere mesh (like a world's), with each vertex's unit direction.
+function sphere(detail = 12) {
+  let geo = new THREE.IcosahedronGeometry(1, detail);
+  geo.deleteAttribute('normal');
+  geo.deleteAttribute('uv');
+  geo = mergeVertices(geo);
+  const n = geo.attributes.position.count;
+  const dirs = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const v = new THREE.Vector3().fromBufferAttribute(geo.attributes.position, i).normalize();
+    dirs.set([v.x, v.y, v.z], i * 3);
   }
-  return { heights, index };
+  return { geo, n, dirs };
 }
+const dot = (dirs, i, v) => dirs[i * 3] * v.x + dirs[i * 3 + 1] * v.y + dirs[i * 3 + 2] * v.z;
+const nearest = (dirs, n, v) => {
+  let best = 0;
+  for (let i = 1; i < n; i++) if (dot(dirs, i, v) > dot(dirs, best, v)) best = i;
+  return best;
+};
 
 describe('reliefShade (#51)', () => {
-  const N = 21;
-  const bump = (cx, cy, h, r) => (i, j) => h * Math.exp(-((i - cx) ** 2 + (j - cy) ** 2) / (r * r));
-  // A crater-like pit on the left, a hill on the right.
-  const pit = bump(6, 10, -4, 2.5), hill = bump(15, 10, 4, 2.5);
-  const { heights, index } = grid(N, (i, j) => pit(i, j) + hill(i, j));
-  const shade = reliefShade(heights, index);
-  const at = (i, j) => shade[j * N + i];
+  const { geo, n, dirs } = sphere();
+  const PIT = { x: 1, y: 0, z: 0 }, HILL = { x: -1, y: 0, z: 0 }, FLAT = { x: 0, y: 0, z: 1 };
+  const bump = (i, v, h) => h * Math.exp(-((1 - dot(dirs, i, v)) / 0.02));
+  const heights = new Float32Array(n).map((_, i) => bump(i, PIT, -4) + bump(i, HILL, 4));
+  const shade = reliefShade(heights, geo.index.array);
 
   it('darkens the bottom of a hollow and lightens the top of a hill', () => {
-    expect(at(6, 10)).toBeLessThan(0.9);
-    expect(at(15, 10)).toBeGreaterThan(1.05);
+    expect(shade[nearest(dirs, n, PIT)]).toBeLessThan(0.9);
+    expect(shade[nearest(dirs, n, HILL)]).toBeGreaterThan(1.05);
   });
 
-  it('leaves flat ground about as it was', () => {
-    expect(Math.abs(at(10, 2) - 1)).toBeLessThan(0.03);
+  it('leaves smooth ground about as it was', () => {
+    expect(Math.abs(shade[nearest(dirs, n, FLAT)] - 1)).toBeLessThan(0.03);
   });
 
   it('stays within its limits', () => {
     for (const s of shade) {
       expect(s).toBeGreaterThanOrEqual(1 - 0.3 - 1e-6);
       expect(s).toBeLessThanOrEqual(1 + 0.14 + 1e-6);
+    }
+  });
+});
+
+describe('bakeRelief (#52)', () => {
+  it('leaves seabeds under a sea alone', () => {
+    // Homestead's sea is at -1.5 m.
+    const { geo, n, dirs } = sphere();
+    const heights = new Float32Array(n).map((_, i) => 6 * Math.sin(dirs[i * 3] * 9) - 3);
+    const colors = new Float32Array(n * 3).fill(0.5);
+    bakeRelief({ id: 'homestead', liquid: { level: -1.5 } }, geo, heights, dirs, colors);
+    const rich = geo.attributes.rich.array;
+    for (let i = 0; i < n; i++) {
+      if (heights[i] < -2.5) {
+        expect(rich[i]).toBe(0);
+        expect(colors[i * 3]).toBe(0.5);
+      }
+      if (heights[i] > 0) expect(rich[i]).toBe(1);
     }
   });
 });

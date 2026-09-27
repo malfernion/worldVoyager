@@ -27,6 +27,7 @@ function terrainGeometry(body) {
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
   const heights = new Float32Array(pos.count);
+  const dirs = new Float32Array(pos.count * 3);
   const t = body.terrainFn;
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
@@ -34,6 +35,9 @@ function terrainGeometry(body) {
     x /= l; y /= l; z /= l;
     const h = t.height(x, y, z);
     heights[i] = h;
+    dirs[i * 3] = x;
+    dirs[i * 3 + 1] = y;
+    dirs[i * 3 + 2] = z;
     const r = body.radius + h;
     pos.setXYZ(i, x * r, y * r, z * r);
     const c = t.color(x, y, z, h);
@@ -42,7 +46,7 @@ function terrainGeometry(body) {
     colors[i * 3 + 2] = c[2];
   }
   // Hollows darker, ridges lighter (#51; only colour, the shape is untouched).
-  bakeRelief(body, heights, geo.index.array, colors);
+  bakeRelief(body, geo, heights, dirs, colors);
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
   return geo;

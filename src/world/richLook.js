@@ -7,10 +7,12 @@
 // A world opts in by having an entry in ROCKY_LOOK (rocky worlds) or GAS_LOOK (gas giants,
 // whose bands come from GAS_BANDS in terrain.js); every other world keeps the plain toon look.
 import * as THREE from 'three';
-import { SPIN_AXES, GAS_BANDS } from '../physics/terrain.js';
+import { SPIN_AXES, GAS_BANDS, SIZZLE_VENTS, FROSTY_GLOWS } from '../physics/terrain.js';
 import { toonGradient } from './materials.js';
 
 // Colours are used as raw 0..1 values, like the terrain's vertex colours (so the palettes match).
+// ...or, given as [r, g, b], used as they are (RL_TINT's multipliers can be over 1).
+const col = (v) => (Array.isArray(v) ? new THREE.Vector3(...v) : raw(v));
 const raw = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
 
 // ---- Baked relief shading (pure: tested in test/richLook.test.js) ----------------------------
@@ -18,9 +20,9 @@ const raw = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 
 /**
  * How much to brighten (> 1) or darken (< 1) each vertex's colour from the shape of the ground
  * round it. `heights` are the vertices' heights above the world's base radius, `index` the
- * mesh's triangles. Each vertex is compared with the average height round it at a few sizes
- * (its neighbours, then wider and wider after more smoothing passes: about 1, 2.5 and 6 triangles
- * out): below the average is a hollow (crater floors, valleys), above is a ridge or a crater's
+ * triangles of a closed mesh. Each vertex is compared with the average height round it at a few
+ * sizes (its neighbours, then wider and wider after more smoothing passes: about 1, 2.5 and 6
+ * triangles out): below the average is a hollow (crater floors, valleys), above is a ridge or a crater's
  * rim. Scaled by how bumpy the whole world is, so one setting works for every world. Runs once
  * when the mesh is built (a few tens of milliseconds).
  */
@@ -28,15 +30,17 @@ export function reliefShade(heights, index, { dark = 0.3, light = 0.14, scales =
   const n = heights.length;
   const sum = new Float64Array(n);
   const count = new Uint16Array(n);
-  // Each edge once per triangle side (a closed mesh counts every edge twice: same weights).
-  const nb = new Uint32Array(index.length * 2);
+  // Each edge once: in a closed mesh every edge is in two triangles, once each way round, so
+  // keeping only a < b lists it exactly once (half the work of listing both).
+  const nb = new Uint32Array(index.length);
+  let m = 0;
   for (let f = 0; f < index.length; f += 3) {
     for (let e = 0; e < 3; e++) {
-      nb[(f + e) * 2] = index[f + e];
-      nb[(f + e) * 2 + 1] = index[f + ((e + 1) % 3)];
+      const a = index[f + e], b = index[f + ((e + 1) % 3)];
+      if (a < b) { nb[m++] = a; nb[m++] = b; }
     }
   }
-  for (let k = 0; k < nb.length; k += 2) { count[nb[k]]++; count[nb[k + 1]]++; }
+  for (let k = 0; k < m; k += 2) { count[nb[k]]++; count[nb[k + 1]]++; }
   let s = Float32Array.from(heights);
   const next = new Float32Array(n);
   const cav = new Float32Array(n);
@@ -44,7 +48,7 @@ export function reliefShade(heights, index, { dark = 0.3, light = 0.14, scales =
   for (const [passes, weight] of scales) {
     for (; done < passes; done++) {
       sum.fill(0);
-      for (let k = 0; k < nb.length; k += 2) {
+      for (let k = 0; k < m; k += 2) {
         const a = nb[k], b = nb[k + 1];
         sum[a] += s[b];
         sum[b] += s[a];
@@ -92,11 +96,18 @@ const RIM_NIGHT = /* glsl */ `
   {
     vec3 rad = normalize(rlRadial);
     float sunK = dot(rad, rlSun);
-    float edge = 1.0 - clamp(dot(rad, normalize(vViewPosition)), 0.0, 1.0);
+    #ifdef RL_RIM_SURFACE
+      // A world far from round (the comet): its round shape would put a rim across its middle.
+      float edge = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
+      float rimSun = dot(normal, rlSun);
+    #else
+      float edge = 1.0 - clamp(dot(rad, normalize(vViewPosition)), 0.0, 1.0);
+      float rimSun = sunK;
+    #endif
     // A cartoon rim: a band of sunlight hugging the lit edge, crisp inside, fading out.
     float rim = smoothstep(0.6, 0.72, edge) * (0.55 + 0.45 * smoothstep(0.72, 0.95, edge));
-    rim *= smoothstep(-0.2, 0.3, sunK) * smoothstep(1.25, 1.8, rlFar);
-    outgoingLight += rlRimColor * rim * 0.55;
+    rim *= smoothstep(-0.2, 0.3, rimSun) * smoothstep(1.25, 1.8, rlFar) * smoothstep(15.0, 45.0, rlHigh);
+    outgoingLight += rlRimColor * rim * rlRimK;
     // Moonlight-blue fill: the ground's own colour, cooled and lifted (linear light, so modest).
     float nightK = 1.0 - smoothstep(-0.3, 0.1, sunK);
     outgoingLight += (diffuseColor.rgb * 0.75 + 0.25) * rlNightColor * rlNightK * nightK;
@@ -108,21 +119,26 @@ const VERT_PARS = /* glsl */ `
   varying vec3 rlObj;
   varying vec3 rlRadial;
   varying float rlFar;
+  varying float rlHigh;
 `;
 const VERT_MAIN = /* glsl */ `
   rlObj = position;
   rlRadial = normalize(normalMatrix * position);
   // How far the camera is from the middle, in world radii (the map draws worlds bigger).
   rlFar = length((modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz) / (rlRadius * length(modelViewMatrix[0].xyz));
+  // ...and how high above the ground it is in metres (on a tiny moon a buggy's camera is 2 radii out).
+  rlHigh = (rlFar - 1.0) * rlRadius;
 `;
 const FRAG_PARS = /* glsl */ `
   uniform vec3 rlSun;
   uniform vec3 rlRimColor;
+  uniform float rlRimK;
   uniform vec3 rlNightColor;
   uniform float rlNightK;
   varying vec3 rlObj;
   varying vec3 rlRadial;
   varying float rlFar;
+  varying float rlHigh;
   ${NOISE}
 `;
 
@@ -141,17 +157,81 @@ function defines(list) {
 export const ROCKY_LOOK = {
   dusty: { rock: 0x7e3a22, dust: 0xe79a66, speck: 0xf6c49a, streak: 0x9a452a, rim: 0xffc890, night: 0x24388a, nightK: 0.28, ao: { dark: 0.4, light: 0.16 }, speckle: [0.8, 0.45] },
   pebble: { rock: 0x746d64, dust: 0xd9d4ca, speck: 0xf4f1ea, streak: 0x8c857b, rim: 0xfff2dc, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.32 }, speckle: [0.8, 0.45] },
+  // Worlds of many colours (#52): `tint` makes rock / dust / speck / streak multipliers of the
+  // ground's own colour. Grass stays green, beaches sandy, snow white.
+  homestead: {
+    tint: true, rock: [0.8, 0.76, 0.72], dust: [1.05, 1.05, 0.96], speck: [1.12, 1.12, 1.05], streak: [0.9, 0.95, 0.88],
+    rim: 0xfff4d8, night: 0x24388a, nightK: 0.26, ao: { dark: 0.28, light: 0.14 }, speckle: [0.82, 0.35],
+  },
+  // Tiny, with a coarse mesh: gentler relief, or its big crater swallows the whole moon.
+  nibble: {
+    tint: true, rock: [0.8, 0.77, 0.74], dust: [1.04, 1.03, 1.0], speck: [1.18, 1.16, 1.12], streak: [0.9, 0.88, 0.86],
+    rim: 0xfff0dc, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.24, light: 0.14 }, speckle: [0.8, 0.4],
+  },
+  // The vents keep their glow (`keep`: no relief, slope or detail round them).
+  sizzle: {
+    tint: true, rock: [0.78, 0.66, 0.55], dust: [1.04, 1.02, 0.94], speck: [1.1, 1.1, 1.04], streak: [0.9, 0.82, 0.72],
+    rim: 0xfff0a0, night: 0x2a3070, nightK: 0.26, ao: { dark: 0.32, light: 0.16 }, speckle: [0.8, 0.4], keep: [[SIZZLE_VENTS, 0.07]],
+  },
+  // Icy blue-grey cliffs; its glowing cracks stay as they are.
+  frosty: {
+    tint: true, rock: [0.78, 0.86, 0.96], dust: [1.03, 1.03, 1.03], speck: [1.08, 1.08, 1.08], streak: [0.92, 0.95, 1.0],
+    rim: 0xeaf8ff, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.32, light: 0.12 }, speckle: [0.84, 0.35], keep: [[FROSTY_GLOWS, 0.22]],
+  },
+  flip: {
+    tint: true, rock: [0.84, 0.82, 0.9], dust: [1.03, 1.02, 1.03], speck: [1.08, 1.08, 1.08], streak: [0.93, 0.92, 0.96],
+    rim: 0xfff0f4, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.3, light: 0.14 }, speckle: [0.84, 0.35],
+  },
+  // The comet: two lobes, far from round, so its rim follows its real surface.
+  ducky: {
+    tint: true, rock: [0.8, 0.8, 0.86], dust: [1.04, 1.04, 1.06], speck: [1.6, 1.6, 1.65], streak: [0.88, 0.88, 0.92],
+    rim: 0xe8f4ff, rimSurface: true, rimK: 0.3, night: 0x2a408a, nightK: 0.15, ao: { dark: 0.34, light: 0.16 }, speckle: [0.8, 0.5],
+  },
+  // Under its thick haze: a faint rim and night fill (the haze glows over them anyway).
+  misty: {
+    tint: true, rock: [0.78, 0.72, 0.66], dust: [1.05, 1.03, 0.96], speck: [1.12, 1.1, 1.04], streak: [0.88, 0.84, 0.8],
+    rim: 0xffd9a0, rimK: 0.18, night: 0x2a3070, nightK: 0.1, ao: { dark: 0.3, light: 0.14 }, speckle: [0.82, 0.35],
+  },
 };
 
-/** Baked relief shading for a world's terrain colours (in place), if it has a ROCKY_LOOK. */
-export function bakeRelief(body, heights, index, colors) {
+/**
+ * Bakes a world's relief shading into its terrain colours (in place), and sets the mesh's `rich`
+ * attribute: how much of the extra detail each vertex gets (0..1). It fades out below the
+ * world's liquid (seabeds seen through water stay as they were; lava hides its pools anyway) and
+ * round the spots in the look's `keep` list (glowing vents and cracks stay bright).
+ * `dirs`: each vertex's unit direction (x, y, z, ...).
+ */
+export function bakeRelief(body, geo, heights, dirs, colors) {
   const look = ROCKY_LOOK[body.id];
   if (!look) return;
-  const shade = reliefShade(heights, index, look.ao);
-  for (let i = 0; i < shade.length; i++) {
-    for (let c = 0; c < 3; c++) colors[i * 3 + c] = Math.min(1, colors[i * 3 + c] * shade[i]);
+  const n = heights.length;
+  const rich = new Float32Array(n).fill(1);
+  const level = body.liquid?.level;
+  const keep = look.keep ?? [];
+  for (let i = 0; i < n; i++) {
+    let w = 1;
+    if (level !== undefined) w = smooth01(level - 1, level + 1.5, heights[i]);
+    const x = dirs[i * 3], y = dirs[i * 3 + 1], z = dirs[i * 3 + 2];
+    for (const [spots, r] of keep) {
+      for (const v of spots) {
+        const a = Math.acos(Math.min(1, x * v.x + y * v.y + z * v.z));
+        if (a < r * 1.6) w = Math.min(w, smooth01(r, r * 1.6, a));
+      }
+    }
+    rich[i] = w;
   }
+  const shade = reliefShade(heights, geo.index.array, look.ao);
+  for (let i = 0; i < n; i++) {
+    const k = 1 + (shade[i] - 1) * rich[i];
+    for (let c = 0; c < 3; c++) colors[i * 3 + c] = Math.min(1, colors[i * 3 + c] * k);
+  }
+  geo.setAttribute('rich', new THREE.BufferAttribute(rich, 1));
 }
+
+const smooth01 = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
 /**
  * Extends a rocky world's toon terrain material with per-pixel detail, slope colours, rim and
@@ -164,19 +244,23 @@ export function richRocky(mat, body, sunDir) {
     rlSun: { value: sunDir },
     rlRadius: { value: body.radius },
     rlRimColor: { value: raw(look.rim) },
+    rlRimK: { value: look.rimK ?? 0.55 },
     rlNightColor: { value: raw(look.night) },
     rlNightK: { value: look.nightK },
-    rlRock: { value: raw(look.rock) },
-    rlDust: { value: raw(look.dust) },
-    rlSpeck: { value: raw(look.speck) },
-    rlStreak: { value: raw(look.streak) },
+    rlRock: { value: col(look.rock) },
+    rlDust: { value: col(look.dust) },
+    rlSpeck: { value: col(look.speck) },
+    rlStreak: { value: col(look.streak) },
     rlSpeckAt: { value: look.speckle[0] },
     rlSpeckK: { value: look.speckle[1] },
   };
+  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface]]);
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = VERT_PARS + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}`);
-    shader.fragmentShader = FRAG_PARS + /* glsl */ `
+    shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\n'
+      + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}\nrlRich = rich;`);
+    shader.fragmentShader = defs + FRAG_PARS + /* glsl */ `
+      varying float rlRich;
       uniform vec3 rlRock;
       uniform vec3 rlDust;
       uniform vec3 rlSpeck;
@@ -187,31 +271,40 @@ export function richRocky(mat, body, sunDir) {
       .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}`)
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n#include <opaque_fragment>`);
   };
-  mat.customProgramCacheKey = () => 'rich-rocky';
+  mat.customProgramCacheKey = () => `rich-rocky:${defs}`;
   return mat;
 }
 
 // Object space (metres), so the detail is stuck to the ground wherever the world is drawn.
+// `rlRich` (baked per vertex) fades it all out where it mustn't go: under a sea, on glowing vents.
+// With RL_TINT (worlds of many colours) the extra colours multiply the ground's own colour, so
+// grass stays green and snow white; otherwise they're the colours themselves (Dusty, Pebble).
 const ROCKY_COLOR = /* glsl */ `
   {
+    #ifdef RL_TINT
+      vec3 base = diffuseColor.rgb;
+      vec3 rockC = base * rlRock, dustC = base * rlDust, speckC = min(base * rlSpeck, 1.0), streakC = base * rlStreak;
+    #else
+      vec3 rockC = rlRock, dustC = rlDust, speckC = rlSpeck, streakC = rlStreak;
+    #endif
     // Each triangle's own slope (from screen derivatives), so the colour keeps the facets.
     vec3 faceN = normalize(cross(dFdx(rlObj), dFdy(rlObj)));
     float level = abs(dot(faceN, normalize(rlObj)));
     float steep = 1.0 - smoothstep(0.84, 0.87, level);
-    diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, steep * 0.72);
-    diffuseColor.rgb = mix(diffuseColor.rgb, rlDust, smoothstep(0.93, 0.975, level) * 0.22);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rockC, steep * 0.72 * rlRich);
+    diffuseColor.rgb = mix(diffuseColor.rgb, dustC, smoothstep(0.93, 0.975, level) * 0.22 * rlRich);
     // How many metres one pixel covers: detail finer than a few pixels fades out (no grain from far).
     float px = length(fwidth(rlObj));
     // Wind streaks: long blotches (stretched along one axis), two tones with crisp edges.
     float sn = rlNoise(rlObj * vec3(0.03, 0.11, 0.11) + 3.1);
-    float streakK = (1.0 - smoothstep(0.8, 2.5, px));
-    diffuseColor.rgb = mix(diffuseColor.rgb, rlStreak, smoothstep(0.6, 0.64, sn) * 0.3 * streakK);
-    diffuseColor.rgb = mix(diffuseColor.rgb, rlDust, (1.0 - smoothstep(0.34, 0.38, sn)) * 0.1 * streakK);
+    float streakK = (1.0 - smoothstep(0.8, 2.5, px)) * rlRich;
+    diffuseColor.rgb = mix(diffuseColor.rgb, streakC, smoothstep(0.6, 0.64, sn) * 0.3 * streakK);
+    diffuseColor.rgb = mix(diffuseColor.rgb, dustC, (1.0 - smoothstep(0.34, 0.38, sn)) * 0.1 * streakK);
     // Speckles: little pale pebbles and dark pits, about a metre across.
     float fn = rlNoise(rlObj * 1.7);
-    float speckK = 1.0 - smoothstep(0.06, 0.25, px);
-    diffuseColor.rgb = mix(diffuseColor.rgb, rlSpeck, smoothstep(rlSpeckAt, rlSpeckAt + 0.02, fn) * rlSpeckK * speckK);
-    diffuseColor.rgb = mix(diffuseColor.rgb, rlRock, (1.0 - smoothstep(0.17, 0.19, fn)) * 0.3 * speckK);
+    float speckK = (1.0 - smoothstep(0.06, 0.25, px)) * rlRich;
+    diffuseColor.rgb = mix(diffuseColor.rgb, speckC, smoothstep(rlSpeckAt, rlSpeckAt + 0.02, fn) * rlSpeckK * speckK);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rockC, (1.0 - smoothstep(0.17, 0.19, fn)) * 0.3 * speckK);
     // Mixing in the extra colours greys things a little: win the colour back (bright for kids).
     diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.333))), diffuseColor.rgb, 1.15), 0.0);
   }
@@ -236,7 +329,15 @@ export const GAS_LOOK = {
     night: 0x1c2250,
     nightK: 0.12,
   },
-
+  // Tipped on its side, pale blue-green, with a dark Neptune-style spot (#52).
+  tumble: {
+    storms: [{ lat: 0.2, lon: 3.6, size: [0.2, 0.12], colors: [0x2f5f86, 0x3f7fa8, 0x8fcfe0], turn: 0.1 }],
+    drift: 0.2,
+    rim: 0xe0fffb,
+    rimK: 0.3,
+    night: 0x162a50,
+    nightK: 0.12,
+  },
 };
 
 // The cloud clock follows game time (time warp speeds the clouds up) but never faster than
@@ -287,6 +388,7 @@ export function gasMaterial(body, sunDir) {
     rlSun: { value: sunDir },
     rlRadius: { value: body.radius },
     rlRimColor: { value: raw(look.rim) },
+    rlRimK: { value: look.rimK ?? 0.55 },
     rlNightColor: { value: raw(look.night) },
     rlNightK: { value: look.nightK },
     gAxis: { value: axis },
