@@ -106,7 +106,9 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        lava's own glowing crust shader, #45; methane: the water shader, dark and still, mirroring the haze, #46), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
-                       and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails
+                       and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails,
+                       richLook (#51 trial: the richer cartoon look on Ringo, Dusty and Pebble, `VISUALS` flags, `?look=old`;
+                       baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
@@ -578,5 +580,10 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   view `lineShown()` fades any orbit line that passes within 1.5 to 2 radii of the world we're at,
   unless the camera is far enough out (3 to 8 radii) for the world to be small. The map shows
   everything. Anything else drawn in the flight plane (a new line or marker mesh) needs the same care.
+- **Extending `MeshToonMaterial` in `onBeforeCompile`** (#51): `vViewPosition` is declared in
+  `lights_toon_pars_fragment`, *after* `gradientmap_pars_fragment`, so a replacement
+  `getGradientIrradiance()` can't read it (copy it into a global in `main()` first). `flat` is a
+  reserved word in GLSL ES 3 (not a variable name), and avoid `smoothstep(a, b, x)` with a > b
+  (undefined); use `1.0 - smoothstep(b, a, x)`.
 - Sprites and custom shaders need the logarithmic depth buffer chunks (see `atmosphere()` and
   `src/world/ambient.js` for examples).

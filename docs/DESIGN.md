@@ -808,6 +808,37 @@ Flip, Ducky, Misty and Tumble have no friend: five is a band a child can find, a
   saying hello swaps in a raised arm (hidden otherwise). Glows are sprites (no extra lights,
   which would recompile every material).
 
+## Richer cartoon worlds (#51, trial)
+
+The worlds looked flat: colour only per vertex, one even toon tone per patch, fixed gas-giant
+bands. The owner chose a *richer cartoon* look (keep the chunky shapes and hard toon light
+bands; add depth, detail and motion), tried first on Ringo, Dusty and Pebble
+(`VISUALS.worlds` in `src/world/richLook.js`) and judged from before/after screenshots.
+Nothing changes geometry (the physics ground stays the visible mesh) or adds draw calls or
+textures; each idea has its own flag so it can be kept or dropped, and `?look=old` (all off)
+or `?look=-ao,-storm` (some off) compares them in the browser.
+
+- **Rocky worlds.** `ao`: relief shading baked into the vertex colours once, when the mesh is
+  built: each vertex against the average height round it at three sizes (`reliefShade()`,
+  scaled by the world's own bumpiness), so crater floors and valleys are darker and rims and
+  ridges lighter. `detail`: wind streaks and small speckles in object space (two value-noise
+  lookups, crisp two-tone edges, faded out once a pixel covers more than they do, so no grain
+  from far away). `slope`: each triangle's own slope (screen derivatives, so the facets show)
+  tints steep faces rocky and flat ones dusty. `rim` and `night`: a thin sunlit rim round the
+  world, seen from space, and a faint cool fill on the night side, both from the world's round
+  shape, not the bumps (which would light every slope).
+- **Gas giants.** `clouds`: bands worked out per pixel from the same palette (`GAS_BANDS` in
+  `terrain.js`) with domain-warped turbulence stretched along the bands and little eddies where
+  bands meet; neighbouring bands drift at different speeds, back and forth over 15 minutes, so
+  the shear never builds up into sub-pixel stripes. Their clock follows game time but never
+  faster than 20× real time, so time warp doesn't strobe them. `storm`: two turning ovals with
+  spiral arms. `ringShadows`: the rings' shadow on the planet and the planet's on the rings,
+  worked out analytically. `softLimb`: the toon light bands soften towards the edge. Generic
+  over the spin axis and palette (`GAS_LOOK` has Tumble's look ready).
+- **Cost.** Rocky: two noise lookups (16 hashes) and a few mixes per pixel; gas giant: four
+  noise lookups plus the storms' `atan`/`sin`; no textures, same draw calls and triangles, and
+  three more shader programs. The relief bake takes about 60 ms for Dusty (24k vertices) on a desktop, once at load.
+
 ## Ideas for later
 
 Tracked as [GitHub Issues](https://github.com/malfernion/worldVoyager/issues).
