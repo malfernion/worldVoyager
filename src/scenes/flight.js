@@ -44,6 +44,33 @@ const COACH_WAIT = 20;
 export const FINE_THRUST = 0.1;
 export const goThrottle = (power, fine) => (fine ? power * FINE_THRUST : power);
 
+// Orbit lines near the ground (#48). A line closer than CLEAR[0] world radii to the middle of the
+// world we're at would stick out of its ground (Nibble's hills reach 1.4 radii); it's clear by
+// CLEAR[1]. From further than NEAR[1] radii away the world is small and lines show anyway.
+export const LINE_CLEAR = [1.5, 2];
+export const LINE_NEAR = [3, 8];
+const ramp = (v, [a, b]) => Math.min(1, Math.max(0, (v - a) / (b - a)));
+
+/** How close an orbit line (points round its parent, flat xyz) comes to (x, y) in that frame. */
+export function orbitLineDist(body, pts, x, y) {
+  if (!body.ecc) return Math.abs(Math.hypot(x, y) - body.orbitRadius);
+  let best = Infinity;
+  for (let i = 3; i < pts.length; i += 3) {
+    const ax = pts[i - 3], ay = pts[i - 2], dx = pts[i] - ax, dy = pts[i + 1] - ay;
+    const k = Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+    best = Math.min(best, Math.hypot(x - ax - k * dx, y - ay - k * dy));
+  }
+  return best;
+}
+
+/**
+ * How much of an orbit line to show in the flight view (#48), 0 to 1: `lineDist` is how close it
+ * passes to the middle of the world we're at, `camDist` how far the camera is from that middle.
+ */
+export function lineShown(lineDist, camDist, radius) {
+  return Math.max(ramp(lineDist / radius, LINE_CLEAR), ramp(camDist / radius, LINE_NEAR));
+}
+
 export class FlightScene {
   constructor(app) {
     this.app = app;
@@ -101,7 +128,9 @@ export class FlightScene {
       const b = v.body;
       if (!b.parent) continue;
       // A circle, or the comet's stretched ellipse.
-      const line = this.makeLine(b.orbitPoints(720), b.color, 2, 0.45);
+      const pts = b.orbitPoints(720);
+      const line = this.makeLine(pts, b.color, 2, 0.45);
+      line.userData.pts = pts;
       this.orbitLines.set(b, line);
     }
     this.ghosts = new Map();
@@ -1626,14 +1655,31 @@ export class FlightScene {
   }
 
   updateLines() {
+    // Orbits, the path and its ghosts are for flying (#48). They all lie in the flight plane, so
+    // our own world's orbit runs through its middle: from the buggy's camera, down on the globe,
+    // it rose out of the ground as a thin line across the sky.
+    const driving = this.mode === 'drive';
+    this.lineGroup.visible = !driving;
+    if (driving) {
+      for (const g of this.ghosts.values()) g.visible = false;
+      return;
+    }
     const map = this.mode === 'map';
     const s = this.flight.state;
-    // Planet and moon orbits: bold in the map, faint trails in the flight view.
+    // Planet and moon orbits: bold in the map, faint trails in the flight view. Close to a world
+    // in the flight view, a line through it (its own orbit always, sometimes its planet's or the
+    // comet's) would stick out of the ground, so it fades out there (lineShown()).
+    const near = s.body;
+    const at = near.worldPos(s.t, (this.lineNear ??= {}));
+    const cam = this.camera.position;
+    const camDist = Math.hypot(cam.x - (at.x - this.origin.x), cam.y - (at.y - this.origin.y), cam.z);
     for (const [b, line] of this.orbitLines) {
       const w = b.parent.worldPos(s.t, this.tmp2);
       line.position.set(w.x - this.origin.x, w.y - this.origin.y, 0);
       const target = b === this.target;
-      line.material.opacity = map ? (target ? 0.9 : 0.35) : target ? 0.35 : 0.16;
+      const shown = map ? 1 : lineShown(orbitLineDist(b, line.userData.pts, at.x - w.x, at.y - w.y), camDist, near.radius);
+      line.visible = shown > 0.01;
+      line.material.opacity = shown * (map ? (target ? 0.9 : 0.35) : target ? 0.35 : 0.16);
       line.material.linewidth = map ? (target ? 3 : 2) : 1.5;
     }
     // Predicted path (geometry only rebuilt when the prediction changes).
