@@ -406,8 +406,11 @@ function makeMisty() {
       const n = fbm(x * 5 + 2, y * 5, z * 5, 3);
       let c = mix(rgb(0x84552c), rgb(0x6c4322), n + 0.5);
       c = mix(c, rgb(0xb07c44), smooth(0.9, 2.2, h) * 0.8);
+      // (Troughs darker, crests catching the light, so the dunes read through the haze; #53.)
       const d = dune(x, y, z);
-      c = mix(c, rgb(0x3a2512), (1 - smooth(0.25, 0.55, Math.abs(z))) * (0.55 + 0.35 * d));
+      const belt = 1 - smooth(0.25, 0.55, Math.abs(z));
+      c = mix(c, rgb(0x3a2512), belt * (0.85 - 0.45 * d));
+      c = mix(c, rgb(0xa8763f), belt * smooth(0.7, 0.95, d) * 0.7);
       // Round the lakes: dark, damp shores.
       const s = pools.shoreDist(x, y, z);
       if (s < 6) c = mix(c, rgb(0x2e2114), 1 - smooth(0, 6, s));
