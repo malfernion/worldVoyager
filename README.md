@@ -87,7 +87,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   and her coaching always pick dry land ("Oops, water! I'll fly us over to dry land."), and
   the path shows 💥 where it would hit the water.
 - **Clouds:** soft, fluffy clouds and thin wisps drift slowly round Homestead, with faint
-  soft shadows on the ground. You see patchy cloud cover from space, clouds in the sky from
+  soft shadows on the ground. You see patchy cloud cover from space, with a few long cloud
+  bands and a swirl, clouds in the sky from
   the launch pad and the buggy, and you fly up past them on the way to space. They never hide
   the rocket: a cloud close to the camera, or in front of the rocket (or the buggy, or the
   ground where you're landing), thins away to a faint veil.

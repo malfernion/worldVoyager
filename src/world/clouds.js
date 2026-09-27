@@ -3,7 +3,8 @@
 // worlds can have their own layer later (thin high clouds, haze bands, streaks).
 //
 // Soft and diffuse, made of particles: each cloud is a loose cluster of soft sprites (big dense
-// ones in its core, small faint ones round its rim, and some clouds are only thin wisps). A
+// ones in its core, small faint ones round its rim; some clouds are only thin wisps, and a few
+// big systems, long bands and a swirl, give the view from space some larger shapes). A
 // sprite is a soft falloff bent and eaten away by a small baked noise tile, so its rims are
 // feathered and see-through; the noise slowly scrolls, so clouds billow a little. Shading is gentle: lit on
 // the sun's side and on top, a pale periwinkle underneath, softly fading out below the cloud's
@@ -15,6 +16,8 @@
 // is the drift. Overdraw is capped in the vertex shader: a sprite fades out (and is dropped
 // before any pixel is drawn) as it gets close to the camera or big on screen, and big sprites
 // fade towards the screen's edges, so there are never big white shapes cut off by the edges.
+// Seen from space, sprites side-on at the world's edge are sat down and flattened along it,
+// so they stay inside the atmosphere's glow as a thin rim.
 // The ground's shadows come from a small cube map baked once (the layer's footprint), turned by
 // the drift in the terrain's toon shader.
 //
@@ -36,7 +39,9 @@ import { mulberry32 } from '../physics/noise.js';
  * `size`, in fields about `field` metres across, so from space the cover is patchy). `drift`:
  * how fast the layer turns (rad/s, real time). Colours: `lit`, `shade` (the shadow side and
  * undersides), `night` (multiplies them on the night side); `shadow`: how much of the direct
- * sunlight a cloud's shadow takes off the ground at most.
+ * sunlight a cloud's shadow takes off the ground at most. `fronts`: the big systems (see
+ * frontPaths()): how many (`back` of them behind the world, the first `swirl` winding up), their
+ * bases, length and greatest width (m), and how far they keep off the flight plane (`clear`).
  */
 export const CLOUD_LOOK = {
   homestead: {
@@ -47,7 +52,8 @@ export const CLOUD_LOOK = {
     wisps: 0.3,
     sky: { count: 16, z: [-170, -35] },
     plane: { count: 7, z: [-28, 12] },
-    spread: { front: 90, back: 30, size: [28, 50], field: 130 },
+    spread: { front: 70, back: 30, size: [28, 50], field: 130 },
+    fronts: { count: 5, back: 1, alt: [30, 34], length: [240, 400], width: [50, 84], swirl: 1, clear: 70 },
     drift: 0.004,
     lit: 0xffffff,
     shade: 0xc4cfee,
@@ -59,13 +65,80 @@ export const CLOUD_LOOK = {
 // Sprite numbers: centre x, y, z (the layer's frame), size (radius, m), lift (how far the
 // centre sits above its cloud's base, m), cloud index, seed (0..1, where its noise comes from),
 // normal x, y, z (out of the cloud's middle: for the light), density (0..1), height (0 at the
-// cloud's base, 1 at its top).
-export const PUFF_STRIDE = 12;
+// cloud's base, 1 at its top), and the way it's stretched: direction x, y, z (along the ground)
+// and how much (1: round; wisps and fronts are drawn out along their length).
+export const PUFF_STRIDE = 16;
+
+/**
+ * The big cloud systems' paths (pure, seeded): `look.fronts.count` long bands, curving gently
+ * (a front) or winding up tighter and tighter (a swirl), well clear of the flight plane
+ * (|z| > `clear`) so the launch and landed views keep their own clouds, `back` of them behind
+ * the world. Each is a list of segments, `step` metres apart along the ground: the unit
+ * direction up to it `up`, the way the band runs there `e`, and its width `w` there (0: a gap
+ * in the band).
+ */
+export const FRONT_STEP = 22;
+export function frontPaths(look, radius) {
+  const f = look.fronts;
+  if (!f) return [];
+  const rand = mulberry32(look.seed * 7 + 1);
+  const between = ([a, b]) => a + rand() * (b - a);
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (v) => { const l = Math.hypot(...v); return v.map((c) => c / l); };
+  const R = radius + (f.alt[0] + f.alt[1]) / 2;
+  const fronts = [];
+  for (let i = 0; i < f.count; i++) {
+    const side = i < f.count - f.back ? 1 : -1;
+    const swirl = i < f.swirl;
+    for (let tries = 0; tries < 60; tries++) {
+      // Start on the right side, heading off anywhere.
+      const z0 = side * (f.clear + 30 + rand() * (R * 0.85 - f.clear - 30)) / R;
+      const lon = rand() * Math.PI * 2, k = Math.sqrt(1 - z0 * z0);
+      let p = [k * Math.cos(lon), k * Math.sin(lon), z0];
+      const a = rand() * Math.PI * 2;
+      const t0 = norm([-p[1], p[0], 0]), t1 = cross(p, t0);
+      let h = t0.map((c, j) => c * Math.cos(a) + t1[j] * Math.sin(a));
+      const L = between(f.length) * (swirl ? 0.85 : 1);
+      const W = between(f.width);
+      const n = Math.round(L / FRONT_STEP);
+      // How far it turns in all: a front bends a little; a swirl winds up (tighter at its end).
+      const turn = (swirl ? 3 + rand() * 1.5 : 0.4 + rand() * 0.9) * (rand() < 0.5 ? -1 : 1);
+      const ph = [rand() * 6.3, rand() * 6.3, rand() * 6.3];
+      const segs = [];
+      let ok = true;
+      for (let j = 0; j < n; j++) {
+        const t = (j + 0.5) / n;
+        if (Math.abs(p[2] * R) < f.clear || Math.sign(p[2]) !== side) { ok = false; break; }
+        // Widest in the middle, tapering to its ends, with lumps and the odd gap along it.
+        const lump = Math.sin(t * 9 + ph[0]) * 0.5 + Math.sin(t * 17 + ph[1]) * 0.3 + Math.sin(t * 29 + ph[2]) * 0.2;
+        const shape = swirl ? 0.45 + 0.55 * Math.sin(Math.PI * Math.min(1, t * 1.3)) ** 0.5 : Math.sin(Math.PI * t) ** 0.6;
+        const w = lump < -0.62 ? 0 : W * Math.max(0.4, shape * (0.8 + 0.35 * lump));
+        segs.push({ up: p, e: h, w });
+        // On along the ground, turning as it goes.
+        const ang = FRONT_STEP / R;
+        const q = norm(p.map((c, m) => c * Math.cos(ang) + h[m] * Math.sin(ang)));
+        h = norm(h.map((c, m) => c * Math.cos(ang) - p[m] * Math.sin(ang)));
+        p = q;
+        const dk = (turn / n) * (swirl ? 2 * t : 1);
+        const side2 = cross(p, h);
+        h = norm(h.map((c, m) => c * Math.cos(dk) + side2[m] * Math.sin(dk)));
+      }
+      // Well apart from the other big systems.
+      if (ok) ok = fronts.every((o) => o.every((s1) => segs.every((s2) => Math.hypot(s1.up[0] - s2.up[0], s1.up[1] - s2.up[1], s1.up[2] - s2.up[2]) * R > 90)));
+      if (!ok) continue;
+      segs.swirl = swirl;
+      fronts.push(segs);
+      break;
+    }
+  }
+  return fronts;
+}
 
 /**
  * Where every cloud and sprite goes (pure, seeded). Returns `clouds`: per cloud its centre at
  * its base (x, y, z, layer frame), its reach `r` (m, from the centre to its furthest sprite
- * edge), its base radius `base` and whether it's a `wisp`; and `puffs`, PUFF_STRIDE numbers per
+ * edge), its base radius `base`, whether it's a `wisp`, and which big system it's part of
+ * (`front`, -1 for none); and `puffs`, PUFF_STRIDE numbers per
  * sprite, sorted far-to-near for a camera on the +z side (so they blend the right way round in
  * the flight views).
  */
@@ -89,6 +162,14 @@ export function cloudPlan(look, radius) {
   };
   band(look.sky);
   band(look.plane);
+  // The big systems: each segment of a front is a cloud of its own (so they fade one by one).
+  frontPaths(look, radius).forEach((segs, fi) => {
+    for (const sg of segs) {
+      if (!sg.w) continue;
+      const base = radius + between(look.fronts.alt);
+      spots.push({ base, z: sg.up[2] * base, lon: Math.atan2(sg.up[1], sg.up[0]), L: sg.w, e: sg.e, front: fi });
+    }
+  });
   // The rest on the camera's side of the world and round the back (evenly by area: uniform in z),
   // outside those bands.
   const lo = Math.min(look.sky.z[0], look.plane.z[0]) - 20, hi = Math.max(look.sky.z[1], look.plane.z[1]) + 20;
@@ -117,7 +198,7 @@ export function cloudPlan(look, radius) {
   }
   const clouds = [];
   const puffs = [];
-  spots.forEach(({ base, z, lon, L, wisp }, ci) => {
+  spots.forEach(({ base, z, lon, L, wisp, e: along, front = -1 }, ci) => {
     const k = Math.sqrt(Math.max(0, 1 - (z / base) ** 2));
     const up = [k * Math.cos(lon), k * Math.sin(lon), z / base];
     // Along the drift (round z) with a random slant; near the poles any tangent will do.
@@ -126,33 +207,45 @@ export function cloudPlan(look, radius) {
     if (el < 0.05) { e0 = [1, 0, 0]; el = 1; }
     e0 = e0.map((c) => c / el);
     const n0 = [up[1] * e0[2] - up[2] * e0[1], up[2] * e0[0] - up[0] * e0[2], up[0] * e0[1] - up[1] * e0[0]];
-    const tilt = (rand() - 0.5) * 0.8;
-    const e = e0.map((c, a) => c * Math.cos(tilt) + n0[a] * Math.sin(tilt));
-    const nx = e0.map((c, a) => -c * Math.sin(tilt) + n0[a] * Math.cos(tilt));
+    const tilt = along ? 0 : (rand() - 0.5) * 0.8;
+    const e = along ?? e0.map((c, a) => c * Math.cos(tilt) + n0[a] * Math.sin(tilt));
+    const nx = [up[1] * e[2] - up[2] * e[1], up[2] * e[0] - up[0] * e[2], up[0] * e[1] - up[1] * e[0]];
     const centre = up.map((c) => c * base);
     // The cloud's height, and the middle its light comes out of.
-    const H = wisp ? L * 0.12 : L * (0.34 + rand() * 0.1);
+    const H = wisp ? L * 0.12 : front >= 0 ? L * 0.16 : L * (0.34 + rand() * 0.1);
     const heart = up.map((c) => c * H * 0.35);
     let reach = 0;
     const mine = [];
-    const put = (u, v, lift, size, dens) => {
+    const put = (u, v, lift, size, dens, stretch = 1) => {
       const off = [0, 1, 2].map((a) => e[a] * u + nx[a] * v + up[a] * lift);
       const p = off.map((c, a) => centre[a] + c);
       const nv = off.map((c, a) => c - heart[a]);
       const nl = Math.hypot(...nv) || 1;
-      reach = Math.max(reach, Math.hypot(...off) + size);
-      mine.push([p[0], p[1], p[2], size, lift, ci, rand(), nv[0] / nl, nv[1] / nl, nv[2] / nl, dens, Math.min(1, Math.max(0, lift / H))]);
+      reach = Math.max(reach, Math.hypot(...off) + size * stretch);
+      mine.push([p[0], p[1], p[2], size, lift, ci, rand(), nv[0] / nl, nv[1] / nl, nv[2] / nl, dens, Math.min(1, Math.max(0, lift / H)), e[0], e[1], e[2], stretch]);
     };
-    if (wisp) {
-      // A thin streak: small faint sprites along a gently bent line, thinning out at the ends.
-      const count = Math.round(between(look.sprites));
+    if (front >= 0) {
+      // A stretch of a big system: a flat band of sprites drawn out along it, densest down its
+      // middle, frayed at its sides. (L is the band's width here.)
+      const count = Math.round(3 + L / 9);
+      for (let j = 0; j < count; j++) {
+        const u = (rand() - 0.5) * FRONT_STEP * 1.2;
+        const v = (rand() * 0.6 + rand() * 0.6 - 0.6) * L;
+        const mid = Math.max(0, 1 - Math.abs((2 * v) / L));
+        const size = L * (0.13 + 0.08 * mid + rand() * 0.05);
+        put(u, v, size * 0.3 + rand() * H * mid, size, 0.45 + 0.45 * mid, 1.6);
+      }
+    } else if (wisp) {
+      // A thin streak: faint sprites drawn out along a gently bent line, overlapping into one
+      // smooth stroke, thinning out at the ends.
+      const count = Math.round(between(look.sprites) * 0.8);
       const bend = (rand() - 0.5) * 0.5;
       for (let j = 0; j < count; j++) {
-        const t = (j + rand()) / count - 0.5;
+        const t = (j + 0.5) / count - 0.5;
         const end = 1 - Math.abs(2 * t);
         const u = t * L * 1.5;
-        put(u, bend * L * (t * t * 4 - 1) * 0.3 + (rand() - 0.5) * L * 0.12, H * (0.3 + rand() * 0.5),
-          L * (0.12 + 0.12 * end + rand() * 0.05), 0.35 + 0.3 * end);
+        put(u, bend * L * (t * t * 4 - 1) * 0.3 + (rand() - 0.5) * L * 0.06, H * (0.4 + rand() * 0.3),
+          L * (0.09 + 0.08 * end + rand() * 0.02), 0.3 + 0.3 * end, 1.8);
       }
     } else {
       // A puffy cloud: a dome of sprites, big and dense in its core, higher in the middle,
@@ -172,7 +265,7 @@ export function cloudPlan(look, radius) {
         put(u, v, lift, size, 0.55 + 0.45 * mid);
       }
     }
-    clouds.push({ x: centre[0], y: centre[1], z: centre[2], r: reach, base, wisp });
+    clouds.push({ x: centre[0], y: centre[1], z: centre[2], r: reach, base, wisp: !!wisp, front });
     puffs.push(...mine);
   });
   puffs.sort((a, b) => a[2] - b[2]);
@@ -240,38 +333,64 @@ const VERT = /* glsl */ `
   attribute vec4 puff; // size, lift, cloud, seed
   attribute vec4 look; // normal (layer frame), density
   attribute float height;
+  attribute vec4 stretch; // the way it's drawn out (layer frame), and how much
   uniform float fades[CLOUDS];
   uniform float time;
+  uniform float radius;
   uniform vec3 sunDir;
   varying vec2 vUv;
   varying vec2 vNoise;
   varying float vH;
   varying float vSize;
   varying float vDay;
-  varying float vAlpha;
+  varying float vCloud;
+  varying float vScreen;
   varying float vDens;
   varying float vLight;
   void main() {
     vec4 mvPosition = modelViewMatrix * vec4(offset, 1.0);
+    vec3 up = normalize((modelViewMatrix * vec4(offset, 0.0)).xyz);
     // Sized in world units (the map draws worlds bigger).
     float scale = length(modelMatrix[0].xyz);
     float s = puff.x * scale;
+    // Seen from high above, a sprite side-on at the world's edge sits down into the layer and
+    // is flattened along it, so the limb has a thin continuous rim of cloud inside the
+    // atmosphere's glow rather than a row of beads sticking out of it.
+    float camAlt = length((modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz) / scale - radius;
+    float ul = length(up.xy);
+    float limb = smoothstep(110.0, 240.0, camAlt) * smoothstep(0.55, 0.95, ul);
+    float lift = puff.y * scale * (1.0 - 0.8 * limb);
+    mvPosition.xyz -= up * puff.y * scale * 0.8 * limb;
     // What's left of it (see spriteFade()): its cloud's fade, its density, and where it is on
     // screen. Nothing left: dropped before any pixel is drawn.
     float depth = -mvPosition.z;
     vec4 c = projectionMatrix * mvPosition;
     vec2 ndc = c.xy / max(c.w, 1e-3);
-    float rs = s * projectionMatrix[1][1] / max(depth, 1e-3);
+    float rs = s * mix(1.0, stretch.w, 0.5) * projectionMatrix[1][1] / max(depth, 1e-3);
     float fade = smoothstep(s * ${NEAR[0].toFixed(2)}, s * ${NEAR[1].toFixed(2)}, depth)
       * (1.0 - smoothstep(${BIG[0].toFixed(2)}, ${BIG[1].toFixed(2)}, rs))
       * (1.0 - smoothstep(${EDGE[0].toFixed(2)}, ${EDGE[1].toFixed(2)}, max(abs(ndc.x), abs(ndc.y)) + rs) * smoothstep(0.04, 0.14, rs));
-    vAlpha = fades[int(puff.z + 0.5)] * fade;
-    vDens = look.w;
+    vCloud = fades[int(puff.z + 0.5)];
+    vScreen = fade;
+    vDens = look.w * (1.0 - 0.35 * limb); // (softer where they pile up along the limb)
     vec2 corner = position.xy * 2.0;
-    mvPosition.xy += corner * s;
-    vec3 up = normalize((modelViewMatrix * vec4(offset, 0.0)).xyz);
+    // Drawn out along its way (wisps and fronts), as far as that shows from here...
+    vec2 q = corner;
+    vec3 dv = (modelViewMatrix * vec4(stretch.xyz, 0.0)).xyz;
+    float dl = length(dv.xy);
+    if (dl > 0.001) {
+      vec2 d2 = dv.xy / dl;
+      q += d2 * dot(q, d2) * (stretch.w - 1.0) * dl;
+    }
+    // ...and flattened at the limb.
+    if (ul > 0.001) {
+      vec2 u2 = up.xy / ul;
+      vec2 t2 = vec2(-u2.y, u2.x);
+      q += u2 * dot(q, u2) * (-0.55 * limb) + t2 * dot(q, t2) * (1.6 * limb);
+    }
+    mvPosition.xy += q * s;
     // Metres above the cloud's base, at this corner (it thins out below it).
-    vH = puff.y * scale + dot(corner, up.xy) * s;
+    vH = lift + dot(q, up.xy) * s;
     vSize = s;
     vDay = smoothstep(-0.7, 0.3, dot(up, sunDir));
     // The sprite's own light: its side of the cloud towards the sun, and how high up it is.
@@ -283,7 +402,7 @@ const VERT = /* glsl */ `
     vNoise = mat2(cos(a), sin(a), -sin(a), cos(a)) * corner * (0.3 + 0.2 * fract(puff.w * 7.0))
       + vec2(puff.w * 13.0, puff.w * 29.0) + vec2(0.006, 0.003) * time;
     gl_Position = projectionMatrix * mvPosition;
-    if (vAlpha < 0.004) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    if (vCloud * vScreen < 0.004) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     #include <logdepthbuf_vertex>
     #include <fog_vertex>
   }`;
@@ -302,7 +421,8 @@ const FRAG = /* glsl */ `
   varying float vH;
   varying float vSize;
   varying float vDay;
-  varying float vAlpha;
+  varying float vCloud;
+  varying float vScreen;
   varying float vDens;
   varying float vLight;
   void main() {
@@ -317,9 +437,12 @@ const FRAG = /* glsl */ `
     float d = fall * (0.3 + 1.1 * nz) - 0.12;
     // Thinning out just below the cloud's base.
     d *= smoothstep(-0.35 * vSize, 0.3 * vSize, vH);
-    // Fading (near the camera, big on screen, over the rocket) thins it from the rims inwards,
-    // so a faded cloud evaporates into wisps rather than turning into grey discs.
-    float a = smoothstep(0.0, 0.4, d * vAlpha) * sqrt(vAlpha) * vDens;
+    // Fading thins it from the rims inwards, so a fading cloud evaporates into wisps rather
+    // than turning into grey discs over the dark sky: all of it for the fades on screen (near
+    // the camera, big, at the edges), and a see-through veil too over the rocket.
+    float a = smoothstep(0.0, 0.4, d * vCloud * vScreen) * sqrt(vCloud) * vDens;
+    // Fainter by night, so a big cloud overhead is a hint of moonlit cloud, not a dark smudge.
+    a *= mix(0.55, 1.0, vDay);
     if (a < 0.004) discard;
     // Gentle toon light: the sprite's place in its cloud, a soft ball's turn to the sun, and a
     // touch of the noise, in a soft two-tone step.
@@ -385,13 +508,14 @@ export function createClouds(body, sunDir) {
   if (!look) return null;
   const { clouds, puffs } = cloudPlan(look, body.radius);
   const count = puffs.length / PUFF_STRIDE;
-  const offsets = new Float32Array(count * 3), shape = new Float32Array(count * 4), lk = new Float32Array(count * 4), height = new Float32Array(count);
+  const offsets = new Float32Array(count * 3), shape = new Float32Array(count * 4), lk = new Float32Array(count * 4), height = new Float32Array(count), stretch = new Float32Array(count * 4);
   for (let i = 0; i < count; i++) {
     const p = i * PUFF_STRIDE;
     offsets.set(puffs.subarray(p, p + 3), i * 3);
     shape.set(puffs.subarray(p + 3, p + 7), i * 4);
     lk.set(puffs.subarray(p + 7, p + 11), i * 4);
     height[i] = puffs[p + 11];
+    stretch.set(puffs.subarray(p + 12, p + 16), i * 4);
   }
   const geo = new THREE.InstancedBufferGeometry();
   geo.index = quad.index;
@@ -400,6 +524,7 @@ export function createClouds(body, sunDir) {
   geo.setAttribute('puff', new THREE.InstancedBufferAttribute(shape, 4));
   geo.setAttribute('look', new THREE.InstancedBufferAttribute(lk, 4));
   geo.setAttribute('height', new THREE.InstancedBufferAttribute(height, 1));
+  geo.setAttribute('stretch', new THREE.InstancedBufferAttribute(stretch, 4));
   geo.instanceCount = count;
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), body.radius + look.alt[1] + look.size[1] * 1.5);
   const fades = new Float32Array(clouds.length).fill(1);
@@ -407,6 +532,7 @@ export function createClouds(body, sunDir) {
   const uniforms = {
     fades: { value: fades },
     time: { value: 0 },
+    radius: { value: body.radius },
     sunDir: { value: sunDir },
     noiseMap: { value: noiseTexture() },
     litColor: { value: colour(look.lit) },
@@ -509,7 +635,7 @@ export function shadowFaces(clouds, puffs, n = SHADOW_N) {
   });
   for (let i = 0; i < count; i++) {
     const p = i * PUFF_STRIDE;
-    const x = puffs[p], y = puffs[p + 1], z = puffs[p + 2], size = puffs[p + 3];
+    const x = puffs[p], y = puffs[p + 1], z = puffs[p + 2], size = (puffs[p + 3] * (1 + puffs[p + 15])) / 2;
     const l = Math.hypot(x, y, z);
     per[puffs[p + 5]].puffs.push(x / l, y / l, z / l, Math.cos((size * 0.15) / l), Math.cos((size * 1.2) / l), puffs[p + 10] * 0.6, (size * 1.2) / l);
   }

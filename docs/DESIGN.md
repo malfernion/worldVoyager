@@ -929,7 +929,16 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
   see as their sky (16 clouds), a ring right round the plane that a launch climbs past (7), and
   more over the face the map and the orbit views see (90) and round the back for driving there
   (30), those in loose fields of a few clouds each, so from space the cover is patchy with
-  clear sky between. A quarter of the clouds are thin wisps. Their bases are 30 to 38 m up
+  clear sky between. A fifth of the clouds are thin wisps.
+- **Big systems.** The owner found that cover too spotty from space ("some larger cloud fronts
+  would help"), so there are also five big ones (`frontPaths()`): long bands 240 to 400 m and
+  50 to 84 m wide that bend gently like weather fronts, and one that winds up tighter and
+  tighter into a comma-shaped swirl. They taper at their ends, go lumpy along their length
+  and have the odd gap. They're made of the same soft sprites, drawn out along the band, and
+  each 22 m stretch is a cloud of its own, so they fade bit by bit near the camera or the
+  rocket. Four are on the camera's side and one behind; all stay more than 70 m off the flight
+  plane, so the launch and landed views keep their own sky. About 15% of the face the map sees
+  is under cloud, the rest clear. Their bases are 30 to 38 m up
   (Homestead's tallest peaks poke through), and their tops stay under the 70 m space line, so
   every launch climbs through the layer.
 - **The look: soft, made of particles.** The first try drew each cloud as a few big toon balls
@@ -937,7 +946,8 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
   (popcorn from space, big white shapes cut off by the screen's edges near the camera). Now
   each cloud is a loose cluster of 14 to 20 soft sprites: big, dense ones in its core, higher
   in the middle, smaller and fainter towards its edges; a wisp is a gently bent streak of
-  fainter ones. A sprite is a soft falloff bent and eaten away by a small baked noise tile
+  fainter ones, each drawn out 1.8 times along the streak so they overlap into one stroke
+  rather than a string of beads. A sprite is a soft falloff bent and eaten away by a small baked noise tile
   (64 × 64 tileable value noise; each sprite reads its own turned patch, slowly scrolling, so
   clouds billow a little), so edges are feathered and see-through and no sprite looks like a
   disc. It thins out softly just below its cloud's base, so from the ground cumulus still have
@@ -953,11 +963,18 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
   fades any biggish sprite out before it reaches the screen's edges; small far ones are left
   alone, so the globe keeps its clouds right to the limb. Fading thins a sprite's density
   before its alpha step, so a fading cloud evaporates from its rims inwards instead of turning
-  into grey discs. Measured with a counting shader over the standard views (844 × 390): 0.1
-  (orbit) to 1.25 (the globe) sprite pixels per screen pixel counting every rasterised pixel,
-  0.05 to 0.6 counting only drawn ones, at most about 40 layers in the thickest spot, against
-  0.03 to 0.5 for the first try's solid balls. So at worst about one extra full-screen pass of
-  a cheap shader (one texture read).
+  into grey smoke over the dark sky (only the veil over the rocket is see-through as well). By
+  night clouds are fainter too, so a big one overhead is a hint of moonlit cloud rather than
+  a dark smudge. Measured with a counting shader over the standard views (844 × 390): 0.14
+  (orbit) to 1.41 (the globe) sprite pixels per screen pixel counting every rasterised pixel,
+  0.06 to 0.65 counting only drawn ones, at most about 57 layers in the thickest spot (a swirl
+  seen near the limb), against 0.03 to 0.5 for the first try's solid balls. So at worst about
+  one and a half extra full-screen passes of a cheap shader (one texture read).
+- **The limb.** Seen from space, clouds at the world's edge stuck out above the atmosphere's
+  glow as a row of beads (their tops reach 60 m, the glow 42 m). When the camera is high above
+  the layer, a sprite seen side-on is sat down towards its cloud's base, squashed up-and-down
+  and drawn out along the edge, so the limb has a thin, nearly continuous rim of cloud inside
+  the glow. Close to the world (launch, landed, driving) nothing changes.
 - **Shadows.** A soft round blot under each sprite, as dense as it and piling up where they
   overlap, baked once into a 6 × 96 × 96 one-channel cube map (even detail all round; an
   equirectangular map had its pole in the middle of the globe view and looked blocky there).
@@ -978,11 +995,11 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
   ground, the atmosphere's glow and the clouds behind all show through the soft edges. They are
   sorted far-to-near for the +z cameras once, at load; from other angles the order is a little
   off, but white-on-white soft sprites hide it.
-- **Cost** (Homestead: 143 clouds, 2,441 sprites). One draw call and about 4,900 triangles; the
-  fill above; one cube-map lookup and a few multiplies per ground pixel for the shadows; the
-  per-cloud fades take tens of µs of script per frame, and nothing is allocated. Placing the
-  clouds and baking the shadow map take about 25 to 35 ms at load in the browser (more the first
-  time in a cold script engine).
+- **Cost** (Homestead: 190 clouds, 2,521 sprites, 457 of them in the big systems). One draw call
+  and about 5,000 triangles; the fill above; one cube-map lookup and a few multiplies per ground
+  pixel for the shadows; the per-cloud fades take about 35 µs of script per frame, and nothing is
+  allocated. Placing the clouds and baking the shadow map take about 35 to 50 ms at load in the
+  browser (more the first time in a cold script engine).
 
 ## Ideas for later
 

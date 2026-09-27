@@ -111,7 +111,7 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        Tumble's polar hexagon `HEXAGON`, #55;
                        baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
                        clouds (#54: a world's cloud layer from `CLOUD_LOOK`, only Homestead so far: `cloudPlan()` where clouds
-                       and their soft sprites go, `cloudFade()` when a cloud fades, `spriteFade()` when a sprite does (near
+                       and their soft sprites go, `frontPaths()` the few big bands and swirls, `cloudFade()` when a cloud fades, `spriteFade()` when a sprite does (near
                        the camera, big on screen, at the screen's edges), `noiseTile()` the noise that feathers them,
                        `createClouds()` the one-draw-call sprite layer, `shadowFaces()` / `cloudShadows()` their soft
                        shadows baked into a small cube map for the ground's shader)
@@ -226,8 +226,8 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   that must stay visible goes into `cloudFoci`. On top of that the vertex shader drops any
   sprite that is close to the camera or big on screen, and fades big ones before they reach
   the screen's edges (`spriteFade()`, the same sums, tested): that is what keeps overdraw to
-  about one screen's worth at most (measured: 0.1 to 1.25 layers of sprite pixels per screen
-  pixel in the standard views) and big shapes off the edges. Keep it if you add sprites.
+  about one and a half screens' worth at most (measured: 0.14 to 1.41 layers of sprite pixels
+  per screen pixel in the standard views) and big shapes off the edges. Keep it if you add sprites.
   Clouds are only the look: the physics never sees them.
 - **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
@@ -619,7 +619,12 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - **Faded soft sprites turn into grey discs** (#54) if you only multiply their alpha: a
   translucent white over the dark sky reads as grey smoke with round edges. The clouds'
   shader fades by thinning the density before the alpha step (`smoothstep(0, 0.4, d * fade)`),
-  so a fading cloud evaporates from its rims inwards.
+  so a fading cloud evaporates from its rims inwards; the on-screen fades (near, big, edges)
+  only do that, and only the veil over the rocket is also see-through.
+- **Clouds seen side-on stick out of the atmosphere** (#54). From space, sprites at the
+  world's edge showed as a row of beads above the glow (the layer is 30 to 60 m up, the glow
+  only reaches 42 m). The clouds' vertex shader sits them down and flattens them along the limb
+  when the camera is high (`limb`); it needs the world's `radius` uniform and the map's scale.
 - **The toon light still lights the night side** (`MeshToonMaterial`'s gradient looks up
   `dot(N, L) * 0.5 + 0.5`, so the back half gets the lowest steps). Anything that dims direct
   light (cloud shadows, #54) must fade out by itself on the night side.

@@ -1,6 +1,6 @@
 // #54: Homestead's cloud layer: where the clouds go, when they fade, and their shadow map.
 import { describe, it, expect } from 'vitest';
-import { CLOUD_LOOK, PUFF_STRIDE, VEIL, cloudPlan, cloudFade, spriteFade, noiseTile, NOISE_N, cubeDir, shadowFaces, SHADOW_N } from '../src/world/clouds.js';
+import { CLOUD_LOOK, PUFF_STRIDE, VEIL, FRONT_STEP, frontPaths, cloudPlan, cloudFade, spriteFade, noiseTile, NOISE_N, cubeDir, shadowFaces, SHADOW_N } from '../src/world/clouds.js';
 import { createSystem } from '../src/physics/bodies.js';
 
 const home = createSystem().byId.homestead;
@@ -8,8 +8,8 @@ const look = CLOUD_LOOK.homestead;
 const plan = cloudPlan(look, home.radius);
 const puffs = [];
 for (let i = 0; i < plan.puffs.length; i += PUFF_STRIDE) {
-  const [x, y, z, size, lift, cloud, seed, nx, ny, nz, dens, height] = plan.puffs.subarray(i, i + PUFF_STRIDE);
-  puffs.push({ x, y, z, size, lift, cloud, seed, n: [nx, ny, nz], dens, height, r: Math.hypot(x, y, z) });
+  const [x, y, z, size, lift, cloud, seed, nx, ny, nz, dens, height, dx, dy, dz, stretch] = plan.puffs.subarray(i, i + PUFF_STRIDE);
+  puffs.push({ x, y, z, size, lift, cloud, seed, n: [nx, ny, nz], dens, height, dir: [dx, dy, dz], stretch, r: Math.hypot(x, y, z) });
 }
 
 describe('cloudPlan (#54)', () => {
@@ -19,8 +19,10 @@ describe('cloudPlan (#54)', () => {
 
   it('makes every cloud it was asked for', () => {
     const want = look.sky.count + look.plane.count + look.spread.front + look.spread.back;
-    expect(plan.clouds.length).toBeGreaterThanOrEqual(want * 0.95);
-    for (let c = 0; c < plan.clouds.length; c++) expect(puffs.filter((p) => p.cloud === c).length).toBeGreaterThanOrEqual(look.sprites[0]);
+    const small = plan.clouds.filter((c) => c.front < 0);
+    expect(small.length).toBeGreaterThanOrEqual(want * 0.95);
+    // Enough sprites in each to overlap into one soft shape.
+    for (let c = 0; c < plan.clouds.length; c++) expect(puffs.filter((p) => p.cloud === c).length).toBeGreaterThanOrEqual(5);
   });
 
   it('mixes puffy clouds with thin wisps, and keeps the sprite count phone-sized', () => {
@@ -28,6 +30,15 @@ describe('cloudPlan (#54)', () => {
     expect(wisps).toBeGreaterThan(plan.clouds.length * 0.1);
     expect(wisps).toBeLessThan(plan.clouds.length * 0.5);
     expect(puffs.length).toBeLessThan(3000);
+    // A wisp is drawn out along its length, so its sprites overlap into one streak.
+    for (const p of puffs) {
+      const c = plan.clouds[p.cloud];
+      if (c.wisp || c.front >= 0) expect(p.stretch).toBeGreaterThan(1.4);
+      else expect(p.stretch).toBe(1);
+      expect(Math.hypot(...p.dir)).toBeCloseTo(1, 4);
+      // ...along the ground (square to the way up).
+      expect(Math.abs(p.dir[0] * c.x + p.dir[1] * c.y + p.dir[2] * c.z) / Math.hypot(c.x, c.y, c.z)).toBeLessThan(0.01);
+    }
   });
 
   it('gives every sprite a usable density, height in its cloud, unit normal and noise seed', () => {
@@ -59,8 +70,13 @@ describe('cloudPlan (#54)', () => {
   it('keeps them between the hills and the space line, on flattish bases', () => {
     for (const p of puffs) {
       const c = plan.clouds[p.cloud];
-      const base = p.r - p.lift;
-      expect(Math.abs(base - c.base)).toBeLessThan(2); // (a cloud's base is flat to within a curve)
+      // (A cloud's base is flat, so it's a little further from the middle of the world away
+      // from the cloud's own middle.)
+      const cl = Math.hypot(c.x, c.y, c.z), up = [c.x / cl, c.y / cl, c.z / cl];
+      const along = p.x * up[0] + p.y * up[1] + p.z * up[2];
+      const side = Math.sqrt(Math.max(0, p.r * p.r - along * along));
+      expect(Math.abs(along - p.lift - c.base)).toBeLessThan(0.5);
+      expect(p.r - p.lift - c.base).toBeLessThan((side * side) / c.base + 0.5);
       expect(c.base - home.radius).toBeGreaterThanOrEqual(look.alt[0]);
       expect(c.base - home.radius).toBeLessThanOrEqual(look.alt[1]);
       expect(p.r + p.size - home.radius).toBeLessThan(home.spaceLine);
@@ -76,6 +92,82 @@ describe('cloudPlan (#54)', () => {
       const c = plan.clouds[p.cloud];
       expect(Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z) + p.size).toBeLessThanOrEqual(c.r + 1e-3);
     }
+  });
+});
+
+describe('big cloud systems (#54)', () => {
+  const f = look.fronts;
+  const paths = frontPaths(look, home.radius);
+  const R = home.radius + (f.alt[0] + f.alt[1]) / 2;
+
+  it('makes a few, the same every time', () => {
+    expect(paths.length).toBe(f.count);
+    expect(f.count).toBeGreaterThanOrEqual(3);
+    expect(f.count).toBeLessThanOrEqual(6);
+    expect(JSON.stringify(frontPaths(look, home.radius))).toBe(JSON.stringify(paths));
+  });
+
+  it('are long bands, much bigger than a cloud, with the odd gap', () => {
+    for (const segs of paths) {
+      const len = segs.length * FRONT_STEP;
+      expect(len).toBeGreaterThanOrEqual(f.length[0] * 0.8);
+      expect(len).toBeLessThanOrEqual(f.length[1] * 1.05);
+      const widths = segs.map((s) => s.w).filter((w) => w > 0);
+      expect(Math.max(...widths)).toBeGreaterThan(look.size[1]);
+      expect(widths.length).toBeGreaterThan(segs.length * 0.7);
+      // Unbroken along the ground: each segment a step on from the last.
+      for (let i = 1; i < segs.length; i++) {
+        const a = segs[i - 1].up, b = segs[i].up;
+        expect(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) * R).toBeCloseTo(FRONT_STEP, 0);
+      }
+    }
+  });
+
+  it('bend gently, and one winds up into a swirl', () => {
+    const turn = (segs) => {
+      let t = 0;
+      for (let i = 1; i < segs.length; i++) {
+        const a = segs[i - 1].e, b = segs[i].e;
+        t += Math.acos(Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+      }
+      return t;
+    };
+    const swirls = paths.filter((s) => s.swirl);
+    expect(swirls.length).toBe(f.swirl);
+    for (const s of swirls) expect(turn(s)).toBeGreaterThan(2.5);
+    for (const s of paths.filter((p) => !p.swirl)) expect(turn(s)).toBeLessThan(2);
+  });
+
+  it('stay clear of the flight plane (the launch and landed views keep their own sky) and of each other', () => {
+    paths.forEach((segs, i) => {
+      const side = i < f.count - f.back ? 1 : -1;
+      for (const s of segs) expect(s.up[2] * R * side).toBeGreaterThanOrEqual(f.clear);
+      for (const other of paths.slice(i + 1)) {
+        for (const a of segs) for (const b of other) expect(Math.hypot(a.up[0] - b.up[0], a.up[1] - b.up[1], a.up[2] - b.up[2]) * R).toBeGreaterThan(90);
+      }
+    });
+  });
+
+  it('are in the plan as clouds of their own, one per stretch (so they fade bit by bit)', () => {
+    for (let i = 0; i < f.count; i++) {
+      const mine = plan.clouds.filter((c) => c.front === i);
+      expect(mine.length).toBe(paths[i].filter((s) => s.w > 0).length);
+      for (const c of mine) expect(c.r).toBeLessThan(f.width[1]);
+    }
+  });
+
+  it('leave plenty of clear sky from space, and still cover a fair bit', () => {
+    // Directions evenly over the face the globe view sees.
+    let covered = 0, n = 0;
+    const near = puffs.map((p) => ({ u: [p.x / p.r, p.y / p.r, p.z / p.r], a: (p.size * p.stretch) / p.r }));
+    for (let i = 0; i < 1500; i++) {
+      const z = 0.25 + (0.75 * (i + 0.5)) / 1500, a = i * 2.39996, k = Math.sqrt(1 - z * z);
+      const d = [k * Math.cos(a), k * Math.sin(a), z];
+      n++;
+      if (near.some((q) => Math.acos(Math.min(1, d[0] * q.u[0] + d[1] * q.u[1] + d[2] * q.u[2])) < q.a * 0.7)) covered++;
+    }
+    expect(covered / n).toBeGreaterThan(0.1);
+    expect(covered / n).toBeLessThan(0.45);
   });
 });
 
