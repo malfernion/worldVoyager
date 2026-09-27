@@ -24,10 +24,18 @@ function randomDirs(seed, count) {
   return out;
 }
 
-// Bowl-with-a-rim crater profile. d = angular distance / crater radius.
-function craterProfile(d) {
-  if (d > 1.6) return 0;
-  if (d < 1) return (d * d - 1) + 0.35 * smooth(0.6, 1, d);
+// Bowl-with-a-rim crater profile. d = angular distance / crater radius: -1 in the middle, a
+// round rim 0.35 high at d = 1, and the ejecta sloping away to nothing at d = 1.6. Smooth all
+// the way (no slope jumps at the rim or the ejecta's edge, #56), so rims read round on the
+// mesh instead of as a ring of sharp facets.
+export function craterProfile(d) {
+  if (d >= 1.6) return 0;
+  if (d < 1) {
+    // A bowl as round at the bottom as the old one (-1 + d²), bending over smoothly into the
+    // rim's crest (level there, like the ejecta's top).
+    const u = d * d;
+    return -1 + 1.35 * u * (0.74 + 2.52 * d - 2.26 * u);
+  }
   return 0.35 * (1 - smooth(1, 1.6, d));
 }
 
