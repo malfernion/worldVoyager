@@ -834,8 +834,9 @@ owner approves, dropped ideas are deleted from the code rather than left switche
   domain-warped turbulence read as blotchy stains, so it went); neighbouring bands drift at different speeds, back and forth over 15 minutes, so
   the shear never builds up into sub-pixel stripes. Their clock follows game time but never
   faster than 20× real time, so time warp doesn't strobe them. `storm`: two turning ovals with
-  spiral arms. `ringShadows`: the rings' shadow on the planet (dark, soft-edged, with
-  the ring gap, only where the sun shines) and the planet's on the rings, worked out
+  spiral arms. `ringShadows`: the rings' shadow on the planet (only a gentle hint:
+  at most about a third of the sunlight, with a wide soft falloff and only where the sun shines;
+  a dark one looked heavy) and the planet's on the rings, worked out
   analytically. `softLimb`: the shared 4-step toon gradient cut hard straight lines across a big
   sphere (its step at half-lit was a vertical stripe down the middle), so the gas giant's day
   side is one tone with a soft terminator and one soft step into the night, softer at the limb. Generic

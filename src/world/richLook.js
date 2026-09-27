@@ -176,7 +176,7 @@ function defines(list) {
  */
 export const ROCKY_LOOK = {
   dusty: { rock: 0x7e3a22, dust: 0xe79a66, speck: 0xf6c49a, streak: 0x9a452a, rim: 0xffc890, night: 0x24388a, nightK: 0.28, ao: { dark: 0.4, light: 0.16 }, speckle: [0.8, 0.45] },
-  pebble: { rock: 0x746d64, dust: 0xd9d4ca, speck: 0xfdfcf8, streak: 0x8c857b, rim: 0xfff2dc, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.32 }, speckle: [0.72, 0.8] },
+  pebble: { rock: 0x746d64, dust: 0xd9d4ca, speck: 0xf4f1ea, streak: 0x8c857b, rim: 0xfff2dc, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.32 }, speckle: [0.8, 0.45] },
 };
 
 /** Baked relief shading for a trial world's terrain colours (in place), if it's switched on. */
@@ -515,8 +515,8 @@ const GAS_PARS = /* glsl */ `
   // How much the rings block the sun at p (unit sphere; the rings are in radii too).
   float gRingDensity(float r) {
     float t = (r - gRing.x) / (gRing.y - gRing.x);
-    if (t < -0.03 || t > 1.03) return 0.0;
-    float soft = smoothstep(-0.03, 0.02, t) * (1.0 - smoothstep(0.98, 1.03, t)); // soft outer edges
+    if (t < 0.0 || t > 1.0) return 0.0;
+    float soft = smoothstep(0.0, 0.3, t) * (1.0 - smoothstep(0.7, 1.0, t)); // a wide, soft falloff
     // Broadly like the rings' texture (planets.js ringTexture), smoothed so the shadow reads
     // as a shadow, not as rings: denser middle, the Cassini-style gap, faint edges.
     float a = 0.8 + 0.15 * sin(t * 9.0 + 0.5);
@@ -534,11 +534,10 @@ const RING_SHADOW_ON_PLANET = /* glsl */ `
     float up = dot(gSunObj, gAxis);
     float s = -dot(p, gAxis) / (abs(up) < 1e-3 ? 1e-3 : up);
     if (s > 0.0) {
-      // A real shadow: most of the sunlight gone, a touch of the sky light too (only where the
-      // sun shines, so the night side is untouched), warm-dark rather than grey.
-      float sh = gRingDensity(length(p + gSunObj * s)) * smoothstep(-0.05, 0.15, dot(p, gSunObj));
-      reflectedLight.directDiffuse *= 1.0 - 0.82 * sh;
-      reflectedLight.indirectDiffuse *= 1.0 - 0.3 * sh;
+      // A gentle hint of shadow (a heavy one looked ham-fisted): at most about a third of the
+      // sunlight, fading in softly over the rings' width and near the terminator.
+      float sh = gRingDensity(length(p + gSunObj * s)) * smoothstep(0.0, 0.35, dot(p, gSunObj));
+      reflectedLight.directDiffuse *= 1.0 - 0.32 * sh * sh;
     }
   }
   #endif
