@@ -94,10 +94,25 @@ export const BODY_DEFS = [
     // about 89000 out, low on the left of the system map, clear of Tumble. `dwarf`: not a planet,
     // so the map's default view of the system stays the planets' (zoom.js SYSTEM_VIEW); out here
     // Ember is only a bright star and its light is dim and cold (planets.js FAR_LIGHT).
+    // Stage 3: it and its big moon Hither face each other forever (`lockedTo`, see Hither's).
     id: 'yonder', name: 'Yonder', parent: 'ember', orbitRadius: 110000, ecc: 30000 / 110000, periArg: 2.58, phase: -0.6, dwarf: true,
-    radius: 170, gravity: 2.4, soi: 3000, spaceLine: 30, terrain: 'yonder',
+    radius: 170, gravity: 2.4, soi: 3000, spaceLine: 30, terrain: 'yonder', lockedTo: 'hither',
     color: 0xe6d2bf, icon: '🧊',
     blurb: 'Yonder is a little icy world, just like Pluto. Pluto is so far away that sunlight takes more than five hours to get there!',
+  },
+  {
+    // Hither (#62 stage 3), Yonder's big twin moon, like Charon round Pluto: half its size, grey
+    // ice with a dark red cap. Real Charon goes round at about 16 Pluto radii in 6.4 days; here
+    // it's 1600 out (9.4 Yonder radii), so the two fit in one view and a hop between them is
+    // short: one lap is about 25 game minutes (1527 s). Its SOI (550, inside the Laplace sphere's
+    // 760) reaches 1050 to 2150 from Yonder, well inside Yonder's 3000. `locked`: tidally
+    // locked, it always shows Yonder the same face, and Yonder (`lockedTo`) always shows it the
+    // same face too, like Pluto and Charon: both spin about z once a lap (Body.spinAt). At t = 0
+    // it's opposite Yonder's heart (as Charon is from Sputnik Planitia), low on the right.
+    id: 'hither', name: 'Hither', parent: 'yonder', orbitRadius: 1600, phase: 2.2 - Math.PI, locked: true,
+    radius: 85, gravity: 1.5, soi: 550, spaceLine: 20, terrain: 'hither',
+    color: 0xb9b4b0, icon: '🌘',
+    blurb: 'Hither is Yonder\'s big moon, like Charon, the moon of Pluto. Charon is half as big as Pluto, so they are almost twins!',
   },
 ];
 
@@ -121,6 +136,10 @@ export class Body {
     // Stretched (Kepler) orbits: 0 for a round one.
     this.ecc = def.ecc || 0;
     this.periArg = def.periArg || 0;
+    // Spinning ground (#62 stage 3): radians a second about +z, set in createSystem() for a
+    // tidally locked pair (Hither, `locked`, and Yonder, `lockedTo`); 0 for every other world,
+    // which never turns. See spinAt().
+    this.spinRate = 0;
     this.kt = NaN; // time of the last Kepler solve, and its result (see kepler())
     this.ks = { x: 0, y: 0, vx: 0, vy: 0 };
     this.terrainFn = def.kind === 'star' ? null : makeTerrain(def.terrain);
@@ -196,7 +215,25 @@ export class Body {
     this.maxSurface = hi;
   }
 
-  /** Radius of the ground at a planar angle. */
+  /**
+   * How far round a spinning world has turned about +z at time t (#62 stage 3): its ground, the
+   * physics tables, the terrain and everything on it are in its own frame, turned by this from
+   * the (non-spinning) frame the rocket flies in. 0 for every world but a tidally locked pair,
+   * so everywhere else the two frames are the same. The mesh turns with it (FlightScene.placeBodies).
+   */
+  spinAt(t) {
+    return this.spinRate ? (this.spinRate * t) % TWO_PI : 0;
+  }
+
+  /**
+   * The rocket's surface under flight-frame direction `angle` at time t: `surfaceAt()` of the
+   * spot that's there then (#62 stage 3: a spinning world's ground turns under the rocket).
+   */
+  surfaceUnder(angle, t) {
+    return this.surfaceAt(angle - this.spinAt(t));
+  }
+
+  /** Radius of the ground at a planar angle (in the world's own frame: see spinAt()). */
   surfaceAt(angle) {
     return this.tableAt(this.surface, angle);
   }
@@ -467,6 +504,12 @@ export function createSystem() {
       b.parent = byId[b.parentId];
       b.parent.children.push(b);
     }
+  }
+  // Tidal locking (#62 stage 3): a locked moon turns once a lap (the same face to its world), and
+  // a world `lockedTo` it turns with it (the same face to the moon). A round orbit, so exactly.
+  for (const b of bodies) {
+    if (b.locked) b.spinRate = b.angularSpeed;
+    if (b.lockedTo) b.spinRate = byId[b.lockedTo].angularSpeed;
   }
   return { bodies, byId, root: byId.ember, home: byId.homestead };
 }

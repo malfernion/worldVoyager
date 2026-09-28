@@ -18,7 +18,7 @@ import { createSky } from '../world/sky.js';
 import { SKY_LOOK, farLight, FAR_LIGHT } from '../world/planets.js';
 import { rainVolume } from '../world/rain.js';
 import { DriveMode } from './drive.js';
-import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
+import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, pairSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
 import { HEXAGON } from '../world/richLook.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
@@ -739,7 +739,7 @@ export class FlightScene {
     const rw = this.flight.worldPos(this.tmp3);
     const fw = from.worldPos(s.t, {});
     const x = rw.x - fw.x, y = rw.y - fw.y;
-    const before = flightAutoDist(Math.max(0, Math.hypot(x, y) - from.surfaceAt(Math.atan2(y, x))));
+    const before = flightAutoDist(Math.max(0, Math.hypot(x, y) - from.surfaceUnder(Math.atan2(y, x), s.t)));
     this.carry = handoffCarry(this.carry, before, flightAutoDist(Math.max(0, this.flight.altitude)));
     this.camSettle = true;
     this.soiGlow = { body: s.body, until: this.time + 4 };
@@ -920,7 +920,7 @@ export class FlightScene {
       // Into lava (#45): a hiss of white steam and dark smoke billowing up, with a few glowing
       // sparks of lava thrown out.
       const g = body.mu / (body.radius * body.radius);
-      const top = body.surfaceAt(up);
+      const top = body.surfaceUnder(up, s.t);
       for (let i = 0; i < n; i++) {
         const spark = i % 4 === 0;
         const a = up + (Math.random() - 0.5) * (spark ? 1.6 : 0.9);
@@ -940,7 +940,7 @@ export class FlightScene {
     if (kind === 'splash') {
       // A tall white column and a ring of spray thrown out sideways, falling back in (#44).
       const g = body.mu / (body.radius * body.radius);
-      const top = body.surfaceAt(up);
+      const top = body.surfaceUnder(up, s.t);
       for (let i = 0; i < n; i++) {
         const col = i % 2 === 0;
         const a = up + (Math.random() - 0.5) * (col ? 0.5 : 2.6);
@@ -1568,6 +1568,35 @@ export class FlightScene {
     if (!p.has('find-flare') && flareSeen(s)) this.found('find-flare');
     if (!p.has('find-hexagon') && this.hexagonInView()) this.found('find-hexagon');
     if (!p.has('find-heart') && this.heartInView()) this.found('find-heart');
+    if (!p.has('find-dancers') && this.pairInView()) this.found('find-dancers');
+  }
+
+  /**
+   * Are Yonder and its moon Hither (#62 stage 3) both in view together, big enough to see as two
+   * worlds? From where the camera was last frame (flight view or map); no allocation.
+   */
+  pairInView() {
+    const a = this.yonderVisual ??= this.visuals.find((x) => x.body.id === 'yonder');
+    const b = this.hitherVisual ??= this.visuals.find((x) => x.body.id === 'hither');
+    if (!a || !b) return false;
+    const sa = this.bodyOnScreen(a, this.pairA ??= { x: 0, y: 0, behind: false, px: 0 });
+    const sb = this.bodyOnScreen(b, this.pairB ??= { x: 0, y: 0, behind: false, px: 0 });
+    const dist = Math.hypot((sa.x - sb.x) * window.innerWidth, (sa.y - sb.y) * window.innerHeight) / 2;
+    return pairSeen(sa, sb, dist);
+  }
+
+  /** Where a world's middle is on screen, and its radius in pixels (as drawn), into `out`. */
+  bodyOnScreen(v, out) {
+    const cam = this.camera;
+    const p = this.screenTmp ??= new THREE.Vector3();
+    const r = v.body.radius * v.group.scale.x;
+    const dist = p.copy(v.group.position).distanceTo(cam.position);
+    out.px = (r * window.innerHeight) / (2 * Math.max(dist, r) * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
+    p.project(cam);
+    out.x = p.x;
+    out.y = p.y;
+    out.behind = p.z > 1;
+    return out;
   }
 
   /**
@@ -1582,7 +1611,15 @@ export class FlightScene {
   /** Is Yonder's heart (#62 stage 2) in view, big enough to make out? */
   heartInView() {
     const v = this.yonderVisual ??= this.visuals.find((x) => x.body.id === 'yonder');
-    return !!v && heartSeen(this.sightOf(v, HEART_SPOT, HEART_SIZE));
+    if (!v) return false;
+    // (Yonder turns with Hither, #62 stage 3: the heart goes round about the middle of the
+    // side the cameras see, so it's always on that side.)
+    const a = v.body.spinAt(this.flight.state.t), c = Math.cos(a), sn = Math.sin(a);
+    const d = this.heartDir ??= { x: 0, y: 0, z: 0 };
+    d.x = c * HEART_SPOT.x - sn * HEART_SPOT.y;
+    d.y = sn * HEART_SPOT.x + c * HEART_SPOT.y;
+    d.z = HEART_SPOT.z;
+    return heartSeen(this.sightOf(v, d, HEART_SIZE));
   }
 
   /**
@@ -1631,6 +1668,9 @@ export class FlightScene {
       v.body.worldPos(t, tmp);
       v.group.position.set(tmp.x - this.origin.x, tmp.y - this.origin.y, 0);
       v.group.scale.setScalar(this.mapScale(v.body));
+      // A spinning world (#62 stage 3: Hither and Yonder, tidally locked) turns with everything
+      // on it: its ground, rocks, landmarks and the buggy's dust are all in its own frame.
+      if (v.body.spinRate) v.group.rotation.z = v.body.spinAt(t);
       if (v.env) {
         // For the comet's tails: Ember sits at the world's middle, and which way are we going?
         const d = Math.hypot(tmp.x, tmp.y);
@@ -1873,7 +1913,7 @@ export class FlightScene {
       let m = n;
       if (s.body === v.body && !s.landed && !this.drive.active) {
         // Where we'd come down: the ground straight under the rocket.
-        const a = Math.atan2(s.y, s.x), g = s.body.surfaceAt(a) * v.group.scale.x;
+        const a = Math.atan2(s.y, s.x), g = s.body.surfaceUnder(a, s.t) * v.group.scale.x;
         foci[m * 3] = v.group.position.x + Math.cos(a) * g;
         foci[m * 3 + 1] = v.group.position.y + Math.sin(a) * g;
         foci[m * 3 + 2] = 0;
@@ -2265,7 +2305,7 @@ export class FlightScene {
       const foot = this.drive.rocketFoot();
       const w = s.body.worldPos(s.t, {});
       const up = foot.map((c) => c / Math.hypot(...foot));
-      const p = new THREE.Vector3(w.x + foot[0] + up[0] * (this.rocket.height + 3) - this.origin.x, w.y + foot[1] + up[1] * (this.rocket.height + 3) - this.origin.y, foot[2] + up[2] * (this.rocket.height + 3));
+      const p = this.toScene(s.body, foot.map((c, i) => c + up[i] * (this.rocket.height + 3)), new THREE.Vector3());
       const v = p.clone().project(this.camera);
       const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
       if (onScreen) this.kindMarker('home-pin', 'home-pin', '<span>🚀</span>', 'home', p.x, p.y, p.z);
@@ -2312,7 +2352,8 @@ export class FlightScene {
     const tp = nearest.target.p;
     const l = Math.hypot(tp[0], tp[1], tp[2]);
     const lift = 5;
-    const p = new THREE.Vector3(w.x + tp[0] * (1 + lift / l) - this.origin.x, w.y + tp[1] * (1 + lift / l) - this.origin.y, tp[2] * (1 + lift / l));
+    const k = 1 + lift / l;
+    const p = this.toScene(this.drive.buggy.body, [tp[0] * k, tp[1] * k, tp[2] * k], new THREE.Vector3());
     const v = p.clone().project(this.camera);
     const onScreen = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.9;
     if (onScreen && nearest.dist < 60) {
@@ -2336,13 +2377,22 @@ export class FlightScene {
     const b = this.drive.buggy;
     const up = vec.norm(b.p);
     const dir = groundHeading(b.p, target, b.f);
-    const at = (k) => new THREE.Vector3(
-      w.x + b.p[0] + up[0] + dir[0] * k - this.origin.x,
-      w.y + b.p[1] + up[1] + dir[1] * k - this.origin.y,
-      b.p[2] + up[2] + dir[2] * k,
-    ).project(this.camera);
+    const at = (k) => this.toScene(b.body, [b.p[0] + up[0] + dir[0] * k, b.p[1] + up[1] + dir[1] * k, b.p[2] + up[2] + dir[2] * k], new THREE.Vector3()).project(this.camera);
     const a = at(0), c = at(1);
     return Math.atan2((c.x - a.x) * window.innerWidth, (c.y - a.y) * window.innerHeight);
+  }
+
+  /**
+   * A point `p` ([x, y, z]) in a world's own frame (its ground, the buggy, the parked rocket's
+   * foot) in scene coordinates, into `out` (a Vector3): where the world is now, less the floating
+   * origin, and turned as far as the world has spun (#62 stage 3: Hither and Yonder; no turn for
+   * every other world).
+   */
+  toScene(body, p, out) {
+    const t = this.flight.state.t;
+    const w = body.worldPos(t, this.sceneTmp ??= {});
+    const a = body.spinAt(t), c = Math.cos(a), sn = Math.sin(a);
+    return out.set(w.x + c * p[0] - sn * p[1] - this.origin.x, w.y + sn * p[0] + c * p[1] - this.origin.y, p[2]);
   }
 
   clearMarkers() {

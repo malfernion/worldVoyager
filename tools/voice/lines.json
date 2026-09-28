@@ -112,6 +112,10 @@
   "text": "Back in Frosty's space."
  },
  {
+  "key": "back in hithers space",
+  "text": "Back in Hither's space."
+ },
+ {
   "key": "back in homesteads space",
   "text": "Back in Homestead's space."
  },
@@ -212,6 +216,10 @@
   "text": "Can you land in it, or drive in?"
  },
  {
+  "key": "can you see them both at once",
+  "text": "Can you see them both at once?"
+ },
+ {
   "key": "can you spot it",
   "text": "Can you spot it?"
  },
@@ -222,6 +230,14 @@
  {
   "key": "can you wake it up",
   "text": "Can you wake it up?"
+ },
+ {
+  "key": "charon has a red cap on top made of gas that floated over from pluto",
+  "text": "Charon has a red cap on top, made of gas that floated over from Pluto!"
+ },
+ {
+  "key": "charon is half as big as pluto so they are almost twins",
+  "text": "Charon is half as big as Pluto, so they are almost twins!"
  },
  {
   "key": "come home and land softly",
@@ -452,6 +468,10 @@
   "text": "Hello, Flurry!"
  },
  {
+  "key": "hello hither",
+  "text": "Hello Hither!"
+ },
+ {
   "key": "hello misty",
   "text": "Hello Misty!"
  },
@@ -472,6 +492,18 @@
   "text": "Hello Yonder!"
  },
  {
+  "key": "hither",
+  "text": "Hither!"
+ },
+ {
+  "key": "hither is behind us",
+  "text": "Hither is behind us."
+ },
+ {
+  "key": "hither is yonders big moon like charon the moon of pluto",
+  "text": "Hither is Yonder's big moon, like Charon, the moon of Pluto."
+ },
+ {
   "key": "hmm i cant find a path to ducky right now",
   "text": "Hmm, I can't find a path to Ducky right now."
  },
@@ -486,6 +518,10 @@
  {
   "key": "hmm i cant find a path to frosty right now",
   "text": "Hmm, I can't find a path to Frosty right now."
+ },
+ {
+  "key": "hmm i cant find a path to hither right now",
+  "text": "Hmm, I can't find a path to Hither right now."
  },
  {
   "key": "hmm i cant find a path to homestead right now",
@@ -676,6 +712,10 @@
   "text": "Its light is dim and cold out here."
  },
  {
+  "key": "its like charon the big moon of pluto",
+  "text": "It's like Charon, the big moon of Pluto."
+ },
+ {
   "key": "its named tombaugh regio after clyde tombaugh who discovered pluto",
   "text": "It's named Tombaugh Regio, after Clyde Tombaugh, who discovered Pluto."
  },
@@ -748,6 +788,10 @@
   "text": "Let's fly to Frosty!"
  },
  {
+  "key": "lets fly to hither",
+  "text": "Let's fly to Hither!"
+ },
+ {
   "key": "lets fly to homestead",
   "text": "Let's fly to Homestead!"
  },
@@ -802,6 +846,10 @@
  {
   "key": "lets go for a drive on frosty",
   "text": "Let's go for a drive on Frosty!"
+ },
+ {
+  "key": "lets go for a drive on hither",
+  "text": "Let's go for a drive on Hither!"
  },
  {
   "key": "lets go for a drive on homestead",
@@ -862,6 +910,14 @@
  {
   "key": "lets land on frosty together",
   "text": "Let's land on Frosty together!"
+ },
+ {
+  "key": "lets land on hither",
+  "text": "Let's land on Hither."
+ },
+ {
+  "key": "lets land on hither together",
+  "text": "Let's land on Hither together!"
  },
  {
   "key": "lets land on homestead",
@@ -982,6 +1038,10 @@
  {
   "key": "look it is pointing at ringo",
   "text": "Look, it is pointing at Ringo."
+ },
+ {
+  "key": "look yonder and hither spin round together",
+  "text": "Look, Yonder and Hither spin round together!"
  },
  {
   "key": "mars has dust devils taller than mountains",
@@ -1202,6 +1262,10 @@
  {
   "key": "pip needs a cabin",
   "text": "Pip needs a cabin!"
+ },
+ {
+  "key": "pluto and its moon charon always face each other like two dancers holding hands",
+  "text": "Pluto and its moon Charon always face each other, like two dancers holding hands!"
  },
  {
   "key": "pluto has one too",
@@ -1456,6 +1520,10 @@
   "text": "That's Frosty!"
  },
  {
+  "key": "thats hither",
+  "text": "That's Hither!"
+ },
+ {
   "key": "thats homestead",
   "text": "That's Homestead!"
  },
@@ -1700,6 +1768,10 @@
   "text": "We made it to Frosty!"
  },
  {
+  "key": "we made it to hither",
+  "text": "We made it to Hither!"
+ },
+ {
   "key": "we made it to homestead",
   "text": "We made it to Homestead!"
  },
@@ -1756,6 +1828,10 @@
   "text": "Welcome to Frosty!"
  },
  {
+  "key": "welcome to hither",
+  "text": "Welcome to Hither!"
+ },
+ {
   "key": "welcome to homestead",
   "text": "Welcome to Homestead!"
  },
@@ -1804,6 +1880,10 @@
   "text": "We're already going around Frosty!"
  },
  {
+  "key": "were already going around hither",
+  "text": "We're already going around Hither!"
+ },
+ {
   "key": "were already going around homestead",
   "text": "We're already going around Homestead!"
  },
@@ -1850,6 +1930,10 @@
  {
   "key": "were at frosty",
   "text": "We're at Frosty!"
+ },
+ {
+  "key": "were at hither",
+  "text": "We're at Hither!"
  },
  {
   "key": "were at homestead",
@@ -1902,6 +1986,10 @@
  {
   "key": "were going around frosty",
   "text": "We're going around Frosty!"
+ },
+ {
+  "key": "were going around hither",
+  "text": "We're going around Hither!"
  },
  {
   "key": "were going around homestead",
@@ -1960,6 +2048,10 @@
   "text": "We're in orbit around Frosty!"
  },
  {
+  "key": "were in orbit around hither",
+  "text": "We're in orbit around Hither!"
+ },
+ {
   "key": "were in orbit around homestead",
   "text": "We're in orbit around Homestead!"
  },
@@ -2006,6 +2098,10 @@
  {
   "key": "were on our way to frosty",
   "text": "We're on our way to Frosty!"
+ },
+ {
+  "key": "were on our way to hither",
+  "text": "We're on our way to Hither!"
  },
  {
   "key": "were on our way to homestead",
@@ -2100,6 +2196,10 @@
   "text": "Yonder!"
  },
  {
+  "key": "yonder and hither are doing something together",
+  "text": "Yonder and Hither are doing something together."
+ },
+ {
   "key": "yonder has a giant secret shape on it",
   "text": "Yonder has a giant secret shape on it."
  },
@@ -2142,6 +2242,10 @@
  {
   "key": "you flew to frosty all by yourself",
   "text": "You flew to Frosty all by yourself!"
+ },
+ {
+  "key": "you flew to hither all by yourself",
+  "text": "You flew to Hither all by yourself!"
  },
  {
   "key": "you flew to homestead all by yourself",
@@ -2198,6 +2302,10 @@
  {
   "key": "you landed on frosty",
   "text": "You landed on Frosty!"
+ },
+ {
+  "key": "you landed on hither",
+  "text": "You landed on Hither!"
  },
  {
   "key": "you landed on homestead",

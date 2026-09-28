@@ -43,6 +43,7 @@ borrow the vibe, not the content: all names, worlds and music are original.
 | Flip | Triton | a moon that goes round backwards; icy geysers |
 | Ducky | comet 67P (where Philae landed) | a rubber-duck comet whose tail always points away from the Sun |
 | Yonder | Pluto | a little icy world so far out that sunlight takes more than five hours to get there |
+| Hither | Charon (Pluto's moon) | a big twin moon with a red cap; it and Yonder always face each other |
 
 ## Design pillars
 
@@ -344,7 +345,7 @@ and banner go away, and Pip no longer says "Next: …" or reads a goal on the pa
 - *Why end:* a long checklist (it used to go on through every world) turned the open solar
   system into chores, and a child who wanted Ringo was told to go to Dusty. After Pebble they
   know every step of a trip (launch, orbit, fly there, land, come back), so the rest is theirs.
-- *The later worlds* (Dusty, Nibble, Ringo, Sizzle, Frosty, Misty, Tumble, Flip, Ducky, Yonder) keep their
+- *The later worlds* (Dusty, Nibble, Ringo, Sizzle, Frosty, Misty, Tumble, Flip, Ducky, Yonder, Hither) keep their
   visit and landing stickers, with the same ids, so they're still there to collect; they just
   aren't goals. Discoveries (#15) and friends (#16) are unchanged.
 - *One source of truth:* `Progress.starterDone` (the last goal, `STARTER_END`, is done).
@@ -380,7 +381,7 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   mesh, tyre grip (less on icy Frosty), driving along the seabed through Homestead's seas (slower and floaty; see Liquids), and bumping around the
   parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
 - **Trees and rocks are things to bump into** (#6). Homestead's ~900 trees and the moons'
-  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Misty 90 (small ice cobbles), Flip 60, Yonder 70 (pale blocks of water ice, a few stained red), one
+  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Misty 90 (small ice cobbles), Flip 60, Yonder 70 (pale blocks of water ice, a few stained red), Hither 50 (grey ice, a few reddish), one
   InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours; Ducky 36) are
   circle colliders: trunk (or most of a bush's / rock's width) plus the buggy's `reach` from
   `BUGGIES`. Rocks keep a narrower strip in front of the flight plane clear than trees do
@@ -917,7 +918,7 @@ ground stays the visible mesh), and nothing adds draw calls or textures
   `nightK` / `rimK`, the relief's strength `ao`, how rare and bright its speckles are) or in
   `GAS_LOOK` (storms, drift, rim, night), with its bands in `GAS_BANDS`. A gas giant's ring
   shadows follow from its `rings` (faint rings cast none on the planet).
-  - *Worlds of many colours* (`tint`: Homestead, Nibble, Sizzle, Frosty, Flip, Ducky, Misty, Yonder)
+  - *Worlds of many colours* (`tint`: Homestead, Nibble, Sizzle, Frosty, Flip, Ducky, Misty, Yonder, Hither)
     use rock / dust / speckle / streak as multipliers of the ground's own colour, so grass stays
     green, beaches sandy, snow white. Dusty and Pebble use the colours themselves.
   - *Where it mustn't go:* a per-vertex weight (`rich`, baked with the relief) fades relief,
@@ -1539,6 +1540,95 @@ terrain.js):
 - **Not done:** the plains' cracks and the dark lands' craters are faint on the whole globe in
   the default map (they show zoomed in, in orbit and on the ground); the dark lands' streaks are
   subtle.
+
+### Hither, Yonder's big twin moon (#62, stage 3)
+
+Like Charon round Pluto: half Yonder's size, grey water ice with a dark red cap, and the two
+tidally locked, always facing each other ("like two dancers holding hands").
+
+- **The orbit** (`bodies.js`): round, 1,600 from Yonder's middle (9.4 Yonder radii; real
+  Charon is at about 16 Pluto radii), clockwise, one lap in 1,527 game seconds (about 25
+  minutes; Charon's is 6.4 days). Close enough that both fit in one view (the map of Yonder at
+  its default zoom shows both), and a hop between them is short (🤖 from a parking orbit round
+  one into orbit round the other: 3 to 9 minutes of game time, a few seconds sped up). Radius 85 (half Yonder's), gravity 1.5, SOI 550 (inside
+  its Laplace sphere's 760), so its sphere reaches 1,050 to 2,150 from Yonder: inside Yonder's
+  3,000 with 850 to spare, and clear of Yonder's parking orbit. Yonder's SOI didn't need to grow,
+  so stage 1's checks (never meeting Tumble, the map's reach, the far light) are unchanged. At
+  t = 0 it's opposite Yonder's heart, as Charon is from Sputnik Planitia.
+- **Tidally locked, both ways** (`locked` on Hither, `lockedTo: 'hither'` on Yonder;
+  `Body.spinRate`, `Body.spinAt(t)`): both turn about z (the flight plane's normal, which is the
+  orbit's) once a Hither lap, the way it goes round, so the same side of each always faces the
+  other. They're the only worlds that turn (every other `spinRate` is 0, so nothing else
+  changes). From the cameras (all looking down z) the pair turns like one rigid dumbbell.
+  - *The ground turns with the mesh.* A world's terrain, physics tables (`ground`, `surface`),
+    landmarks and the buggy stay in the world's own frame; the frame the rocket flies in doesn't
+    turn. `spinAt(t)` converts: `surfaceUnder(angle, t)` is the ground under a flight-frame
+    direction at time t. The sim uses it for altitude and touchdown (and prediction for
+    impacts); `landAngle` is in the world's frame, so a landed rocket stands on the same spot and
+    turns with it (placed every step, upright), and lifts off with the ground's speed (under
+    1 m/s); a touchdown's speed is counted against the ground. The mesh group turns
+    (`FlightScene.placeBodies`), and with it the rocks, landmarks and the buggy's dust; the drive
+    view turns the buggy, its camera and its sparks into the scene's frame (`DriveMode.turn`,
+    `toFlight()`), and the markers and compasses go through `FlightScene.toScene()`. The rocket's
+    exhaust and flying debris stay in the flight frame and ask the ground under them.
+    `sunDirection()` is in the world's own frame, so a day on Yonder or Hither is one Hither lap.
+  - *Yonder's heart.* Turning about z keeps every point's height towards the cameras, so the
+    whole heart stays on the side they see; it just turns round about the middle of that side,
+    upright on the map at t = 0 and again each lap (the owner's "upright" heart now turns slowly,
+    like the real Pluto's as it spins). "Find the heart" turns `HEART_SPOT` with Yonder
+    (`heartInView()`), and still finds it from the map at any time (tested).
+- **The look** (`makeHither()` in terrain.js, `ROCKY_LOOK.hither`, `SPIN_AXES.hither` =
+  `HITHER_AXIS`, `DETAIL` 48, 50 rocks): grey water ice, bluish in places, warmer on the plains;
+  a dark reddish-brown cap (Mordor Macula, `HITHER_CAP`) with a diffuse, ragged edge round the
+  pattern's pole, leaning 26 degrees off the cameras' view so it shows off-centre; the rugged,
+  cratered north and the smooth southern plains either side of a great circle (`HITHER_BELT`,
+  nearly in the flight plane, so from the cameras the line runs across the middle of the disc).
+  Its light is Yonder's: Ember's far light covers Hither all the way round Yonder's orbit (tested).
+- **The landscape pass** (the owner's feedback on stage 3: "a single socket mountain with a
+  depressed ring around it that looked a little naff… perhaps if it were broader"; "real chasms
+  better but not like our version of Mars where they are everywhere… One or two branching like a
+  river would work better"; crisper craters, less blotchy):
+  - *Two chasms* (`HITHER_CHASMS`, like Serenity and Mandjet Chasma), each a trunk and a few
+    branches that leave it narrower and shallower and taper to nothing, like a river's
+    tributaries. Each path is a few points (seen-side x, y, floor half-width, depth), smoothed
+    (Catmull-Rom) into short straight bits; the ground is a flat floor between steep cliffs
+    (`WALL` 3.2 m wide, over 55 degrees, tested), their edge stepping in and out in blocks (a sharpened
+    noise), with a pale lip along the rims and dark floors, so from space they're crisp dark
+    branching lines. The big one follows the north / plains line between the cap and Kubrick,
+    and its mouth ramps gently down from the flight plane's edge (depth 0 there, about 18 m up the
+    seen side), so a buggy rolled out of the rocket can drive straight in, down its whole length
+    and out the far end (tested with all three buggies). Everything steep keeps off the flight
+    plane: no chasm within 11 m of it (they're faded out below z = 0.2 and cut off below 0.13), slopes
+    under 25 degrees there (tested), and under 6% of the ground is chasm (tested).
+  - *Kubrick Mons* (`HITHER_MOUNT`, `KUBRICK`): a broad massif (about 50 m across, 12 m high) in
+    the style of Yonder's ice mountains: foothills, a broad body, a craggy double summit and
+    shoulders on its flanks, each a rounded block with steep sides and a flat, tilted, lumpy top,
+    blended with a smooth maximum (no creases). Round it a wide, gentle moat (18 m wide, 2.8 m
+    deep, slopes under 32 degrees, its ring wandering a little so it isn't a target), ending 12 m
+    or more from the flight plane.
+  - *Crisp craters*: more of them (sizes like a real crater count: many small, few big), none
+    overlapping, a flat floor, steep walls and a sharp narrow rim (still smooth all the way, #56),
+    darker floors and pale rims; a few fresh ones with bright rayed ejecta. None where they'd
+    steepen the landing strip, on Kubrick or in the chasms. The broad rolling relief of the north
+    is lower, so the toon shading's bands no longer blotch the disc.
+  - *Cost*: the mesh bake is about 125 ms (was 90 ms at `DETAIL` 36): each vertex looks at the
+    chasms' bits only inside their bounding caps and works everything out once for height and
+    colour (`siteOf()`). About 48,000 triangles (was 27,000), still one draw call plus ink.
+- **The double world** (`find-dancers`, `pairSeen()` / `PAIR_VIEW`, `FlightScene.pairInView()`):
+  found by seeing Yonder and Hither together, in the flight view or on the map: both middles on
+  screen clear of the buttons, each at least 5 px in radius, and far enough apart to be two worlds
+  (on the map of the whole system they're one dot, so it doesn't count). Pip: "Pluto and its
+  moon Charon always face each other, like two dancers holding hands!" Hither's visit sticker
+  tells Charon's red cap (gas that floated over from Pluto).
+- **Getting there**: nothing new was needed in the planner: 🤖 Take me there and 🧭 Show me how go
+  from anywhere to Hither and back, and hop between the two (the stress sweep includes Hither).
+- **Cost**: Hither's globe (about 48,000 triangles at `DETAIL` 48, one draw call plus ink, and two
+  for its rocks) only when on screen; its orbit line is one more line. Per frame: one rotation
+  for each of the two worlds' groups, and a few multiplies in the drive view; nothing allocated.
+- **Not done / weak spots:** a cracked-ice pattern like Yonder's is still to come; driving straight
+  at a chasm's cliff the buggy climbs it and leaps off the top (arcade traction, low gravity: a
+  long hop, harmless); Yonder hangs in Hither's sky (always in the same spot,
+  as from Charon), but the drive camera looks along the ground, so you mostly see it from space.
 
 ## Ideas for later
 

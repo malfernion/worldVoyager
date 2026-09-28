@@ -72,12 +72,20 @@ export class Flight {
     this.throttle = 0;
   }
 
+  /**
+   * Stand the rocket on the ground at `landAngle`. That's in the world's own frame, so on a
+   * spinning world (#62 stage 3: Hither and Yonder, `Body.spinAt()`) the rocket turns with the
+   * ground: it's where that spot is now, standing straight up. (Still counted as stopped: the
+   * ground's own speed there is under a metre a second; it's given back at lift-off.)
+   */
   placeOnSurface() {
     const s = this.state;
     const r = s.body.surfaceAt(s.landAngle);
-    s.x = r * Math.cos(s.landAngle);
-    s.y = r * Math.sin(s.landAngle);
+    const a = s.landAngle + s.body.spinAt(s.t);
+    s.x = r * Math.cos(a);
+    s.y = r * Math.sin(a);
     s.vx = 0; s.vy = 0;
+    if (s.body.spinRate) s.angle = a;
   }
 
   snapshot() {
@@ -93,7 +101,7 @@ export class Flight {
 
   get altitude() {
     const s = this.state;
-    return Math.hypot(s.x, s.y) - s.body.surfaceAt(Math.atan2(s.y, s.x));
+    return Math.hypot(s.x, s.y) - s.body.surfaceUnder(Math.atan2(s.y, s.x), s.t);
   }
 
   get radius() {
@@ -143,6 +151,7 @@ export class Flight {
         const liftoff = this.throttle * this.stats.accel > this.localGravity * 1.02;
         if (!liftoff) {
           s.t += remaining;
+          if (s.body.spinRate) this.placeOnSurface(); // turning with the ground
           return;
         }
         this.liftOff();
@@ -166,11 +175,13 @@ export class Flight {
     const s = this.state;
     s.landed = false;
     s.flightTime = 0;
-    const up = s.landAngle;
-    const r = s.body.surfaceAt(up) + 0.05;
+    const up = s.landAngle + s.body.spinAt(s.t);
+    const r = s.body.surfaceAt(s.landAngle) + 0.05;
     s.x = r * Math.cos(up);
     s.y = r * Math.sin(up);
-    s.vx = 0; s.vy = 0;
+    // Off with the ground's own speed (a spinning world's, #62 stage 3; 0 everywhere else).
+    const w = s.body.spinRate * r;
+    s.vx = -w * Math.sin(up); s.vy = w * Math.cos(up);
     this.emit('liftoff', { body: s.body });
   }
 
@@ -195,7 +206,7 @@ export class Flight {
 
     const r = Math.hypot(s.x, s.y);
     if (r <= s.body.maxSurface + 0.01) {
-      const ground = s.body.surfaceAt(Math.atan2(s.y, s.x));
+      const ground = s.body.surfaceUnder(Math.atan2(s.y, s.x), s.t);
       if (r <= ground) {
         // Find the moment of touchdown within this substep.
         let lo = 0, hi = h;
@@ -203,7 +214,7 @@ export class Flight {
         for (let i = 0; i < 20; i++) {
           const mid = (lo + hi) / 2;
           propagate(mu, start.x, start.y, start.vx, start.vy, mid, tmp);
-          const g = s.body.surfaceAt(Math.atan2(tmp.y, tmp.x));
+          const g = s.body.surfaceUnder(Math.atan2(tmp.y, tmp.x), s.t - h + mid);
           if (Math.hypot(tmp.x, tmp.y) <= g) hi = mid; else lo = mid;
         }
         propagate(mu, start.x, start.y, start.vx, start.vy, hi, tmp);
@@ -221,20 +232,24 @@ export class Flight {
     const s = this.state;
     const body = s.body;
     const up = Math.atan2(s.y, s.x);
-    const speed = Math.hypot(s.vx, s.vy);
+    // The spot touched, in the world's own frame (a spinning world's ground has turned, #62 stage
+    // 3), and the speed against the ground there.
+    const spot = up - body.spinAt(s.t);
+    const w = body.spinRate * Math.hypot(s.x, s.y);
+    const speed = Math.hypot(s.vx + w * Math.sin(up), s.vy - w * Math.cos(up));
     const tilt = Math.abs(Math.atan2(Math.sin(s.angle - up), Math.cos(s.angle - up)));
 
     if (body.kind === 'star') return this.crash('star', speed);
     if (body.gas) return this.crash('gas', speed);
     // Rockets can't float (#44): touching a sea (or lava, or a methane lake) is a splash crash.
-    if (body.wetAt(up)) return this.crash(body.liquid.kind, speed);
+    if (body.wetAt(spot)) return this.crash(body.liquid.kind, speed);
 
     const gentle = speed < this.stats.safeSpeed;
     const upright = tilt < this.stats.maxTilt || speed < 1.5;
     if (gentle && upright) {
       s.landed = true;
       this.throttle = 0;
-      s.landAngle = up;
+      s.landAngle = spot;
       s.angle = up;
       this.placeOnSurface();
       this.emit('landed', { body, speed, afterFlight: s.flightTime > 3 });

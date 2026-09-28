@@ -537,8 +537,21 @@ export const YONDER_AXIS = (() => {
   return { x: v.x / l, y: v.y / l, z: v.z / l };
 })();
 
-/** Spin axis of each gas giant (bands, rings and the slow spin of the mesh), and Yonder's (its ground's pattern). */
-export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS, yonder: YONDER_AXIS };
+// Hither (#62 stage 3), Yonder's big moon, like Charon: the pole its ground's pattern is laid
+// round, with its dark red cap (Mordor Macula) there. Leaning 26 degrees towards the lower left
+// (at t = 0; it turns with Hither) from straight at the cameras, so the cap shows off-centre from
+// the map and from orbit. (Hither really spins about z, tidally locked: bodies.js `locked`.)
+export const HITHER_AXIS = (() => {
+  const a = 3.77, tilt = 0.45;
+  return { x: Math.sin(tilt) * Math.cos(a), y: Math.sin(tilt) * Math.sin(a), z: Math.cos(tilt) };
+})();
+
+/**
+ * Spin axis of each gas giant (bands, rings and the slow spin of the mesh), and the axes Yonder's
+ * and Hither's ground patterns are laid round (#62: those two really spin about z, facing each
+ * other: bodies.js `locked`).
+ */
+export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS, yonder: YONDER_AXIS, hither: HITHER_AXIS };
 
 /**
  * The pole of a spin axis that the game's cameras see (#55: Tumble's hexagon). They all look at
@@ -1087,6 +1100,286 @@ function makeYonder() {
   };
 }
 
+// Hither (#62 stage 3), like Charon: grey water ice, a dark reddish cap on its pole (Mordor
+// Macula: gas that leaks away from Pluto, frozen onto Charon's cold pole and baked red by
+// sunlight), the rugged, cratered north and the smooth southern plains (Vulcan Planitia), where a
+// broad mountain stands in a wide moat (Kubrick Mons). Between them run two great chasms (like
+// Serenity and Mandjet Chasma), each a trunk that branches like a river (#62, the owner's
+// landscape pass): steep, blocky cliff walls and flat floors, sharp dark lines from space. The
+// line between the north and the plains is a great circle round `HITHER_BELT` (nearly in the
+// flight plane, so from the cameras it runs across the middle of the disc, just past the pole);
+// the big chasm follows it. Everything steep keeps clear of the flight plane, so the landing
+// strip is gentle all round; the big chasm's mouth ramps gently up to it, so the buggy can drive
+// in. Craters: crisp bowls with sharp rims, a few fresh bright ones with rays.
+export const HITHER_BELT = (() => {
+  const a = 3.77, tilt = 1.4;
+  return { x: Math.sin(tilt) * Math.cos(a), y: Math.sin(tilt) * Math.sin(a), z: Math.cos(tilt) };
+})();
+// The chasms. Each is a trunk (its first path) and branches that leave it (their first point is
+// on it) and taper to nothing at their tips, like a river's tributaries. A point is
+// [x, y, floor half-width (m), depth (m)]: x, y of the unit direction (in Hither's own frame, as
+// the cameras see it at t = 0; always on the seen side, z > 0). The big one's first point is its
+// mouth, at the flight plane's edge, depth 0: its floor ramps gently down from there.
+export const HITHER_CHASMS = [
+  {
+    name: 'serenity',
+    paths: [
+      [[-0.475, 0.855, 5, 0], [-0.43, 0.8, 5, 2.4], [-0.36, 0.68, 5, 5], [-0.22, 0.5, 5, 7], [-0.08, 0.3, 5.5, 7.5], [0.06, 0.1, 5.5, 7.5], [0.2, -0.08, 5, 7], [0.33, -0.28, 4.5, 6.5], [0.42, -0.48, 3.5, 5.5], [0.47, -0.66, 2, 3], [0.49, -0.76, 0.5, 0]],
+      [[-0.36, 0.68, 3.5, 4.5], [-0.52, 0.6, 3, 4], [-0.66, 0.5, 2, 3], [-0.76, 0.4, 0.5, 0]],
+      [[-0.08, 0.3, 3.5, 6], [-0.25, 0.2, 3, 5], [-0.36, 0.06, 2, 3.5], [-0.42, -0.02, 0.5, 0]],
+      [[0.2, -0.08, 3.5, 6], [0.42, -0.1, 3, 5], [0.6, -0.16, 2, 3.5], [0.7, -0.24, 0.5, 0]],
+      [[0.33, -0.28, 3, 5], [0.2, -0.46, 2.5, 4.5], [0.1, -0.64, 1.5, 2.5], [0.06, -0.72, 0.5, 0]],
+    ],
+  },
+  {
+    name: 'mandjet',
+    paths: [
+      [[-0.1, -0.86, 3.5, 5.5], [-0.3, -0.8, 4, 6], [-0.5, -0.7, 3.5, 5.5], [-0.66, -0.56, 2, 3], [-0.72, -0.48, 0.5, 0]],
+      [[-0.3, -0.8, 2.5, 4.5], [-0.36, -0.66, 2, 3.5], [-0.38, -0.56, 0.5, 0]],
+    ],
+  },
+];
+// The cap: its middle (a little off the pattern's pole) and angular radius.
+export const HITHER_CAP = { ...HITHER_AXIS, r: 0.55 };
+// Kubrick Mons, a broad mountain standing in a wide moat on the plains (seen side, well off the
+// plane). Foothills (`foot` [height, reach] m) under a massif of craggy blocks like Yonder's
+// mountains (rounded, with steep sides and flat, tilted, lumpy tops): a broad body, a summit on
+// it, shoulders on its flanks. Each: `u`, `v` (m) from its middle (east, north), half-widths `r`
+// (m), `h` tall, turned `turn`, `tilt` m of fall across it, `side` how much of it is steep side
+// (0..1). Round it, the moat: [middle, half-width, depth] (m).
+export const HITHER_MOUNT = dirOf(0.75, 0.62);
+export const KUBRICK = {
+  foot: [3, 27], moat: [33, 9, 2.8],
+  blocks: [
+    { u: 0, v: 0, r: [19, 16], h: 8, turn: 0.5, tilt: 2, side: 0.5 },
+    { u: -1, v: 2, r: [9, 7], h: 12.5, turn: 0.3, tilt: 2.5, side: 0.5 },
+    { u: 7, v: -4, r: [6.5, 5], h: 11, turn: -0.4, tilt: -2, side: 0.5 },
+    { u: -14, v: 6, r: [8, 5.5], h: 6.5, turn: 1.2, tilt: 2, side: 0.55 },
+    { u: 12, v: 11, r: [7.5, 5.5], h: 6, turn: -0.7, tilt: -1.5, side: 0.55 },
+    { u: -4, v: -15, r: [8, 5], h: 6.5, turn: 0.1, tilt: 1.5, side: 0.55 },
+    { u: 16, v: -7, r: [7, 5], h: 5.5, turn: 0.9, tilt: 1, side: 0.55 },
+  ],
+};
+const HITHER_PITS = randomDirs(307, 90);
+
+function makeHither() {
+  const { fbm, noise } = makeNoise(311);
+  const B = HITHER_BELT, C = HITHER_CAP, M = HITHER_MOUNT;
+  const R = 85; // Hither's radius (bodies.js), for sizes in metres
+  const WALL = 3.2; // how wide (m) a chasm's cliff is, rim to floor
+  // How far north of the belt's line (radians).
+  const north = (x, y, z) => Math.asin(Math.max(-1, Math.min(1, x * B.x + y * B.y + z * B.z)));
+  // The chasms' paths, smoothed (Catmull-Rom through the points) into short straight bits.
+  const unit = (p) => {
+    const l = Math.hypot(p[0], p[1], p[2]);
+    return [p[0] / l, p[1] / l, p[2] / l];
+  };
+  const paths = HITHER_CHASMS.flatMap((ch, ci) => ch.paths.map((pts, pi) => {
+    const P = pts.map(([x, y, w, d]) => [...unit([x, y, Math.sqrt(Math.max(0, 1 - x * x - y * y))]), w, d]);
+    const pt = [], wd = [];
+    const at = (i) => P[Math.max(0, Math.min(P.length - 1, i))];
+    for (let i = 0; i < P.length - 1; i++) {
+      const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+      for (let s = 0; s < 8; s++) {
+        const t = s / 8, t2 = t * t, t3 = t2 * t;
+        const c = (k) => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3);
+        pt.push(unit([c(0), c(1), c(2)]));
+        wd.push([p1[3] + (p2[3] - p1[3]) * t, p1[4] + (p2[4] - p1[4]) * t]);
+      }
+    }
+    pt.push(P[P.length - 1].slice(0, 3));
+    wd.push(P[P.length - 1].slice(3));
+    // A bounding cap, to skip it quickly.
+    const mid = unit(pt.reduce((s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]], [0, 0, 0]));
+    const reach = Math.max(...pt.map((p) => Math.acos(Math.min(1, p[0] * mid[0] + p[1] * mid[1] + p[2] * mid[2]))));
+    return { pt, wd, mid, cos: Math.cos(reach + 16 / R), seed: ci * 7 + pi * 3 };
+  }));
+  // The chasms at a point: `deep` how far down (m), `k` 0..1 how far down its cliff (1 on the
+  // floor), `lip` 0..1 along a rim, `out` how far (m) outside the nearest rim. Each bit of each
+  // path is a flat floor between steep cliffs; the deepest wins (a max of smooth shapes, so no
+  // jumps where branches meet). `edge` (m) moves the cliffs' edge in and out.
+  const chasm = { deep: 0, k: 0, lip: 0, out: 1e9 };
+  const chasmsAt = (x, y, z, edge = 0) => {
+    chasm.deep = 0; chasm.k = 0; chasm.lip = 0; chasm.out = 1e9;
+    for (const p of paths) {
+      if (x * p.mid[0] + y * p.mid[1] + z * p.mid[2] < p.cos) continue;
+      const pt = p.pt;
+      for (let i = 0; i < pt.length - 1; i++) {
+        const a = pt[i], b = pt[i + 1];
+        const bx = b[0] - a[0], by = b[1] - a[1], bz = b[2] - a[2];
+        const px = x - a[0], py = y - a[1], pz = z - a[2];
+        const t = Math.max(0, Math.min(1, (px * bx + py * by + pz * bz) / (bx * bx + by * by + bz * bz)));
+        const dx = px - bx * t, dy = py - by * t, dz = pz - bz * t;
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) * R;
+        const wa = p.wd[i], wb = p.wd[i + 1];
+        const w = wa[0] + (wb[0] - wa[0]) * t + edge, deep = wa[1] + (wb[1] - wa[1]) * t;
+        if (deep <= 0) continue;
+        if (d - w - WALL < chasm.out) {
+          chasm.out = d - w - WALL;
+          // (The rims: from the nearest bit only, or a far bit's rim would show on the floor.)
+          chasm.lip = smooth(-0.3 * WALL, 1, chasm.out) * (1 - smooth(2, 8, chasm.out)) * Math.min(1, deep / 3);
+        }
+        if (d > w + WALL) continue;
+        const k = 1 - smooth(w, w + WALL, d);
+        if (deep * k > chasm.deep) {
+          chasm.deep = deep * k;
+          chasm.k = k;
+        }
+      }
+    }
+    return chasm;
+  };
+  // The dark cap: 0..1, a ragged, diffuse edge.
+  const cap = (x, y, z) => {
+    const a = Math.acos(Math.min(1, x * C.x + y * C.y + z * C.z));
+    const edge = C.r * (1 + 0.22 * noise(x * 5 + 3, y * 5, z * 5 + 8) + 0.1 * noise(x * 11, y * 11 + 4, z * 11));
+    return 1 - smooth(edge * 0.55, edge, a);
+  };
+  // The southern plains (smooth, a little lower): south of the belt.
+  const plains = (x, y, z) => 1 - smooth(-0.5, -0.22, north(x, y, z) + 0.06 * noise(x * 3 + 1, y * 3, z * 3));
+  // Kubrick's frame: east and north along the ground at its middle.
+  const ke = unit([-M.y, M.x, 0]);
+  const kn = [M.y * ke[2] - M.z * ke[1], M.z * ke[0] - M.x * ke[2], M.x * ke[1] - M.y * ke[0]];
+  const blocks = KUBRICK.blocks.map((b) => ({ ...b, c: Math.cos(b.turn), s: Math.sin(b.turn) }));
+  // A smooth maximum (no crease where two blocks meet): within `k` m of each other they blend.
+  const smax = (a, b, k) => {
+    const h = Math.max(k - Math.abs(a - b), 0) / k;
+    return Math.max(a, b) + h * h * k * 0.25;
+  };
+  // Everything about a point, worked out once (the mesh asks height then colour at each vertex;
+  // the buggy asks height a few times a step): `chasm` how deep in one (m), `wall` 0..1 on its
+  // cliffs, `lip` 0..1 along its rims; `mount` Kubrick's height (m, its moat below 0), `peak`
+  // 0..1 up its massif; `pit` the craters' height (m), `rim` 0..1 on a crater's rim, `floor` 0..1
+  // in its bowl, `fresh` 0..1 in a fresh one's bright ejecta.
+  const site = { x: NaN, y: 0, z: 0, chasm: 0, wall: 0, lip: 0, mount: 0, peak: 0, pit: 0, rim: 0, floor: 0, fresh: 0 };
+  const siteOf = (x, y, z) => {
+    if (x === site.x && y === site.y && z === site.z) return site;
+    site.x = x; site.y = y; site.z = z;
+    site.chasm = 0; site.wall = 0; site.lip = 0; site.mount = 0; site.peak = 0; site.pit = 0; site.rim = 0; site.floor = 0; site.fresh = 0;
+    // The chasms: a flat floor, a steep cliff (its edge wandering in and out in blocks), and the
+    // ground lifted a little along the rim. Never near the flight plane.
+    const plane = smooth(0.13, 0.2, Math.abs(z));
+    if (plane > 0) {
+      const ch = chasmsAt(x, y, z, 1.5 * smooth(-0.12, 0.12, noise(x * 12 + 3, y * 12, z * 12 + 7)) - 0.75 + 0.4 * noise(x * 23, y * 23 + 5, z * 23));
+      site.chasm = ch.deep * plane;
+      site.wall = ch.k * (1 - ch.k) * 4 * plane;
+      site.lip = ch.lip * plane;
+    }
+    // Kubrick Mons.
+    const km = x * M.x + y * M.y + z * M.z;
+    const fH = KUBRICK.foot[0], fR = KUBRICK.foot[1], mMid = KUBRICK.moat[0], mHalf = KUBRICK.moat[1], mDeep = KUBRICK.moat[2];
+    if (km > Math.cos((mMid + mHalf + 6) / R)) {
+      const u = (x * ke[0] + y * ke[1] + z * ke[2]) * R, v = (x * kn[0] + y * kn[1] + z * kn[2]) * R;
+      const rr = Math.hypot(u, v);
+      // (Which way round from its middle, as a point on a small circle: noise with no seam.)
+      const cu = u / (rr + 1e-6), cv = v / (rr + 1e-6);
+      let top = fH * (1 - smooth(4, fR, rr * (1 + 0.12 * noise(cu * 1.5 + 3, cv * 1.5, 0.5)))), peak = 0;
+      if (rr < fR) {
+        for (const b of blocks) {
+          const du = u - b.u, dv = v - b.v;
+          const a = (du * b.c + dv * b.s) / b.r[0], bb = (dv * b.c - du * b.s) / b.r[1];
+          const q = Math.sqrt(Math.sqrt(a * a * a * a + bb * bb * bb * bb)) * (1 + 0.14 * noise(x * 12 + b.u, y * 12, z * 12 + b.v));
+          const k = 1 - smooth(1 - b.side, 1, q);
+          if (k <= 0) continue;
+          // Craggy: broken faces and a lumpy, tilted top, never a smooth dome.
+          const hh = (b.h + b.tilt * a * 0.5) * (1 + 0.15 * noise(x * 21 + b.u, y * 21, z * 21 + b.v)) * k;
+          top = smax(top, hh, 2);
+          peak = Math.max(peak, k * Math.min(1, b.h / 10));
+        }
+      }
+      // (The moat's ring wanders a little, so it isn't a target.)
+      const rm = rr * (1 + 0.06 * noise(cu * 2 + 7, cv * 2, 3.5));
+      site.mount = top - mDeep * (1 - smooth(0, mHalf, Math.abs(rm - mMid)));
+      site.peak = peak;
+    }
+    // Craters: crisp bowls with sharp rims.
+    for (const c of pits) {
+      const dot = x * c.x + y * c.y + z * c.z;
+      if (dot < c.cos) continue;
+      const d = Math.acos(Math.min(1, dot)) / c.radius;
+      site.pit += pitProfile(d) * c.deep;
+      site.rim = Math.max(site.rim, smooth(0.7, 0.95, d) * (1 - smooth(1.05, 1.4, d)));
+      site.floor = Math.max(site.floor, 1 - smooth(0.35, 0.75, d));
+      if (c.fresh && d < 3) {
+        // Bright ejecta in rays.
+        const rays = smooth(-0.1, 0.35, noise((x - c.x) * 40 / c.radius, (y - c.y) * 40 / c.radius, (z - c.z) * 40 / c.radius) + noise(c.x * 90, c.y * 90, c.z * 90) * 0.2);
+        site.fresh = Math.max(site.fresh, (1 - smooth(1, 3, d)) * smooth(0.85, 1.05, d) * (0.35 + 0.65 * rays));
+      }
+    }
+    return site;
+  };
+  // A crater's profile (d: distance over its radius): a flat floor, steep walls and a sharp,
+  // narrow rim (smooth all the way, #56), its ejecta falling away by 1.5 radii.
+  const pitProfile = (d) => (d < 1 ? -1 + 1.3 * smooth(0.3, 1, d) : 0.3 * (1 - smooth(1, 1.5, d)));
+  // Craters, sizes like a real crater count (many small, few big), fewer on the young plains; a
+  // few fresh ones with bright rays. None where they'd make the flight plane's strip steep, on
+  // Kubrick or its moat, or in the chasms.
+  const pits = [];
+  // (Biggest first; none overlapping another, so every bowl and rim stays crisp.)
+  for (const [i, p] of [...HITHER_PITS.entries()].sort((a, b) => b[1].size - a[1].size)) {
+    const radius = 0.055 + p.size ** 3 * 0.11;
+    if (pits.some((q) => Math.acos(Math.min(1, p.x * q.x + p.y * q.y + p.z * q.z)) < (radius + q.radius) * 1.4)) continue;
+    if (Math.abs(p.z) - Math.sin(radius * 1.5) < 0.16) continue;
+    if (plains(p.x, p.y, p.z) > 0.5 && p.size < 0.7) continue;
+    if (Math.acos(Math.min(1, p.x * M.x + p.y * M.y + p.z * M.z)) < radius * 1.5 + (KUBRICK.moat[0] + KUBRICK.moat[1] + 4) / R) continue;
+    if (chasmsAt(p.x, p.y, p.z).out < radius * 1.5 * R + 2) continue;
+    pits.push({ ...p, radius, deep: radius * R * (0.3 + 0.08 * p.depth), fresh: i % 5 === 0, cos: Math.cos(Math.max(radius * 1.5, i % 5 === 0 ? radius * 3 : 0)) });
+  }
+  const hills = (x, y, z) => smooth(0.05, 0.55, noise(x * 3.4 + 5, y * 3.4, z * 3.4));
+  return {
+    pits,
+    cap,
+    plains,
+    /** How deep in a chasm (0..1: 1 is 6 m down or more). */
+    canyon(x, y, z) {
+      return Math.min(1, siteOf(x, y, z).chasm / 6);
+    },
+    /** Kubrick's height here (m; its moat below 0). */
+    mount(x, y, z) {
+      return siteOf(x, y, z).mount;
+    },
+    /** No boulders on the cliffs or the mountain. */
+    bare(x, y, z) {
+      const s = siteOf(x, y, z);
+      return s.wall > 0.05 || s.peak > 0.02;
+    },
+    height(x, y, z) {
+      const pl = plains(x, y, z);
+      const s = siteOf(x, y, z);
+      // Rugged in the north (hills and knobbly ground), smooth on the plains.
+      let h = fbm(x * 1.8, y * 1.8, z * 1.8, 3) * 1.1 * (1 - 0.6 * pl) + hills(x, y, z) * 0.8 * (1 - pl) + fbm(x * 5, y * 5, z * 5, 2) * 0.35 * (1 - 0.7 * pl) - 0.6 * pl;
+      h += s.pit;
+      h += s.lip * 0.7 - s.chasm;
+      h += s.mount;
+      return h;
+    },
+    color(x, y, z, h) {
+      const n = fbm(x * 4, y * 4, z * 4, 3);
+      const s = siteOf(x, y, z);
+      // Grey water ice, a little blue in places, warmer grey on the plains.
+      let c = mix(rgb(0xa9a7a4), rgb(0x9a9b9f), smooth(-0.25, 0.3, n));
+      c = mix(c, rgb(0xa4adb8), smooth(0.1, 0.45, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.3);
+      c = mix(c, rgb(0xb7b0a6), plains(x, y, z) * 0.6);
+      // Craters: darker floors, pale rims; fresh ones bright, with rays.
+      c = mix(c, rgb(0x86868a), s.floor * 0.45);
+      c = mix(c, rgb(0xc9cbce), s.rim * 0.5);
+      c = mix(c, rgb(0xeceff2), s.fresh * 0.85);
+      // Chasms: pale ice broken open along the rims, grey-blue cliffs, dark floors.
+      c = mix(c, rgb(0xc4c7cc), s.lip * 0.6);
+      c = mix(c, mix(rgb(0x5c5a5c), rgb(0x4c494c), n + 0.5), smooth(0.8, 4, s.chasm));
+      c = mix(c, rgb(0x7c8190), s.wall * 0.6);
+      // The cap: deep reddish brown in the middle, fading out through rust to the grey.
+      const k = cap(x, y, z);
+      c = mix(c, rgb(0x8a5646), smooth(0, 0.35, k) * 0.85);
+      c = mix(c, mix(rgb(0x5a2418), rgb(0x44190f), n + 0.5), smooth(0.3, 0.85, k));
+      // Kubrick: a darker moat, pale ice up the massif.
+      if (s.mount < 0) c = mix(c, rgb(0x8e8c8c), smooth(0, -2.5, s.mount) * 0.5);
+      if (s.peak > 0) c = mix(c, mix(rgb(0xa3a6ad), rgb(0xe2e4e8), smooth(0.3, 0.9, s.peak)), smooth(0, 0.3, s.peak));
+      return c;
+    },
+  };
+}
+
 function makeFlat(hex) {
   return { height: () => 0, color: () => rgb(hex) };
 }
@@ -1105,6 +1398,7 @@ export function makeTerrain(kind) {
     case 'flip': return makeFlip();
     case 'ducky': return makeDucky();
     case 'yonder': return makeYonder();
+    case 'hither': return makeHither();
     default: return makeFlat(0xffd27a);
   }
 }

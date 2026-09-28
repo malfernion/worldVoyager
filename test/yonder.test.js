@@ -24,6 +24,9 @@ globalThis.document ??= { getElementById: () => null };
 const sys = createSystem();
 const { yonder, tumble, ember } = sys.byId;
 
+/** Yonder and its moon Hither (#62 stage 3): the worlds out there. */
+const farOut = (b) => b === yonder || b.parent === yonder;
+
 /** The farthest from Ember a body's sphere of influence ever reaches (its parent's farthest, plus its own). */
 function reach(b) {
   let r = b.apoapsis + (Number.isFinite(b.soi) ? b.soi : 0);
@@ -61,7 +64,7 @@ describe('Yonder\'s orbit (#62)', () => {
   it('never meets Tumble (or anything else) over many laps', () => {
     // Closest in is still well outside everything else's reach.
     for (const b of sys.bodies) {
-      if (b === yonder || b === ember) continue;
+      if (farOut(b) || b === ember) continue;
       expect(yonder.periapsis - yonder.soi - reach(b), b.id).toBeGreaterThan(10000);
     }
     // And step it: 50 laps, never within both SOIs (plus a big margin) of Tumble.
@@ -199,7 +202,7 @@ describe('🤖 Take me there to Yonder and back (#62)', () => {
 describe('Ember from far away (#62)', () => {
   it('only Yonder is ever far enough out for it: every other world keeps its light', () => {
     for (const b of sys.bodies) {
-      if (b === yonder || b === ember) continue;
+      if (farOut(b) || b === ember) continue;
       expect(farLight(reach(b)).k, b.id).toBe(0);
     }
     const f = farLight(yonder.periapsis - yonder.soi);
@@ -243,7 +246,7 @@ describe('Ember from far away (#62)', () => {
     s.updateFarLight(yonder.worldPos(0));
     expect(lookOf(s)).not.toEqual(before);
     for (const b of sys.bodies) {
-      if (b === yonder || b === ember) continue;
+      if (farOut(b) || b === ember) continue;
       for (const t of [0, 3000, 11000]) {
         const p = b.worldPos(t);
         const r = Math.hypot(p.x, p.y);
@@ -514,7 +517,8 @@ describe('finding the heart (#62 stage 2)', () => {
     expect(s.mapLimits()[0]).toBeLessThan(1500);
     expect(look()).toBe(true);
     // In the flight view from the far side of Yonder, zoomed out: its heart faces away.
-    const far = parkAt(mission(), 'yonder', 600, Math.atan2(YONDER_HEART.c.y, YONDER_HEART.c.x) + Math.PI);
+    // (Where the heart is then: Yonder turns with Hither, #62 stage 3.)
+    const far = parkAt(mission(), 'yonder', 600, Math.atan2(YONDER_HEART.c.y, YONDER_HEART.c.x) + yonder.spinAt(600) + Math.PI);
     s.flight = far.flight;
     s.mode = 'flight';
     s.zoom = 3;

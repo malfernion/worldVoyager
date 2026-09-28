@@ -160,13 +160,13 @@ export class Debris {
       d.vy -= (d.y / r) * g * dt;
       d.vz *= Math.exp(-0.5 * dt);
       const nx = d.x + d.vx * dt, ny = d.y + d.vy * dt;
-      const ground = d.body.solid ? d.body.surfaceAt(Math.atan2(ny, nx)) + 0.6 : 0;
+      const ground = d.body.solid ? d.body.surfaceUnder(Math.atan2(ny, nx), t) + 0.6 : 0;
       if (Math.hypot(nx, ny) < ground) {
         // Bounce!
         const ux = nx / Math.hypot(nx, ny), uy = ny / Math.hypot(nx, ny);
         const vr = d.vx * ux + d.vy * uy;
         // A sea (#44) doesn't bounce bits much: they bob about on it.
-        const wet = d.body.wetAt(Math.atan2(ny, nx));
+        const wet = d.body.wetAt(Math.atan2(ny, nx) - d.body.spinAt(t));
         d.vx = (d.vx - (wet ? 1.15 : 1.6) * vr * ux) * (wet ? 0.35 : 0.6);
         d.vy = (d.vy - (wet ? 1.15 : 1.6) * vr * uy) * (wet ? 0.35 : 0.6);
         d.spin.multiplyScalar(wet ? 0.5 : 0.7);

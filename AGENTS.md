@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, splashes on the baked ground, the rings, the rain's volume, the sky in a shower), the gas giants' streaks and limb haze (#54: clear of the hexagon, no jump at the clock's wrap, veil and haze profiles, other shells unchanged), Frosty's crack mist, plumes and ice sparkles (#54: always out of a crack, each wisp's and plume puff's loop, day and night, sunlit plumes, fades; sparkles only in Frosty's ground shader, a steady size on screen), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp), Yonder (#62: its orbit and never meeting Tumble, landing, driving, trips there and back, Ember's dim far light and every other world's light unchanged; the rest of its ground's patterns only on Yonder and never on the heart, the blades gentle and clear of the flight plane)
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, splashes on the baked ground, the rings, the rain's volume, the sky in a shower), the gas giants' streaks and limb haze (#54: clear of the hexagon, no jump at the clock's wrap, veil and haze profiles, other shells unchanged), Frosty's crack mist, plumes and ice sparkles (#54: always out of a crack, each wisp's and plume puff's loop, day and night, sunlit plumes, fades; sparkles only in Frosty's ground shader, a steady size on screen), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp), Yonder (#62: its orbit and never meeting Tumble, landing, driving, trips there and back, Ember's dim far light and every other world's light unchanged; the rest of its ground's patterns only on Yonder and never on the heart, the blades gentle and clear of the flight plane), Hither (#62 stage 3: its orbit and SOI, the mutual tidal locking, a landed rocket and the buggy on turning ground, Yonder's heart still found, the Charon look, its chasms, Kubrick Mons and craters, trips and hops, the double world)
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -72,16 +72,20 @@ src/progress.js        The starter journey's goals (`GOALS`, `starterDone`, `goa
                        which screen markers Pip has explained (#33), which worlds were driven round (#29; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
-  bodies.js            The solar system: on-rails orbits (round, or a Kepler ellipse: Ducky the comet's, Yonder the far dwarf world's, #62, `dwarf`), SOIs, per-world surfaces
+  bodies.js            The solar system: on-rails orbits (round, or a Kepler ellipse: Ducky the comet's, Yonder the far dwarf world's, #62, `dwarf`), SOIs, per-world surfaces,
+                       spinning ground (#62 stage 3: Yonder and its moon Hither tidally locked, `locked` / `lockedTo`, `spinRate`, `spinAt()`,
+                       `surfaceUnder()`: the ground under a flight-frame direction at a time)
                        (along z = 0: `ground`, the liquid's `liquidTop`, the rocket's `surface` = the higher; `wetAt()`,
                        `landableAt()` / `nearestLandable()` for dry landings, `liquidDepth()`, `nearLiquid()`; #44;
                        `shoreDist()`: metres to the nearest pool's shore, #45)
   terrain.js           Height + colour functions per world (shared by physics and meshes), each world's liquid (`liquid: { kind, level }`,
                        the seabed shape `seabedDepth()`; #44), pools carved below a liquid's level (`makePools()`, Sizzle's lava
-                       `SIZZLE_LAVA`; #45; Misty's methane lakes `MISTY_LAKES`; #46, and its ground, dune fields `MISTY_DUNES` and soft lake banks, #59; Yonder's icy plains and dark tholin belt `makeYonder()`, #62, and its heart `YONDER_HEART` / `heartDist()` / `heartAt()`, glaciers `YONDER_GLACIERS` and ice mountains, #62 stage 2; the rest of its ground, `land()`: cracked frost plains, pitted dark lands and the bladed terrain `YONDER_BLADES`, #62), spin axes (the gas giants', and `YONDER_AXIS` for its ground's pattern; + `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
+                       `SIZZLE_LAVA`; #45; Misty's methane lakes `MISTY_LAKES`; #46, and its ground, dune fields `MISTY_DUNES` and soft lake banks, #59; Yonder's icy plains and dark tholin belt `makeYonder()`, #62, and its heart `YONDER_HEART` / `heartDist()` / `heartAt()`, glaciers `YONDER_GLACIERS` and ice mountains, #62 stage 2; the rest of its ground, `land()`: cracked frost plains, pitted dark lands and the bladed terrain `YONDER_BLADES`, #62;
+                       Hither's grey ice `makeHither()`, #62 stage 3: its red cap `HITHER_CAP` round `HITHER_AXIS`, the north / plains line `HITHER_BELT`; the owner's landscape pass: two branching chasms `HITHER_CHASMS`, Kubrick Mons's massif and moat `HITHER_MOUNT` / `KUBRICK`, crisp craters), spin axes (the gas giants', and `YONDER_AXIS` for its ground's pattern; + `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
-                       the ring gap, flares, seeing Tumble's hexagon `hexagonSeen()`, #55), and the ✨ compass's targets
+                       the ring gap, flares, seeing Tumble's hexagon `hexagonSeen()`, #55; Yonder and Hither together `pairSeen()`, #62 stage 3), the ✨ compass's targets,
+                       and `sunDirection()` (in a world's own, possibly spinning, frame)
   friends.js           Pip's friends, the space band (#16): where each campfire is, saying hello (buggy near / landing next to),
                        the 🎵 compass targets, how loud each friend's part is from where you are, Full Band
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind
@@ -149,9 +153,10 @@ src/scenes/            builder.js (workshop), flight.js (flight + map views; its
                        `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
                        a world's sky near its ground `updateHaze()` (Misty's orange haze, #46, flying and driving, #58; Homestead's and Dusty's skies, #61;
                        down in a dust storm, #54, `this.storm`), the blowing dust `updateStorms()`; the map's fixed centre `mapAt`, `toggleMap()`,
-                       `focusMapOn()`, 🎯 `findRocket()`, #57; Ember's dim far light and bright-star look at Yonder `updateFarLight()`, #62; orbit lines and the path: `updateLines()`, hidden
+                       `focusMapOn()`, 🎯 `findRocket()`, #57; Ember's dim far light and bright-star look at Yonder `updateFarLight()`, #62; spinning worlds' groups turned in `placeBodies()`
+                       and `toScene()` (a point in a world's own frame on screen), `pairInView()` (#62 stage 3); orbit lines and the path: `updateLines()`, hidden
                        while driving, and in the flight view a line through the world we're at fades close up: `lineShown()`, #48),
-                       drive.js (buggy mode)
+                       drive.js (buggy mode; on a spinning world, #62 stage 3, the buggy, its camera and sparks turned into the scene's frame: `turn`, `toFlight()`)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
                        HUD layout check), narrator.js (Pip's voice), speech.js (sentence splitting),
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
@@ -195,6 +200,12 @@ test/                  vitest suites; missions.js has the shared headless flight
                        yonderGround.test.js: the rest of Yonder's ground (#62): only in Yonder's ground shader, never on the heart,
                        its rim, glaciers or mountains, covering the plains and dark lands, the blades east of the heart (gentle,
                        clear of the flight plane, a buggy drives across), the cracks' 8-cell lookup, craters fitting their cells
+                       hither.test.js: Hither (#62 stage 3): its orbit and SOI, the mutual tidal locking (the same faces over time,
+                       no other world turns, Ember round their skies), a landed rocket turning with the ground, touchdown speed against it,
+                       Yonder's heart still on the seen side and found at any time, the double world, the Charon look, gentle ground by the
+                       plane, landing, the drive view on turning ground, trips and hops (🤖, 🧭), the far light; its landscape: one or two
+                       chasms branching like rivers (flat floors, steep cliffs, dark floors, not everywhere), Kubrick's broad massif
+                       and wide gentle moat, crisp craters, buggies driving down the big chasm's mouth, along it and out
                        orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
                        world no orbit line through its ground (#48)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
@@ -241,6 +252,17 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   staying up until it's nearly there; coached, Pip flies us over and hands back 15 m up). The
   launch pad is on land. `test/liquid.test.js`, `test/lava.test.js` and `test/misty.test.js` land from all round the
   orbit.
+- **Only Yonder and Hither turn, and their ground turns with them** (#62 stage 3). They're tidally
+  locked (`Body.spinRate`, `spinAt(t)`: about z, once a Hither lap); every other world's
+  `spinRate` is 0 and never turns. A world's terrain, physics tables, landmarks, rocks and the
+  buggy are in its own frame; the rocket flies in a frame that doesn't turn. So anything that
+  asks the ground from the flight frame goes through `surfaceUnder(angle, t)` (or subtracts
+  `spinAt(t)`): the sim (altitude, touchdown, and `landAngle` is in the world's frame, so a
+  landed rocket is re-placed each step and turns with it), prediction, the exhaust and debris.
+  Anything drawn from the world's frame is turned into the scene: the mesh group
+  (`placeBodies`), the buggy and its camera and sparks (`DriveMode.turn`, `toFlight()`), markers
+  (`FlightScene.toScene()`), the heart's spot. `sunDirection()` is in the world's frame. A new
+  thing that uses ground positions must pick its frame on purpose (`test/hither.test.js`).
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or the map's
   fixed centre (`mapAt`, #57). Never put raw world coordinates (up to ~145 km, out to Yonder, #62) into three.js positions.
 - **Orbits can go either way.** `Body.orbitDir` is -1 (clockwise) for almost everything and +1
@@ -747,6 +769,19 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   little lilac and gold) and shape (a small four-pointed star in screen pixels). And `rlRich`
   is 0 for about 30 m round each of Frosty's glowing cracks (its `keep` list), so don't gate new
   ground detail on it there.
+- **A spinning world's ground isn't where the flight frame says** (#62 stage 3). The rocket's
+  `x, y` and `atan2(y, x)` are in the flight's frame; on Yonder and Hither the ground under that
+  direction is `surfaceUnder(angle, t)`, not `surfaceAt(angle)` (that one is in the world's own
+  frame, like `landAngle`, the buggy and the terrain). Mixing them looks right at t = 0 and
+  drifts as the world turns.
+- **A path-shaped feature from its nearest segment jumps** (#62, Hither's chasms): taking the depth
+  from whichever segment is nearest (or "best" by some score) makes a step where the choice
+  changes, and a far segment's rim showed up on the floor. Work each segment's shape out and keep
+  the deepest (a max of smooth shapes has no jumps); take anything "along the rim" from the one
+  nearest rim only (`chasmsAt()` in terrain.js).
+- **The buggy climbs any slope** (arcade traction; #62): driven straight at a steep cliff it goes
+  up it and leaps off the top, a long hop in low gravity (Hither's chasms: up to about 8 s, tested
+  under 10). Keep cliffs away from the flight plane, where the rocket lands.
 - **A new world needs its look** (#52): add a `ROCKY_LOOK` (or `GAS_LOOK`) entry in
   `src/world/richLook.js`, or it keeps the plain toon look. Anything that must stay as painted
   (a glowing spot) goes in its `keep` list; ground under a liquid is left alone by itself.

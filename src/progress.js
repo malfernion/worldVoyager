@@ -81,6 +81,9 @@ export const STICKERS = {
   // Yonder (#62), the far-out icy dwarf world: stickers only (#36). Pip notices the distance.
   'visit-yonder': { icon: '🧊', name: 'Far, Far Away', say: 'Hello Yonder! We\'re so far from home that Ember looks like a tiny star. Its light is dim and cold out here.' },
   'land-yonder': { icon: '🌠', name: 'Edge Explorer' },
+  // Hither (#62 stage 3), Yonder's big twin moon, like Charon: stickers only (#36).
+  'visit-hither': { icon: '🌘', name: 'Twin Moon', say: 'Hello Hither! It\'s like Charon, the big moon of Pluto. Charon has a red cap on top, made of gas that floated over from Pluto!' },
+  'land-hither': { icon: '🧗', name: 'Canyon Lander' },
   // Earned by crashing into a sea (#44: rockets can't float); same id, so old saves keep it.
   splash: { icon: '🌊', name: 'Splashdown!', say: 'Splash! Rockets can\'t float. Let\'s land on the ground!' },
   dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Giant planets are all clouds, there is no ground to land on!' },
@@ -170,6 +173,12 @@ export const STICKERS = {
     icon: '💗', name: 'Heart Spotter', world: 'yonder',
     say: 'Look, a giant heart made of ice! Pluto has one too. It\'s named Tombaugh Regio, after Clyde Tombaugh, who discovered Pluto. The ice in its left side slowly churns, like a lava lamp!',
     hint: 'Yonder has a giant secret shape on it. Can you spot it from space?',
+  },
+  // Yonder and Hither, the double world (#62 stage 3): found by seeing both in one view (discoveries.js).
+  'find-dancers': {
+    icon: '💃', name: 'Space Dancers', world: 'hither',
+    say: 'Look, Yonder and Hither spin round together! Pluto and its moon Charon always face each other, like two dancers holding hands!',
+    hint: 'Yonder and Hither are doing something together. Can you see them both at once?',
   },
 
   // Pip's friends, the space band (#16): where they are, what they play and how loud they are is

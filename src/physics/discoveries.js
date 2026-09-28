@@ -13,6 +13,7 @@
 //   flare  the rocket is close to Ember while it flares
 //   see    Tumble's hexagon or Yonder's heart is in view, big enough to make out (flight view or map)
 //   heart  the buggy drives onto Yonder's heart (it can be seen too, like the hexagon)
+//   pair   Yonder and Hither both in view together, each big enough to see (#62 stage 3)
 import { dirOf, OBSERVATORY, NIBBLE_CRATER, FROSTY_GLOWS, SIZZLE_VENTS, FLIP_GEYSERS, SPIN_AXES, facingPole, YONDER_HEART, heartAt, heartDir, heartDist } from './terrain.js';
 
 const biggest = (list) => list.reduce((a, b) => (b.size > a.size ? b : a));
@@ -82,6 +83,7 @@ export const DISCOVERIES = [
   { id: 'find-streak', world: 'flip', find: 'near', spots: FLIP_STREAKS, reach: 8 },
   { id: 'find-philae', world: 'ducky', find: 'near', spots: [dirOf(1.8, -0.5)], reach: 6 },
   { id: 'find-heart', world: 'yonder', find: 'heart', spots: [HEART_NEAR] },
+  { id: 'find-dancers', world: 'hither', find: 'pair' },
 ];
 
 export const DISCOVERY_BY_ID = Object.fromEntries(DISCOVERIES.map((d) => [d.id, d]));
@@ -99,12 +101,18 @@ export function groundPoint(body, dir, lift = 0, out = [0, 0, 0]) {
   return out;
 }
 
-/** Which way Ember is from a world, in the world's frame (x, y; flat in the flight plane). */
+/**
+ * Which way Ember is from a world, in the world's own frame (x, y; flat in the flight plane),
+ * where its ground and discoveries are: on a spinning world (#62 stage 3, `Body.spinAt()`) Ember
+ * goes round its sky once a turn.
+ */
 const tmpW = {};
 export function sunDirection(body, t, out = { x: 1, y: 0, z: 0 }) {
   const w = body.worldPos(t, tmpW);
   const l = Math.hypot(w.x, w.y) || 1;
-  out.x = -w.x / l; out.y = -w.y / l; out.z = 0;
+  const a = body.spinAt(t), c = Math.cos(a), s = Math.sin(a);
+  const x = -w.x / l, y = -w.y / l;
+  out.x = x * c + y * s; out.y = y * c - x * s; out.z = 0;
   return out;
 }
 
@@ -307,6 +315,22 @@ export function hexagonSeen(view) {
 /** Can we see Yonder's heart? view: as hexagonSeen's (see HEART_VIEW). */
 export function heartSeen(view) {
   return inSight(view, HEART_VIEW);
+}
+
+// Yonder and Hither, the double world (#62 stage 3): found by seeing both together, in the
+// flight view or on the map. Each world's middle on screen clear of the buttons (`x`, `top`,
+// `bottom`, as HEXAGON_VIEW), each at least `px` pixels in radius, and far enough apart on
+// screen (`apart`: times their two radii) to see two worlds, not one blob.
+export const PAIR_VIEW = { x: 0.85, top: 0.8, bottom: -0.6, px: 5, apart: 1.3 };
+
+/**
+ * Can we see Yonder and Hither together? a, b: { x, y (-1..1, y up), behind, px (its radius in
+ * pixels) } for each; `dist`: how far apart their middles are on screen, in pixels.
+ */
+export function pairSeen(a, b, dist) {
+  const v = PAIR_VIEW;
+  const ok = (s) => !s.behind && Math.abs(s.x) < v.x && s.y < v.top && s.y > v.bottom && s.px >= v.px;
+  return ok(a) && ok(b) && dist > v.apart * (a.px + b.px);
 }
 
 function inSight(view, v) {

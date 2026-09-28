@@ -199,7 +199,7 @@ describe('discoveries (#15)', () => {
   }
 
   describe('following the ✨ compass from any landing spot finds everything on the world', () => {
-    const worlds = [...new Set(DISCOVERIES.filter((d) => !['gap', 'flare', 'see'].includes(d.find)).map((d) => d.world))];
+    const worlds = [...new Set(DISCOVERIES.filter((d) => !['gap', 'flare', 'see', 'pair'].includes(d.find)).map((d) => d.world))];
     for (const w of worlds) {
       it(w, () => {
         const body = sys.byId[w];
