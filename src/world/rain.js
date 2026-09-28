@@ -460,7 +460,7 @@ export function createShowers(body, sunDir) {
   const layer = createCloudLayer(look, showerPlan(look, body.radius), body.radius, sunDir, 'showers');
   const streams = createRain(look, body.liquidR || body.radius - 5, sunDir);
   // A shower is weather seen from low down: its clouds fade out as the camera climbs away (the
-  // globe from space keeps its haze bands clean), its shafts sooner.
+  // globe from space keeps its haze bands clean, and there's no draw call), its shafts sooner.
   const fade = layer.fade;
   const shafts = layer.clouds.map((c) => !!c.shaft);
   layer.fade = (cam, foci, n, group, near) => {
@@ -470,6 +470,8 @@ export function createShowers(body, sunDir) {
     const kc = 1 - smooth(look.seen.clouds[0], look.seen.clouds[1], alt), ks = 1 - smooth(look.seen.shafts[0], look.seen.shafts[1], alt);
     const f = layer.fades;
     for (let i = 0; i < f.length; i++) f[i] *= shafts[i] ? ks : kc;
+    // (Up in space, no draw call at all.)
+    layer.mesh.visible = kc > 0;
   };
   return {
     look,

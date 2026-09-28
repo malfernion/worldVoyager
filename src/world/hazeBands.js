@@ -16,7 +16,10 @@
  * (k > 0) or darker (k < 0), its drift (`speed`, rad/s round the axis, real time) and its edge's
  * waves (`amp` rad, `n` round the world, `ph`). `hood`: the dark cap over the facing pole from
  * `lat` up (and `k`). `wisp`: how much the noise streaks the bands (0..1). `light`: the colour a
- * lighter band adds; a darker band dims what's behind the shell (up to `dark`). `detached`: the
+ * lighter band adds; a darker band dims what's behind the shell (up to `dark`) and thins the
+ * shell's own glow (by `thin`), or the nearly saturated haze would hide it. `face`: the bands fade
+ * out between these shares of the shell's radius (see `detached`), so the glowing ring round the
+ * edge keeps its look. `detached`: the
  * detached layer, as shares of the shell's radius counted by how close a line of sight passes
  * to the world's middle (the ground's edge is at the ground's radius over the shell's): the pale
  * ring's middle `at` and half-width `w`, its brightness `k`, and the darker `gap` just inside it

@@ -181,6 +181,9 @@ describe('Misty\'s methane showers: where they are (#54 stage 4)', () => {
     expect(fades(150).s).toBe(0);
     expect(fades(150).c).toBeGreaterThan(0.2);
     expect(fades(400).c).toBe(0);
+    expect(layer.mesh.visible).toBe(false);
+    fades(40);
+    expect(layer.mesh.visible).toBe(true);
     // (The map draws the world bigger: counted in the world's own metres.)
     group.scale.setScalar(3);
     cam.set(0, 0, 3 * (R + 400));
