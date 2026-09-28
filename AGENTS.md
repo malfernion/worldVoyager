@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Frosty's crack mist and ice sparkles (#54: always out of a crack, each wisp's loop, day and night, fades; sparkles only in Frosty's ground shader, a steady size on screen), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -112,7 +112,7 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
                        and the band round Homestead's fire), friendMesh (the friends: Pip-style critters with instruments), effects, sky, materials, thumbnails,
                        richLook (#51-#53: every world's richer cartoon look, `ROCKY_LOOK` / `GAS_LOOK`, the `rich` weight, Ember's `starShimmer()`,
-                       Tumble's polar hexagon `HEXAGON`, #55;
+                       Tumble's polar hexagon `HEXAGON`, #55; Frosty's ice sparkles `SPARKLE` and their grid `sparkleCell()`, #54 stage 5;
                        baked relief `reliefShade()`, the rocky and gas-giant toon shader snippets, ring shadows)
                        clouds (#54: a world's cloud layer from `CLOUD_LOOK`, Homestead's and Dusty's thin high ones: `cloudPlan()` where clouds
                        and their soft sprites go, `frontPaths()` the few big bands and swirls, `cloudFade()` when a cloud fades, `spriteFade()` when a sprite does (near
@@ -126,6 +126,9 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        embers (#54 stage 2: sparks and heat haze over lava, `EMBER_LOOK` per liquid kind, only Sizzle's lava:
                        `emberPlan()` where they rise from, `emberAt()` a spark's loop (the vertex shader's sums), `sightFade()` /
                        `nearFade()` when they fade, `createEmbers()` the one-draw-call mesh)
+                       mist (#54 stage 5: vapour seeping out of Frosty's glowing cracks, `MIST_LOOK`: `mistPlan()` where the wisps
+                       leave from, `mistAt()` a wisp's loop (the vertex shader's sums), `mistStrength()` day and night,
+                       `mistFade()` near the lens / big on screen / far off, `createMist()` the one-draw-call mesh)
                        exhaust (#60: draws the rocket's exhaust pool, one instanced soft-sprite mesh in the clouds' look;
                        veiled in front of the rocket, dropped near the camera or when big on screen, `SMOKE_BIG`)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
@@ -166,6 +169,8 @@ test/                  vitest suites; missions.js has the shared headless flight
                        in orbit, night dark and starry, driving through Homestead's sea
                        storms.test.js: Dusty's high clouds and dust storms (#54 stage 3): Homestead's clouds unchanged, where
                        the storms are and how they drift, the blowing dust, the sky and haze down in one (the real updateHaze)
+                       mist.test.js: Frosty's crack mist and ice sparkles (#54 stage 5): the wisps always out of a crack and
+                       never in the ice, each one's loop, day and night, fades; sparkles only in Frosty's ground shader
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
                        orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
                        world no orbit line through its ground (#48)
@@ -275,6 +280,17 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   globe stays clean) and across the line of sight to the rocket and the buggy (the clouds'
   foci, `FlightScene.updateClouds()`); `emberAt()` / `sightFade()` / `nearFade()` are the
   shader's sums in JS for the tests, so change both together.
+  Frosty's crack mist (#54 stage 5, `src/world/mist.js`) is the same kind: one draw call of
+  wisps, each a loop on the real clock in the vertex shader, always leaving from a glowing crack
+  (`mistPlan()`, tested), faded the embers' way plus the clouds' "big on screen" drop (measured
+  overdraw at most 0.35 of a screen). `mistAt()` / `mistStrength()` / `mistFade()` are its
+  shader's sums; change both together.
+- **Frosty's ice sparkles are only in its ground shader** (#54 stage 5, `SPARKLE` in
+  `src/world/richLook.js`, `ROCKY_LOOK.frosty.sparkle`, `#define RL_SPARKLE`): no mesh, no draw
+  call, no texture. Every other world's ground shader is byte-for-byte what it was (checked
+  against the old code; `test/mist.test.js` checks no other world gets the snippet). The glint
+  grid doubles with distance so spots stay a steady size in CSS pixels (`sparkleCell()`, the
+  shader's sums).
 - **Zoom is in real distances with fixed limits** (`src/ui/zoom.js`, #18). Pinch, wheel and the
   slider all go through `FlightScene.viewDist()` / `setViewDist()`. The flight camera keeps a
   multiplier on the automatic follow distance but is clamped to [12, 15000] m; the map's range
@@ -669,6 +685,11 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
   `getGradientIrradiance()` can't read it (copy it into a global in `main()` first). `flat` is a
   reserved word in GLSL ES 3 (not a variable name), and avoid `smoothstep(a, b, x)` with a > b
   (undefined); use `1.0 - smoothstep(b, a, x)`.
+- **Glints on white ice don't show** (#54 stage 5): Frosty's sunlit ice is already near white,
+  so a white glint added on top was invisible. The sparkles show by colour (icy cyan, blue, a
+  little lilac and gold) and shape (a small four-pointed star in screen pixels). And `rlRich`
+  is 0 for about 30 m round each of Frosty's glowing cracks (its `keep` list), so don't gate new
+  ground detail on it there.
 - **A new world needs its look** (#52): add a `ROCKY_LOOK` (or `GAS_LOOK`) entry in
   `src/world/richLook.js`, or it keeps the plain toon look. Anything that must stay as painted
   (a glowing spot) goes in its `keep` list; ground under a liquid is left alone by itself.

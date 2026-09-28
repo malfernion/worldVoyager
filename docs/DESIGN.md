@@ -1239,6 +1239,55 @@ same soft style, reusing the cloud layer rather than building a parallel system.
   free), and the horizon bank is painted on the sky, so it doesn't sit behind nearer hills
   exactly the way the real wall would (it's at the sky's distance, behind every hill).
 
+### Frosty's crack mist and ice sparkles (#54, stage 5)
+
+Frosty is airless, like Europa and Enceladus, so no weather: its "mist" is vapour breathing out
+of its glowing cracks (`FROSTY_GLOWS`), where the ocean under the ice comes closest. In the
+same soft style, one look, no setting.
+
+- **Mist** (`src/world/mist.js`). 40 wisps per crack (160 on Frosty), spread evenly along the
+  glowing groove (within 17 m of its middle; the groove is full to 14 m and gone by 25 m) and
+  a metre across it. Each is a loop on the real clock in the vertex shader, like the embers: it
+  seeps out with its soft bottom edge about on the ground, drifts 2.5 to 6 m off to one side
+  (slowing) while curling round in a lazy loop, lifts only 0.4 to 1.6 m, spreads to 2.4 times
+  its size and thins away, then starts again somewhere new along its stretch. It rides at the
+  height of the highest ground round its stretch, out to most of the way it drifts (the
+  terrain's own heights, as the buggy uses), so it never starts in the ice or drifts into a bank
+  beside the crack (the drawn mesh is too coarse to show the 1.5 m groove anyway). Wisps are
+  drawn squashed along the screen's "up" (flat to the ground seen side-on, round from above),
+  their bottom third fading out (a soft sprite dipping into a bank of ice showed a hard straight
+  edge), and eaten well into by the clouds' noise tile, turning slowly, so they read as
+  feathered wisps, not balls.
+- **Day and night.** By night (`mistStrength()`: the sun's height where the wisp is) the mist
+  shows in full, moonlit pale blue, tinted the cracks' cyan from below within 2.5 m of the
+  ground; in full sun only a tenth of it, sunlit white (faint wisps over the bright ice).
+- **Plumes were tried and dropped.** Enceladus-style columns up to 34 m from the middle of each
+  crack looked like the rocket's smoke when they stood behind a landed rocket, and like grey
+  blobs floating off the edge from orbit.
+- **Ice sparkles** (`SPARKLE` in `src/world/richLook.js`, only with `#define RL_SPARKLE`, so only
+  Frosty's ground shader has them; every other world's is byte-for-byte what it was). One glint
+  spot per cell of a grid on the ground, at a random point in it (3D cells, so the ground only
+  passes near some spots, which scatters them); a spot flashes when its facet (the ground's
+  normal tilted at random, wobbling a little in time) mirrors the sun into the camera, so they
+  twinkle as the camera moves and a little on their own. Only on sunlit ice (not the night side,
+  the tan patches or the cracks). Frosty's lit ice is nearly white, so a white glint didn't show
+  at all: each glint is a small four-pointed star a few pixels across, measured in screen pixels
+  (the ground's per-pixel metres from `dFdx`/`dFdy`, a 2 × 2 solve), in icy colours (cyan, ice
+  blue, some lilac, a little gold). The grid doubles with distance, cross-faded like a mip
+  chain (`sparkleCell()`), so spots stay about 20 CSS pixels apart at any distance (sized in CSS
+  pixels, so as big on a phone's sharp screen), and fade out as a pixel grows past 0.25 to 1.4 m:
+  all of them landed and driving, a few faint ones on approach and in low orbit, none on the globe.
+- **Cost** (measured, 844 × 390): draw calls +1 on Frosty (the mist; e.g. 80 → 81 landed, 68 → 69
+  driving), 320 triangles; no per-frame CPU work beyond a few uniforms (the clouds' foci are
+  shared), nothing allocated. Mist overdraw (whole sprite discs, an upper bound): 0.07 of a screen
+  landed, 0.19 to 0.32 driving by a crack, 0.01 in low orbit. The sparkles are two glint lookups
+  (a few hashes each) per lit ice pixel of Frosty's ground; no difference showed in frame time in
+  SwiftShader (the noise between runs was bigger).
+- **Not done:** the mist doesn't know about the drawn mesh's exact shape, so a wisp can hover a
+  little over a hollow, and seen across a rise the wisps over a crack beyond it float above the
+  skyline like low streaks of cloud; it doesn't react to the buggy driving through
+  it (it fades near the lens and in front of the buggy instead).
+
 ## Ideas for later
 
 Tracked as [GitHub Issues](https://github.com/malfernion/worldVoyager/issues).

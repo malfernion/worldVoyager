@@ -112,6 +112,10 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   night, and the air over them wobbles with wavy heat. Lava is much too hot to land on: touching it is a sizzling,
   smoky crash, and Pip's helpers and coaching land on solid ground beside it ("Oops, lava!
   I'll fly us over to solid ground.").
+- **Frosty's ice:** Frosty's sunlit ice glitters: tiny icy-coloured sparkles glint and twinkle
+  as you drive or turn the camera. Its glowing cracks breathe out a thin mist that hugs the
+  ground and curls away, faint by day; at night it shows pale blue, lit cyan from below by the
+  glow in the cracks.
 - **Methane lakes:** Misty has dark, still lakes of liquid methane, mostly round its poles
   (two cross the rocket's path). Rockets can't land on them either (an amber splash); Pip's
   helpers land on the ground beside them ("Oops, a lake! I'll fly us over to dry land.").
@@ -187,7 +191,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

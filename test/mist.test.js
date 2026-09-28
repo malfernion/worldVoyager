@@ -71,16 +71,17 @@ describe('mistAt: each wisp\'s loop', () => {
         expect(Math.abs(along)).toBeLessThan(0.15 * R);
         expect(Math.abs(across)).toBeLessThan(look.side + 0.1);
         // Its middle above the ground there (it's drawn squashed, so its soft bottom edge is about
-        // on the ground), and not floating (over the groove, up to 1.5 m deep, it rides at its lips).
+        // on the ground), and not floating: it rides at the height of the highest bank it may
+        // drift over (the groove is 1.5 m deep, the drawn mesh too coarse to show it).
         const gap = Math.hypot(out.x, out.y, out.z) - ground(...unit(out.x, out.y, out.z));
         expect(gap).toBeGreaterThan(0.1 * out.size);
-        expect(gap).toBeLessThan(0.3 * out.size + 3.5);
+        expect(gap).toBeLessThan(0.3 * out.size + 5);
       }
     }
   });
 
   it('drifts off the crack, lifts a little and spreads, then rests and starts again', () => {
-    for (let i = 0; i < count; i += 7) {
+    for (let i = 0; i < count; i += 3) {
       const k = i * MIST_STRIDE;
       const period = plan[k + 8], life = plan[k + 9], phase = plan[k + 10];
       const t0 = 3 * period - phase + period * 1000;
@@ -95,6 +96,11 @@ describe('mistAt: each wisp\'s loop', () => {
       expect(end.lift).toBeGreaterThanOrEqual(start.lift);
       expect(end.lift - start.lift).toBeLessThanOrEqual(look.rise[1] + 1e-6);
       if (life < 1) expect(rest.alpha).toBe(0);
+      // Never into the ice as it drifts off the crack.
+      for (let f = 0; f <= 1; f += 0.1) {
+        const p = mistAt(plan, i, t0 + f * life * period);
+        expect(Math.hypot(p.x, p.y, p.z) - ground(...unit(p.x, p.y, p.z))).toBeGreaterThan(0.1 * p.size);
+      }
       // Never wanders far: it's mist over the crack, not a cloud crossing the moon.
       const { across } = onCrack(crackOf(i), [end.x, end.y, end.z]);
       expect(Math.abs(across)).toBeLessThan(look.side + look.drift[1] * 1.4);

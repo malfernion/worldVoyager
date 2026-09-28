@@ -76,7 +76,8 @@ export function mistStrength(cosSun, look) {
  * Where every wisp goes (pure, seeded). `ground(x, y, z)`: the ground's radius (m) under a unit
  * direction; `R`: the world's radius. The wisps are spread evenly along each crack (within `len`
  * either way of its middle), each wandering its own stretch of it and `side` across. The centre
- * sits on the highest ground round its stretch (so a wisp never starts in the ice).
+ * sits on the highest ground out to most of the way it drifts (so a wisp never starts in the ice,
+ * or drifts into a bank beside the crack).
  * Returns a Float32Array, MIST_STRIDE numbers each.
  */
 export function mistPlan(look, ground, R) {
@@ -90,9 +91,10 @@ export function mistPlan(look, ground, R) {
     const l = Math.hypot(...q);
     return q.map((c) => c / l);
   };
+  // The highest ground it can drift over: its stretch, out to either side as far as it goes.
   const high = (g, along, spread, across) => {
     let h = 0;
-    for (const da of [-1, 0, 1]) for (const ds of [-1, 0, 1]) h = Math.max(h, ground(...point(g, along + da * spread, ds * (across + 1.5))));
+    for (const da of [-1, 0, 1]) for (const ds of [-1, -0.5, -0.2, 0, 0.2, 0.5, 1]) h = Math.max(h, ground(...point(g, along + da * spread, ds * across)));
     return h;
   };
   const L = look.len * R, n = look.wisps;
@@ -101,7 +103,7 @@ export function mistPlan(look, ground, R) {
       const along = L * (((i + 0.2 + rand() * 0.6) / n) * 2 - 1);
       const spread = (L / n) * 1.2;
       const u = point(g, along, 0);
-      const r = high(g, along, spread, look.side);
+      const r = high(g, along, spread, look.side + look.drift[1] * 0.6);
       const period = between(look.period);
       out.push(u[0] * r, u[1] * r, u[2] * r, spread, g.t.x, g.t.y, g.t.z, look.side,
         period, between(look.life), rand() * period * 7, rand(),
@@ -182,6 +184,7 @@ const VERT = /* glsl */ `
   varying float vAlpha;
   varying float vDay;
   varying float vGlow;
+  varying float vLow;
   float hash11(float p) {
     p = fract(p * 0.1031);
     p *= p + 33.33;
@@ -243,9 +246,13 @@ const VERT = /* glsl */ `
     vec2 c = position.xy * 2.0;
     vec2 q = c;
     float dl = length(upV.xy);
+    vLow = 0.0;
     if (dl > 0.001) {
       vec2 d2 = upV.xy / dl;
       q += d2 * dot(q, d2) * (flatK - 1.0) * dl;
+      // How far down the sprite this corner is, seen side-on (its soft bottom fades out, so where
+      // it dips into a bank of ice there's no hard edge).
+      vLow = -dot(c, d2) * dl;
     }
     mv.xy += q * s;
     // Its bit of the noise tile, turning slowly (the wisp curls), its own spot.
@@ -272,6 +279,7 @@ const FRAG = /* glsl */ `
   varying float vAlpha;
   varying float vDay;
   varying float vGlow;
+  varying float vLow;
   void main() {
     #include <logdepthbuf_fragment>
     float r2 = dot(vUv, vUv);
@@ -281,12 +289,12 @@ const FRAG = /* glsl */ `
     float rr = min(1.0, r2 * (0.4 + 1.8 * nz));
     float fall = (1.0 - rr) * (1.0 - rr);
     float d = fall * (0.05 + 1.5 * nz * nz) - 0.1;
-    float a = smoothstep(0.0, 0.8, d) * vAlpha * opacity;
+    float a = smoothstep(0.0, 0.8, d) * vAlpha * opacity * (1.0 - smoothstep(0.1, 0.8, vLow));
     if (a < 0.003) discard;
     // Flat light: sunlit white by day with a touch of shade in the thin bits, moonlit pale blue
     // by night, and the crack's cyan glow near the ground.
     vec3 c = mix(nightColor, mix(shadeColor, litColor, 0.4 + 0.6 * nz), vDay);
-    c = mix(c, glowColor, vGlow * 0.55);
+    c = mix(c, glowColor, vGlow * 0.4);
     // Mostly light added (it shows on the dark night ice), some cover (and on the bright day ice).
     gl_FragColor = vec4(c * a * (1.0 + 0.3 * vGlow), a * mix(0.45, 0.7, vDay));
     #include <colorspace_fragment>
