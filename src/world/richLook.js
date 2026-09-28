@@ -460,6 +460,14 @@ export const HEXAGON = {
  * size across and up in radians, colours from the rim in to the eye, and how fast they turn),
  * how much its bands drift (`drift`, radians), its rim colour, and optionally a polar `hexagon`
  * (#55). Generic over the axis and palette, so another gas giant (Tumble) opts in with an entry here.
+ *
+ * #54 stage 6: `streaks`, a few bright clouds riding in the bands (Uranus's bright methane-ice
+ * clouds, Saturn's white spots): each at latitude `lat` (as the storms' `lat`), starting at
+ * longitude `lon`, `len` long and `wid` wide (radians along the band, and in `lat` across it),
+ * travelling round with its band `turns` times in CLOUD_WRAP seconds of cloud time (the sign is
+ * its jet's, see `jetAt()`), `k` how bright, `bend` how far its tail sweeps across the band
+ * (in widths). A short one (`len` a few `wid`) is a bright spot. `streakColor`: their colour.
+ * `haze`: the high-altitude haze at the limb (see LIMB_HAZE).
  */
 export const GAS_LOOK = {
   ringo: {
@@ -471,6 +479,16 @@ export const GAS_LOOK = {
     rim: 0xfff0cc,
     night: 0x1c2250,
     nightK: 0.12,
+    // Saturn's white spots and streaks, clear of the storms' latitudes (0.0 to 0.6) and the cap.
+    streaks: [
+      { lat: 0.68, lon: 1.0, len: 0.34, wid: 0.018, turns: 1, k: 0.85, bend: 0.8 },
+      { lat: 0.74, lon: 3.3, len: 0.07, wid: 0.016, turns: 1, k: 0.95, bend: 0 },
+      { lat: 0.78, lon: 5.2, len: 0.26, wid: 0.014, turns: -1, k: 0.7, bend: -0.6 },
+      { lat: -0.12, lon: 2.2, len: 0.3, wid: 0.016, turns: -1, k: 0.75, bend: 0.5 },
+      { lat: 0.65, lon: 4.6, len: 0.06, wid: 0.014, turns: 1, k: 0.9, bend: 0 },
+    ],
+    streakColor: 0xfffbf0,
+    haze: { color: 0xffe6b0, veil: [0.55, 0.32, 0.45], hug: [0.022, 0.5], layer: [1.045, 0.006, 0.45] },
   },
   // Tipped on its side, pale blue-green, with a dark Neptune-style spot (#52) and, like
   // Saturn's, a six-sided jet stream round the pole the cameras see (#55).
@@ -482,8 +500,83 @@ export const GAS_LOOK = {
     rimK: 0.18,
     night: 0x162a50,
     nightK: 0.12,
+    // Uranus's bright methane-ice clouds: mostly at mid-latitudes on the side the cameras see,
+    // between the dark spot (0.04 to 0.36) and the hexagon (from about 0.96).
+    streaks: [
+      { lat: 0.5, lon: 0.6, len: 0.36, wid: 0.02, turns: -1, k: 0.9, bend: 0.7 },
+      { lat: 0.6, lon: 2.5, len: 0.08, wid: 0.018, turns: -1, k: 1, bend: 0 },
+      { lat: 0.68, lon: 4.4, len: 0.24, wid: 0.016, turns: 1, k: 0.8, bend: -0.6 },
+      { lat: -0.12, lon: 5.4, len: 0.3, wid: 0.018, turns: 1, k: 0.8, bend: 0.5 },
+      { lat: -0.32, lon: 1.9, len: 0.07, wid: 0.016, turns: -1, k: 0.85, bend: 0 },
+    ],
+    streakColor: 0xf6ffff,
+    haze: { color: 0xa8e8ff, veil: [0.5, 0.38, 0.5], hug: [0.025, 0.55], layer: [1.05, 0.006, 0.5] },
   },
 };
+
+/**
+ * The high-altitude haze at a gas giant's limb (#54 stage 6), all in units of the planet's
+ * radius, counted by how close a line of sight passes to its middle (`s`: 1 at the cloud tops'
+ * edge). On the disc (the planet's own shader) a pale `veil` from `s` = `veil[0]` out to the
+ * limb, strongest there: `veil[1]` of the haze's colour laid over the clouds, which it washes
+ * out by `veil[2]` of that (features fade into the haze towards the edge; never over the
+ * hexagon). Just off the limb (the glowing shell's shader) the haze `hug`s the cloud tops,
+ * fading out within `hug[0]` radii from `hug[1]`, and a thin detached `layer` stands clear of
+ * it, [middle, half-width, brightness]: the shell's own glow shows in the gap between. All
+ * sunlit (`hazeDay()`). `limbHazeAt()` / `veilAt()` are the shaders' sums: change both together.
+ */
+export function hazeDay(sunK) {
+  return 0.08 + 0.92 * smooth(-0.25, 0.35, sunK);
+}
+
+/** The disc's veil at `s` (0..1 out to the limb): how much haze is laid over the clouds there. */
+export function veilAt(haze, s) {
+  const t = smooth(haze.veil[0], 1, s);
+  return t * t * haze.veil[1];
+}
+
+/** The haze's light just off the limb at `s` (> 1), before the sun (`hazeDay()`): { hug, layer }. */
+export function limbHazeAt(haze, s, px = 0) {
+  const hug = s < 1 ? 0 : haze.hug[1] * (1 - smooth(1, 1 + haze.hug[0], s));
+  const [at, w0, k] = haze.layer;
+  const w = Math.max(w0, 1.5 * px);
+  const layer = (1 - smooth(0, 1, Math.abs(s - at) / w)) * (w0 / w) * k;
+  return { hug, layer };
+}
+
+const smooth = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** Which way a band's jet runs at latitude `lat` (the shader's `jet`: its sign is the drift's). */
+export function jetAt(lat) {
+  return Math.sin(lat * 9) * 0.6 + Math.sin(lat * 23 + 1.3) * 0.4;
+}
+
+// The cloud clock wraps round every CLOUD_WRAP seconds (the shader's gTime); a streak goes round
+// a whole number of times in that, so it never jumps when the clock wraps.
+export const CLOUD_WRAP = 10000;
+
+/** A streak's speed round its band (radians per second of cloud time). */
+export const streakSpeed = (st) => (st.turns * 2 * Math.PI) / CLOUD_WRAP;
+
+/** Where a streak's middle is at cloud time `time` (s): its longitude in the drifting bands' frame (pure). */
+export function streakLon(st, time) {
+  const l = st.lon + streakSpeed(st) * (time % CLOUD_WRAP);
+  return ((l % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+}
+
+/**
+ * The farthest a streak reaches along the spin axis (its `lat` range, bend and the bands'
+ * waves included), for keeping them clear of the hexagon and the storms: [min, max].
+ */
+export function streakReach(st) {
+  const across = st.wid * (STREAK_REACH + Math.abs(st.bend) * 2);
+  return [st.lat - across, st.lat + across];
+}
+// How many widths out a streak's feathered edge reaches (the shader stops there).
+export const STREAK_REACH = 3;
 
 // The cloud clock follows game time (time warp speeds the clouds up) but never faster than
 // MAX_RATE times real time, so at ×1000 they stream by instead of strobing.
