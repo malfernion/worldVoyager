@@ -16,6 +16,7 @@ import { ExhaustPool, RocketExhaust } from '../physics/exhaust.js';
 import { createExhaustMesh } from '../world/exhaust.js';
 import { createSky } from '../world/sky.js';
 import { SKY_LOOK } from '../world/planets.js';
+import { rainVolume } from '../world/rain.js';
 import { DriveMode } from './drive.js';
 import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, HEX_POLE, sunDirection } from '../physics/discoveries.js';
 import { HEXAGON } from '../world/richLook.js';
@@ -85,6 +86,8 @@ export class FlightScene {
     this.scene.fog = new THREE.Fog(0x2d7fa8, FOG_OFF, FOG_OFF * 2);
     this.underwater = false;
     this.lapWait = 0;
+    this.rainDepth = 0; // how deep in a methane shower the camera is (#54, updateHaze; for its sound)
+    this.rainHeight = 0;
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.3, 3e6);
     this.origin = { x: 0, y: 0 };
     this.mode = 'flight';
@@ -1058,7 +1061,7 @@ export class FlightScene {
     let k = 0;
     const v = look && this.mode !== 'map' && !this.underwater ? this.visuals.find((x) => x.body === body) : null;
     const c = this.camera.position;
-    let st = 0, bank = 0;
+    let st = 0, bank = 0, rain = 0;
     if (v) {
       const g = v.group.position;
       const r = Math.hypot(c.x - g.x, c.y - g.y, c.z - g.z);
@@ -1069,13 +1072,17 @@ export class FlightScene {
       if (sl && v.storms && k > 0) {
         const h = Math.max(0, Math.min(1, (r - body.radius - sl.low) / (sl.top - sl.low)));
         const hk = 1 - h * h * (3 - 2 * h);
-        st = v.storms.at((c.x - g.x) / r, (c.y - g.y) / r, (c.z - g.z) / r, this.time || 0) * hk;
+        const deep = v.storms.at((c.x - g.x) / r, (c.y - g.y) / r, (c.z - g.z) / r, this.time || 0);
+        st = deep * hk;
+        // (Misty's rain, #54: how deep in a shower, and how high, for its sound.)
+        if (v.storms.look.rain) { rain = deep; this.rainHeight = r - body.radius; }
         // One coming: its bank of dust on the horizon (gone as we get into it).
         v.storms.near((c.x - g.x) / r, (c.y - g.y) / r, (c.z - g.z) / r, this.time || 0, this.stormBank);
         bank = Math.sqrt(this.stormBank.k) * hk * (1 - st);
       }
     }
     this.storm = st;
+    this.rainDepth = rain;
     if (k === this.haze && k === 0) return;
     this.haze = k;
     // Down in it, the fog and the dome are the sky; the shell (only seen from outside) fades out.
@@ -1149,8 +1156,10 @@ export class FlightScene {
     // that stays clear however far out the camera is, and only what's beyond it fogs over.
     const d = Math.hypot(c.x, c.y, c.z);
     const fl = look.fog ?? look.storm.fog, fk = look.fog ? k : st;
-    fog.near = (fl.near + d) / fk;
-    fog.far = (fl.far + d) / fk;
+    // (In a shower in a haze, #54 Misty's rain: the haze's fog closing in as deep as we are in it.)
+    const sf = look.fog && st > 0 ? look.storm.fog : fl;
+    fog.near = (fl.near + (sf.near - fl.near) * st + d) / fk;
+    fog.far = (fl.far + (sf.far - fl.far) * st + d) / fk;
     this.scene.background.copy(this.spaceColour).lerp(fog.color, fk);
     this.sky.visible = look.stars || k < 0.6;
   }
@@ -1160,6 +1169,7 @@ export class FlightScene {
     if (this.underwater) this.setUnderwater(false);
     this.app.audio.setLapping(0);
     this.app.audio.setBubbling(0);
+    this.app.audio.setRain(0);
   }
 
   /**
@@ -1194,6 +1204,10 @@ export class FlightScene {
     // Misty's methane lakes (#46) are nearly still: only a faint lapping.
     this.app.audio.setLapping(lava ? 0 : near * (body.liquid?.kind === 'methane' ? 0.4 : 1));
     this.app.audio.setBubbling(lava ? near : 0);
+    // Misty's rain (#54): as deep as we are in a shower (updateHaze() says; nothing in the map, in
+    // space or with no shower), fading as the camera climbs, softer from the rocket's view.
+    const rain = this.app.screen === 'flight' && !this.crashed ? this.rainDepth : 0;
+    this.app.audio.setRain(rain > 0 ? rainVolume(rain, this.rainHeight, this.drive.active) : 0);
   }
 
   /**

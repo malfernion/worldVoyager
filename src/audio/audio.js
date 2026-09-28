@@ -277,6 +277,79 @@ export class AudioEngine {
     this.bubbling.gain.setTargetAtTime(level * 0.3, ctx.currentTime, 0.4);
   }
 
+  /**
+   * Misty's methane rain (#54): `level` 0 (dry) to 1 (driving right inside a shower; the flight
+   * scene works it out with rain.js's `rainVolume()`). Like the lapping: made the first time it's
+   * needed and only touched when the level really changes. A soft, low hiss of rain (the noise,
+   * band-passed and gently swelling) and big slow drops: two loops of soft plips at random times,
+   * of different lengths so they never line up the same way, rendered once into buffers.
+   * Through the sound-effects channel, so the 🔊 switch and the muffling under a lake apply.
+   */
+  setRain(level) {
+    level = Math.max(0, Math.min(1, level));
+    if (!this.ctx || (this.rainLevel ?? 0) === level || (!this.rain && level <= 0)) return;
+    if (this.rain && Math.abs(level - this.rainLevel) < 0.03 && level > 0) return;
+    this.rainLevel = level;
+    const ctx = this.ctx;
+    if (!this.rain) {
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      gain.connect(this.sfx);
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 350;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1500;
+      lp.Q.value = 0.4;
+      const hiss = ctx.createGain();
+      hiss.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.11;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.15;
+      lfo.connect(depth).connect(hiss.gain);
+      src.connect(hp).connect(lp).connect(hiss).connect(gain);
+      src.start();
+      lfo.start();
+      for (const [seconds, seed, rate] of [[5.3, 7, 1], [3.7, 19, 0.92]]) {
+        const drops = ctx.createBufferSource();
+        drops.buffer = this.makeDrips(seconds, seed);
+        drops.loop = true;
+        drops.playbackRate.value = rate;
+        drops.connect(gain);
+        drops.start();
+      }
+      this.rain = gain;
+    }
+    this.rain.gain.setTargetAtTime(level * 0.22, ctx.currentTime, 0.6);
+  }
+
+  /** Soft plips of big, slow drops at random times (about four a second), `seconds` long. */
+  makeDrips(seconds, seed) {
+    const ctx = this.ctx;
+    const sr = ctx.sampleRate;
+    const buf = ctx.createBuffer(1, Math.floor(sr * seconds), sr);
+    const d = buf.getChannelData(0);
+    let x = seed;
+    const rand = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    const n = Math.round(seconds * 4);
+    for (let i = 0; i < n; i++) {
+      const at = Math.floor(rand() * (d.length - sr * 0.1));
+      const hz = 600 + rand() * 900, vol = 0.15 + rand() * 0.35, len = Math.floor(sr * (0.03 + rand() * 0.04));
+      for (let k = 0; k < len; k++) {
+        const t = k / sr;
+        // A soft plip: a quick rise, a short ring that drops a little in pitch as it dies away.
+        const env = Math.min(1, k / (sr * 0.002)) * Math.exp(-t / (len / sr / 4));
+        d[at + k] += vol * env * Math.sin(2 * Math.PI * hz * t * (1 - 1.5 * t));
+      }
+    }
+    return buf;
+  }
+
   setMood(mood) {
     if (MOODS[mood]) this.nextMood = mood;
   }

@@ -107,6 +107,13 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   dust on the horizon. Land or drive into one and the sky turns dusty, the far hills go hazy
   and streams of dust blow past (the rocket and buggy always stay easy to see). Drive out of
   it, or wait for it to drift away.
+- **Misty's haze and rain:** from space Misty's orange haze has soft darker and lighter bands
+  that drift slowly round, a dark hood over its top, and a thin pale ring of high haze standing
+  clear of its edge, like Titan's. Now and then a methane shower drifts across it: from low down
+  pale rain clouds with faint grey shafts of rain under them. Land or drive into one and the sky
+  dims, big slow drops drift down around you with a soft patter of rain, little splashes and
+  damp spots appear on the ground where they land, and the lakes are covered in little spreading
+  rings. It's gentle: the rocket and buggy always stay easy to see.
 - **Lava:** Sizzle has glowing pools and flows of lava by its volcanoes (they glow at night
   and you can see them from orbit). Glowing embers drift up from them and wink out, brighter by
   night, and the air over them wobbles with wavy heat. Lava is much too hot to land on: touching it is a sizzling,
@@ -192,7 +199,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Misty's haze bands and rain, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

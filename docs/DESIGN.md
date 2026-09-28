@@ -1239,6 +1239,95 @@ same soft style, reusing the cloud layer rather than building a parallel system.
   free), and the horizon bank is painted on the sky, so it doesn't sit behind nearer hills
   exactly the way the real wall would (it's at the sky's distance, behind every hill).
 
+### Misty's haze bands and methane rain (#54, stage 4)
+
+The fourth stage (`src/world/hazeBands.js`, `src/world/rain.js`), again adding to what's there:
+the approved shell and haze (#46, #58) are kept, and the rain reuses the storms' machinery.
+
+- **Haze bands from space** (`BAND_LOOK.misty`): Titan's haze is layered, so Misty's has five
+  soft bands, darker and lighter in turn, round an axis tilted towards the cameras (so from the
+  flight views they're gentle arcs across the disc, not a bullseye round the middle), and a
+  darker hood over the pole the cameras see. Each band's middle wobbles in a few waves round the
+  axis that drift at its own speed (0.0018 to 0.0033 rad/s of real time), so they shear slowly
+  past each other; the noise tile streaks them along their length and wobbles their edges, so
+  they're wispy, not stripes. They're a few lines in the shell's own shader (`bandShader()`:
+  an `asin`, an `atan`, two noise lookups, five bands): no mesh, no draw call, no CPU work but
+  the clock. The shell was additive, which can only brighten, and the haze over the face is
+  nearly saturated, so the first try barely showed; the banded shell now blends ONE /
+  ONE_MINUS_SRC_ALPHA: a darker band dims the ground behind it and thins the glow, a lighter one
+  adds a pale gold. With nothing darker that's exactly the old additive glow (`colour * a * a`),
+  and a shell without bands keeps the old shader (a test checks). The bands are kept to the
+  face (gone by 0.84 of the shell's radius): the first try ran them into the glowing ring round
+  the edge, which went murky brown; the owner had approved that ring.
+- **The detached haze layer:** at the edge, Titan's famous thin haze layer standing clear of the
+  main haze. `rho`, how close the line of sight passes to the world's middle as a share of the
+  shell's radius, is exact whatever the camera's distance (the ground's edge is always at 0.82),
+  so a pale ring at 0.972 with a slightly darker gap just inside it (0.925 to 0.958) is a thin
+  line at a fixed height, widened to a pixel and a half with `fwidth` (so it never shimmers)
+  and dimmed to match. It's subtle: a thin line round the ring, not a second shell.
+- **Showers** (`RAIN_LOOK.misty`): five regional showers shaped as the storms are (so
+  `stormShapes()` / `stormAt()` serve both), two across the flight plane (a landing is in one
+  now and then), two on the face, one round the back; about 6% of the surface. They turn about z
+  at 0.003 rad/s of real time, a few minutes to pass over a spot. The flight scene treats them
+  exactly as Dusty's storms (`createShowers()` fills `v.storms`), so `updateHaze()`,
+  `updateClouds()` and `updateStorms()` needed no new paths; the only change there is that a
+  hazy world's own fog closes in towards `SKY_LOOK.misty.storm.fog` in a shower (Dusty has no
+  base fog, so it's unchanged).
+- **Clouds and rain shafts** (`showerPlan()`): each shower is cells on a jittered grid (204
+  clouds, 607 sprites in all), each a low flat soft cloud 22 m up in a warm pale cream
+  (`lit` 0xf0cf9e; the first, whiter cream looked like cotton stuck on the orange), and under the
+  cells well inside it two faint shafts: sprites drawn out straight down from the clouds' base
+  to the ground, their own clouds based on the ground (so the layer's shader doesn't thin them
+  as "below a cloud"). Seen from the side they're grey curtains under the clouds; from above,
+  nothing. The layer is drawn over the haze's glow (else it's washed out). At the globe's limb
+  the shafts turned into columns of grey bubbles, so a shower is weather seen from low down: its
+  clouds fade out as the camera climbs from 120 to 190 m, its shafts from 60 to 110 m (a few
+  multiplies per cell on top of `cloudFade()`); from space and in the map the globe shows only
+  its bands.
+- **Down in a shower** (`SKY_LOOK.misty.storm`): the haze dims to a duskier, greyer orange, and
+  its fog (counted from what the camera follows, as always) closes in from 80 to 58 m: a mood,
+  the far side of a lake still there. No bank on the horizon (the haze hides the distance).
+- **Splashes on the ground, and the rain's sound** (owner's additions after the first look):
+  each drop instance falls onto a spot, then lies flat there as its splash: a quick little crown
+  of spray and a soft damp spot that darkens the ground and dries over 2.6 s (on a lake, its
+  ring instead), all in the same loop and the same draw call. The splash must lie on the drawn
+  ground, and the terrain mesh's flat triangles (about 3 m apart) differ from the smooth terrain
+  function by up to ~15 cm on the dunes, so the function wouldn't do. Instead the mesh itself is
+  baked once at load into a 256² cube map of heights (`groundFaces()`: each texel's ray from the
+  middle through the triangle it meets; half floats, linearly filtered; about 30 to 70 ms on a
+  desktop, 1.2 cm off on average), read in the vertex shader for where the drop lands and, either
+  side, for the splash's tilt with the slope; it's then pulled 6 cm towards the camera so it's
+  never lost between texels. The drop now stops where it lands (no fragments under the ground).
+  The sound is audio.js's `setRain()`, made like the lapping: the shared noise band-passed into a
+  soft hiss that swells slowly, and two loops (5.3 s and 3.7 s) of soft plips of big drops at
+  random times, rendered once. Its level is `rainVolume()`: as deep as the camera is in a
+  shower, full up to 15 m and gone by 60 m, 60% from the rocket's view; nothing in the map, in
+  space or with no shower; through the sound-effects channel (the 🔊 switch, the lake's muffle,
+  only after the unlock), checked with the lapping every 0.4 s.
+- **Drops and rings** (`createRain()`): 640 drops in a 36 m box round what the camera
+  follows, each a loop in the vertex shader on the real clock (as the embers): a drop falls from
+  14 m above the ground there, slowly (2.6 to 3.4 m/s, Titan's rain is slow) and a little slanted
+  along the drift, lands, splashes, then starts again elsewhere. Over a lake (the baked ground
+  under the lakes' level) it lands on the surface and makes a ring (two soft spreading circles);
+  the first version had separate ring sprites at the lakes' level, hidden under dry ground by
+  the depth test, and they looked like scattered coins; now there's one ring per drop that
+  really lands there. A drop is a fat soft streak (4 to 6 cm
+  wide, 3.5 to 5 times as long), never thinner than a pixel (fainter instead), dropped near the
+  lens and when big on screen, and thinned across the line of sight to the rocket and buggy (the
+  clouds' foci). A light shower (its edge) has fewer drops, not fainter ones. One draw call,
+  hidden outside a shower.
+- **Cost** (measured, 844 × 390): the bands and detached layer nothing but shader lines;
+  draw calls +1 on Misty below 190 m (the showers' layer; none higher up or in the map), +2 in
+  a shower (e.g. landed 80 → 82, driving 132 → 134); every other world unchanged. Soft-sprite overdraw of the two new meshes: 0.07
+  landed in a shower, 0.11 driving in one, 0.05 by a lake, 0.48 on the approach, 0.55 flying
+  low over one, at most 0.79 landed zoomed out beside one: within the clouds' budget (1.4).
+  Per-frame script (fades, haze, rain) about 0.07 to 0.13 ms against 0.05 to 0.09 before; nothing
+  allocated. The plan takes about 5 ms at load, the ground's bake 30 to 70 ms (desktop). With the
+  splashes the rain's overdraw went down (0.06 landed, 0.09 driving: drops no longer fall on
+  under the ground), draw calls the same.
+- **Not done:** the showers don't build up and rain out (a rigid turn, like the storms).
+  The lighter bands show much less than the darker ones (the face's haze is nearly saturated).
+
 ### Frosty's crack mist and ice sparkles (#54, stage 5)
 
 Frosty is airless, like Europa and Enceladus, so no weather: its "mist" is vapour breathing out
