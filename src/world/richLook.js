@@ -199,7 +199,7 @@ export function sparkleCell(px, look = SPARKLE, dpr = 1) {
  * `flowColor` theirs (times the ice's).
  */
 export const HEART_LOOK = {
-  cell: 13, drift: 0.28, churn: 600, trough: 0.06, troughColor: [0.7, 0.72, 0.8], dome: 0.07, flow: 1.6, flowColor: [0.8, 0.86, 0.96],
+  cell: 13, drift: 0.28, churn: 600, trough: 0.06, troughColor: [0.7, 0.72, 0.8], dome: 0.07, flow: 1.6, flowColor: [0.62, 0.72, 0.92],
 };
 
 /**
@@ -686,23 +686,25 @@ export function limbHazeAt(haze, s, px = 0) {
  * layers above it, [middle, half-width, brightness], each widened to a pixel and a half with
  * `fwidth` (and dimmed as much) so it never shimmers. Lit where the sun reaches it
  * (`hazeDay()`), `front` bright from the front and side, and up to `front + back` looking
- * towards the sun past the world (backlit: the haze scatters light forwards, `backPow` how
- * tightly). It fades out as the camera comes down within `near` [gone, full] radii of the middle
+ * towards the sun past the world, or seen from behind it (backlit: the haze scatters light
+ * forwards, `backPow` how tightly; the game's cameras all look down on the flight plane, so the
+ * rocket on the night side, low down, is the backlit view). It fades out as the camera comes down within `near` [gone, full] radii of the middle
  * (down there its layers would be seen side-on, as big arcs across the sky). `blueHazeAt()` is
  * the shader's sums: change both together.
  */
 export const HAZE_LAYERS = {
   yonder: {
-    shell: 1.13, color: 0x5d9cff, hug: [0.018, 0.55],
+    shell: 1.13, color: 0x5aa8ff, hug: [0.022, 0.7],
     layers: [[1.024, 0.0022, 0.9], [1.042, 0.002, 0.7], [1.062, 0.0018, 0.5], [1.085, 0.0016, 0.32]],
-    front: 0.35, back: 1.6, backPow: 3, near: [1.15, 1.4],
+    front: 0.35, back: 2.2, backPow: 2, near: [1.15, 1.4],
   },
 };
 
 /**
  * The haze's brightness `s` world radii out (`px`: radii one pixel covers there), before the sun,
- * and how much the sun's direction brings out (`g`: the cosine between the line of sight and
- * the way to the sun; 1 looking straight at it past the world).
+ * and how much the sun's direction brings out (`g`: the larger of the cosines between the way to
+ * the sun and the line of sight, or the way from the camera to the world's middle; 1 looking
+ * straight at it past the world, or from right behind the world).
  */
 export function blueHazeAt(look, s, px = 0, g = 0) {
   const [hw, hk] = look.hug;

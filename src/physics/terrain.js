@@ -899,7 +899,8 @@ function makeYonder() {
       const q = Math.sqrt(Math.sqrt(a * a * a * a + b * b * b * b));
       const k = 1 - smooth(0.45, 1, q);
       if (k <= 0) continue;
-      const top = p.h + p.tilt * a * 0.5;
+      // Craggy: broken faces and a lumpy top (noise about 8 m across), never a smooth dome.
+      const top = (p.h + p.tilt * a * 0.5) * (1 + 0.22 * noise(x * 21 + p.t * 17, y * 21, z * 21));
       const hh = top * k;
       if (hh > heart.peakH) {
         heart.peakH = hh;
@@ -992,7 +993,7 @@ function makeYonder() {
         c = mix(c, east, hr.east);
         // The left lobe: smooth, the brightest ice on Yonder; the glaciers a touch bluer.
         c = mix(c, mix(rgb(0xfdfcf8), rgb(0xf1f4f8), n + 0.5), hr.basin);
-        c = mix(c, rgb(0xeef4fb), hr.glacier * 0.8);
+        c = mix(c, rgb(0xb8d2f2), hr.glacier * 0.75);
       }
       // The mountains: pale blocks of water ice, bluish grey low down.
       if (hr.peak > 0) c = mix(c, mix(rgb(0x8d7468), rgb(0xf0f3f6), smooth(0.15, 0.75, hr.peak)), smooth(0, 0.2, hr.peak));

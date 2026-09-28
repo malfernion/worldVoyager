@@ -1579,14 +1579,10 @@ export class FlightScene {
     return !!v && hexagonSeen(this.sightOf(v, HEX_POLE, HEXAGON.size));
   }
 
-  /** Is Yonder's heart (#62 stage 2) in view, big enough to make out and in daylight? */
+  /** Is Yonder's heart (#62 stage 2) in view, big enough to make out? */
   heartInView() {
     const v = this.yonderVisual ??= this.visuals.find((x) => x.body.id === 'yonder');
-    if (!v) return false;
-    const view = this.sightOf(v, HEART_SPOT, HEART_SIZE);
-    const sun = sunDirection(v.body, this.flight.state.t, this.sightSun ??= { x: 1, y: 0, z: 0 });
-    view.lit = HEART_SPOT.x * sun.x + HEART_SPOT.y * sun.y;
-    return heartSeen(view);
+    return !!v && heartSeen(this.sightOf(v, HEART_SPOT, HEART_SIZE));
   }
 
   /**
@@ -1596,7 +1592,7 @@ export class FlightScene {
    */
   sightOf(v, dir, size) {
     const cam = this.camera;
-    const hv = this.hexView ??= { x: 0, y: 0, behind: false, facing: 0, px: 0, lit: 0, p: new THREE.Vector3(), to: new THREE.Vector3() };
+    const hv = this.hexView ??= { x: 0, y: 0, behind: false, facing: 0, px: 0, p: new THREE.Vector3(), to: new THREE.Vector3() };
     const r = v.body.radius * v.group.scale.x;
     hv.p.set(dir.x, dir.y, dir.z).multiplyScalar(r).add(v.group.position);
     hv.to.copy(cam.position).sub(hv.p);

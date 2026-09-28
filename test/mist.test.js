@@ -259,7 +259,7 @@ describe('ice sparkles (#54, Frosty)', () => {
       expect(shader.fragmentShader.includes('rlGlint')).toBe(has);
       expect(shader.fragmentShader.includes('RL_SPARKLE')).toBe(has);
       expect('rlSparkle' in shader.uniforms).toBe(has);
-      expect(!!mat.userData.richUpdate).toBe(has);
+      expect(!!mat.userData.richUpdate).toBe(has || !!ROCKY_LOOK[b.id].heart); // (Yonder's heart's cells churn on the clock too, #62)
       expect(mat.customProgramCacheKey().includes('RL_SPARKLE')).toBe(has);
     }
   });

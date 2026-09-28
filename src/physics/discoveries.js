@@ -51,16 +51,16 @@ export const HEXAGON_VIEW = { x: 0.75, top: 0.75, bottom: -0.5, facing: 0.2, px:
 
 // Yonder's heart (#62 stage 2, terrain.js YONDER_HEART) is found the same way: seen on the map
 // or from space, its middle (`HEART_SPOT`) on screen clear of the buttons, facing us (`facing`,
-// a little more than the hexagon: it's big and lies flat on the ground), big enough to make out
-// as a heart (`px`: half its height in pixels; `HEART_SIZE` is that in the world's radii), and
-// in daylight (`lit`: the sun's height over its middle, as a cosine; at night it's too dark to
-// see). The flight view mostly looks along the ground near the rocket, and the map shows Yonder
-// small until it's zoomed in, so driving onto it finds it too (`HEART_IN`: that far inside its
-// edge, in heart units, past its wobbly outline); the ✨ compass points to its edge nearest the flight plane
+// a little more than the hexagon: it's big and lies flat on the ground) and big enough to make
+// out as a heart (`px`: half its height in pixels; `HEART_SIZE` is that in the world's radii).
+// (By night too: it's the palest ground, and the night side's fill light shows it.) The flight
+// view mostly looks along the ground near the rocket, and the map shows Yonder small until it's
+// zoomed in, so driving onto it finds it too (`HEART_IN`: that far inside its edge, in heart
+// units, past its wobbly outline); the ✨ compass points to its edge nearest the flight plane
 // (`HEART_NEAR`, about 55 m from it, in its left lobe).
 export const HEART_SPOT = YONDER_HEART.c;
 export const HEART_SIZE = Math.sin(YONDER_HEART.mid * YONDER_HEART.size);
-export const HEART_VIEW = { x: 0.8, top: 0.8, bottom: -0.55, facing: 0.35, px: 40, lit: 0 };
+export const HEART_VIEW = { x: 0.8, top: 0.8, bottom: -0.55, facing: 0.35, px: 40 };
 export const HEART_IN = 0.04;
 export const HEART_NEAR = heartDir(-0.5, 0.85);
 
@@ -304,9 +304,9 @@ export function hexagonSeen(view) {
   return inSight(view, HEXAGON_VIEW);
 }
 
-/** Can we see Yonder's heart? view: as hexagonSeen's, and `lit`: the sun's height over its middle (a cosine). */
+/** Can we see Yonder's heart? view: as hexagonSeen's (see HEART_VIEW). */
 export function heartSeen(view) {
-  return inSight(view, HEART_VIEW) && view.lit > HEART_VIEW.lit;
+  return inSight(view, HEART_VIEW);
 }
 
 function inSight(view, v) {

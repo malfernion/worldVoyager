@@ -223,7 +223,7 @@ export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null
  * Pluto's thin blue haze in layers (#62 stage 2, `HAZE_LAYERS` in richLook.js, its sums
  * `blueHazeAt()`): a shell round a world that draws only a thin blue ring at its edge, a soft
  * glow hugging the ground and a few thin layers above it, brightest looking towards the sun past
- * the world. Only the look (no air for the exhaust). The line of sight's closest approach to the
+ * the world or from behind it (the rocket on the night side). Only the look (no air for the exhaust). The line of sight's closest approach to the
  * world's middle, worked out exactly per pixel in view space (so the map's bigger worlds and any
  * camera distance are right), sets how far out it is and which way the sun is from there. Seen
  * only from outside (front faces; the camera is inside it down on the ground). One draw call,
@@ -279,9 +279,11 @@ export function hazeLayers(radius, look, sunDir) {
           float w = max(l.y, 1.5 * px);
           a += (1.0 - smoothstep(0.0, 1.0, abs(s - l.x) / w)) * (l.y / w) * l.z;
         }
-        // Sunlit up there (a little past the line between day and night), and scattered forwards.
+        // Sunlit up there (a little past the line between day and night), and scattered forwards:
+        // brightest looking towards the sun past the world, or from behind it (the game's cameras
+        // look down on the flight plane, so from the night side, low down, is as backlit as they get).
         float lit = 0.08 + 0.92 * smoothstep(-0.25, 0.35, dot(off / max(length(off), 1e-6), sunDir));
-        float g = max(0.0, dot(v, sunDir));
+        float g = max(0.0, max(dot(v, sunDir), dot(normalize(vC), sunDir)));
         a *= lit * (light.x + light.y * pow(g, light.z));
         // Gone as the camera comes down near the ground (the buggy's high views looked through
         // its layers side-on, as big arcs across the sky).
