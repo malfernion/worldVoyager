@@ -86,6 +86,19 @@ export const BODY_DEFS = [
     color: 0xc9d3dc, icon: '☄️',
     blurb: 'Ducky is a comet shaped like a rubber duck, just like the real comet 67P. A little robot called Philae landed on it! A comet\'s tail always points away from the Sun.',
   },
+  {
+    // Yonder (#62), a little icy dwarf world like Pluto, far out past everything else for a sense
+    // of scale: a stretched orbit, close in 80000 (still 17000 outside Tumble's SOI, so the two
+    // never meet), far out 140000, 110000 on average (twice Tumble's). One lap is about 6.4 game
+    // hours (22900 s); a trip out from Homestead about 1.3 to 1.8. At t = 0 it's on its way in,
+    // about 89000 out, low on the left of the system map, clear of Tumble. `dwarf`: not a planet,
+    // so the map's default view of the system stays the planets' (zoom.js SYSTEM_VIEW); out here
+    // Ember is only a bright star and its light is dim and cold (planets.js FAR_LIGHT).
+    id: 'yonder', name: 'Yonder', parent: 'ember', orbitRadius: 110000, ecc: 30000 / 110000, periArg: 2.58, phase: -0.6, dwarf: true,
+    radius: 170, gravity: 2.4, soi: 3000, spaceLine: 30, terrain: 'yonder',
+    color: 0xe6d2bf, icon: '🧊',
+    blurb: 'Yonder is a little icy world, just like Pluto. Pluto is so far away that sunlight takes more than five hours to get there!',
+  },
 ];
 
 const SURFACE_SAMPLES = 2048;

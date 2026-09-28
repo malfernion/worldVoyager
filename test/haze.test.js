@@ -155,7 +155,7 @@ describe('Misty\'s haze (#58)', () => {
         update() {}, place() {}, updateCamera: (dt, cam) => at(s, 2),
       },
     });
-    for (const k of ['placeBodies', 'placeRocket', 'updateLines', 'updateAtmospheres', 'updateMarkers', 'updateMood', 'checkBand', 'updateExhaust']) s[k] = () => {};
+    for (const k of ['placeBodies', 'updateFarLight', 'placeRocket', 'updateLines', 'updateAtmospheres', 'updateMarkers', 'updateMood', 'checkBand', 'updateExhaust']) s[k] = () => {};
     s.updateUnderwater = () => { if (wet !== s.underwater) s.setUnderwater(wet, { fog: 0x3b2410, fogFar: 14 }); };
     s.haze = 0; // e.g. the flight camera was zoomed out when 🚙 was tapped
     s.updateDriving(1 / 60);
@@ -301,7 +301,7 @@ describe('Homestead\'s and Dusty\'s skies (#61)', () => {
         update() {}, place() {}, updateCamera: (dt, cam) => at(s, 2),
       },
     });
-    for (const k of ['placeBodies', 'placeRocket', 'updateLines', 'updateAtmospheres', 'updateMarkers', 'updateMood', 'checkBand', 'updateExhaust']) s[k] = () => {};
+    for (const k of ['placeBodies', 'updateFarLight', 'placeRocket', 'updateLines', 'updateAtmospheres', 'updateMarkers', 'updateMood', 'checkBand', 'updateExhaust']) s[k] = () => {};
     s.updateUnderwater = () => { if (wet !== s.underwater) s.setUnderwater(wet, LOOKS.water); };
     s.haze = 0;
     s.updateDriving(1 / 60);

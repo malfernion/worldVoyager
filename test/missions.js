@@ -5,7 +5,7 @@ import { Flight } from '../src/physics/sim.js';
 import { Autopilot, inStableOrbit, parkingRadius, helperWarp, LONG_WAIT } from '../src/physics/autopilot.js';
 
 export const STATS = { accel: 17, turnRate: 1.6, safeSpeed: 8, maxTilt: 0.6 };
-export const WORLDS = ['homestead', 'pebble', 'dusty', 'nibble', 'ringo', 'sizzle', 'frosty', 'misty', 'tumble', 'flip', 'ducky'];
+export const WORLDS = ['homestead', 'pebble', 'dusty', 'nibble', 'ringo', 'sizzle', 'frosty', 'misty', 'tumble', 'flip', 'ducky', 'yonder'];
 
 export function mission(stats = STATS) {
   const sys = createSystem();

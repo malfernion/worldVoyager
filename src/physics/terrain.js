@@ -527,8 +527,18 @@ export const TUMBLE_AXIS = (() => {
   return { x: v.x / l, y: v.y / l, z: v.z / l };
 })();
 
-/** Spin axis of each gas giant (bands, rings and the slow spin of the mesh). */
-export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS };
+// Yonder (#62) is tipped over like Pluto (and Uranus): its axis lies well out of square with the
+// flight plane, leaning towards the camera, so its pale north pole shows from orbit and its dark
+// reddish belt round the middle crosses the view. Rocky, so nothing spins: only its ground's
+// pattern follows the axis.
+export const YONDER_AXIS = (() => {
+  const v = { x: -0.5, y: 0.55, z: 0.67 };
+  const l = Math.hypot(v.x, v.y, v.z);
+  return { x: v.x / l, y: v.y / l, z: v.z / l };
+})();
+
+/** Spin axis of each gas giant (bands, rings and the slow spin of the mesh), and Yonder's (its ground's pattern). */
+export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS, yonder: YONDER_AXIS };
 
 /**
  * The pole of a spin axis that the game's cameras see (#55: Tumble's hexagon). They all look at
@@ -692,6 +702,53 @@ function makeDucky() {
   };
 }
 
+// Yonder (#62), like Pluto: smooth pale plains of nitrogen ice, a belt of dark reddish-brown
+// "tholin" lands round its middle (Pluto's Cthulhu is that colour: sunlight baking the ice's
+// methane into a sticky red goo), broken into big patches, with a peach edge between the two,
+// and bluish frost towards the poles. The dark lands are older, so they're hillier and have a few
+// soft craters; the ice plains are young and smooth. (The heart plain, mountains and glaciers
+// come later, #62 stage 2.) Gentle all over: it's for driving on.
+const YONDER_PITS = randomDirs(211, 18);
+
+function makeYonder() {
+  const { fbm, noise } = makeNoise(223);
+  const ax = YONDER_AXIS;
+  const lat = (x, y, z) => x * ax.x + y * ax.y + z * ax.z;
+  // How much of the dark lands is here (0..1). Wide edges in noise units (#59: Perlin noise is steep).
+  const tholin = (x, y, z) => {
+    const belt = 1 - smooth(0.25, 0.65, Math.abs(lat(x, y, z) + 0.12 * noise(x * 2 + 3, y * 2, z * 2)));
+    return belt * smooth(-0.2, 0.2, noise(x * 1.4 + 7, y * 1.4, z * 1.4) + 0.06);
+  };
+  // Craters only in the dark lands (they're the old ground), 17 to 30 m across the rim.
+  const pits = YONDER_PITS.filter((c) => tholin(c.x, c.y, c.z) > 0.6).map((c) => ({ ...c, radius: 0.1 + c.size * 0.08, deep: 1.6 + c.depth * 1.6 }));
+  // Rolling hills, round-topped (a smooth step of the noise, never a crease).
+  const hills = (x, y, z) => smooth(0.05, 0.55, noise(x * 3.2 + 11, y * 3.2, z * 3.2));
+  return {
+    pits,
+    tholin,
+    height(x, y, z) {
+      const th = tholin(x, y, z);
+      return fbm(x * 1.6, y * 1.6, z * 1.6, 3) * 2 + hills(x, y, z) * (1.2 + 2.2 * th) + fbm(x * 5, y * 5, z * 5, 2) * (0.25 + 0.5 * th) + craters(pits, x, y, z, 1);
+    },
+    color(x, y, z, h) {
+      const n = fbm(x * 4, y * 4, z * 4, 3);
+      const l = Math.abs(lat(x, y, z));
+      // Creamy nitrogen ice, a little grey-blue in places, and faint peach tints.
+      let c = mix(rgb(0xf4efe6), rgb(0xdfe3ea), smooth(-0.25, 0.3, n));
+      c = mix(c, rgb(0xefd2b4), smooth(0.1, 0.45, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.55 * (1 - smooth(0.4, 0.8, l)));
+      // Bluish frost towards the poles.
+      c = mix(c, rgb(0xe6eefa), smooth(0.55, 0.85, l) * 0.8);
+      // The dark lands: a peach edge, then deep reddish brown.
+      const th = tholin(x, y, z);
+      c = mix(c, rgb(0xd49a72), smooth(0.05, 0.4, th) * 0.9);
+      c = mix(c, mix(rgb(0x8f4a31), rgb(0x6a3122), n + 0.5), smooth(0.3, 0.8, th));
+      // Frost settles in the dark lands' hollows and crater floors.
+      c = mix(c, rgb(0xc98e6e), smooth(0.5, 1, th) * smooth(-0.3, -1.6, h) * 0.6);
+      return c;
+    },
+  };
+}
+
 function makeFlat(hex) {
   return { height: () => 0, color: () => rgb(hex) };
 }
@@ -709,6 +766,7 @@ export function makeTerrain(kind) {
     case 'tumble': return makeTumble();
     case 'flip': return makeFlip();
     case 'ducky': return makeDucky();
+    case 'yonder': return makeYonder();
     default: return makeFlat(0xffd27a);
   }
 }

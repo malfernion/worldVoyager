@@ -8,9 +8,16 @@ export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const FLIGHT_ZOOM = [12, 15000];
 /** Buggy chase camera. */
 export const DRIVE_ZOOM = [5, 100];
-/** Half the width of the whole solar system (Tumble's orbit plus its sphere of influence). */
-export const SYSTEM_EXTENT = 72000;
-/** The map's default view of Ember's space: every planet's orbit, out to Tumble's. */
+/**
+ * Half the width of the whole solar system: out to Yonder's farthest (#62: 140000, plus its
+ * sphere of influence). The map zooms out this far.
+ */
+export const SYSTEM_EXTENT = 145000;
+/**
+ * The map's default view of Ember's space: every planet's orbit, out to Tumble's. Far-out dwarf
+ * worlds (`dwarf`: Yonder, #62) aren't in it: it stays the view a new player knows, with Yonder a
+ * far dot at its edge (or just off it); zoom out to see its whole orbit.
+ */
 export const SYSTEM_VIEW = 63000;
 
 /** The automatic follow distance: further out the higher we fly. */

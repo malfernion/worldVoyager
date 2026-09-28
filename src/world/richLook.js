@@ -232,6 +232,11 @@ export const ROCKY_LOOK = {
     rim: 0xe8f4ff, rimSurface: true, rimK: 0.3, night: 0x2a408a, nightK: 0.1, ao: { dark: 0.34, light: 0.16 }, speckle: [0.8, 0.5],
     darken: [0.36, 0.5, 0.72], ambientK: 0.45,
   },
+  // Yonder (#62), far out where Ember's light is dim and cold: a cool rim, bluish-grey slopes.
+  yonder: {
+    tint: true, rock: [0.78, 0.8, 0.9], dust: [1.03, 1.02, 1.02], speck: [1.1, 1.1, 1.12], streak: [0.9, 0.88, 0.92],
+    rim: 0xdce8ff, rimK: 0.45, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.5, light: 0.26 }, speckle: [0.84, 0.35],
+  },
   // Under its thick haze: a faint rim and night fill (the haze glows over them anyway).
   misty: {
     tint: true, rock: [0.78, 0.72, 0.66], dust: [1.05, 1.03, 0.96], speck: [1.12, 1.1, 1.04], streak: [0.88, 0.84, 0.8],

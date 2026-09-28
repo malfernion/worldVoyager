@@ -15,7 +15,7 @@ import { createFlame, Particles, Debris } from '../world/effects.js';
 import { ExhaustPool, RocketExhaust } from '../physics/exhaust.js';
 import { createExhaustMesh } from '../world/exhaust.js';
 import { createSky } from '../world/sky.js';
-import { SKY_LOOK } from '../world/planets.js';
+import { SKY_LOOK, farLight, FAR_LIGHT } from '../world/planets.js';
 import { rainVolume } from '../world/rain.js';
 import { DriveMode } from './drive.js';
 import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, HEX_POLE, sunDirection } from '../physics/discoveries.js';
@@ -126,8 +126,10 @@ export class FlightScene {
     this.sunVisual = this.visuals.find((v) => v.body.kind === 'star');
     this.sky = createSky();
     this.scene.add(this.sky);
-    this.scene.add(new THREE.HemisphereLight(0x8a9cff, 0x2a1d30, 0.55));
-    this.scene.add(new THREE.AmbientLight(0x404060, 0.35));
+    this.hemi = new THREE.HemisphereLight(0x8a9cff, 0x2a1d30, 0.55);
+    this.ambient = new THREE.AmbientLight(0x404060, 0.35);
+    this.scene.add(this.hemi, this.ambient);
+    this.initFarLight();
 
     this.rocketHolder = new THREE.Group();
     this.scene.add(this.rocketHolder);
@@ -1001,6 +1003,7 @@ export class FlightScene {
     const rw = f.worldPos(this.tmp);
     this.placeOrigin(rw);
     this.placeBodies(s.t);
+    this.updateFarLight(rw);
     this.placeRocket(rw);
     this.updateEffects(dt);
     this.updateCamera(dt);
@@ -1506,6 +1509,7 @@ export class FlightScene {
     this.origin.y = this.drive.world.y;
     this.drive.place(this.input);
     this.placeBodies(s.t);
+    this.updateFarLight(this.drive.world);
     this.placeRocket(f.worldPos(this.tmp));
     this.particles.update(dt, s.t, this.origin);
     this.drive.updateCamera(dt, this.camera);
@@ -1636,6 +1640,53 @@ export class FlightScene {
         v.landmarks.update(this.time, t, ctx);
       }
     }
+  }
+
+  /** Ember from far away (#62, updateFarLight): keep the usual light and sizes, to scale from. */
+  initFarLight() {
+    const sv = this.sunVisual;
+    this.farBase = {
+      sun: sv.light.intensity, colour: sv.light.color.clone(), cold: new THREE.Color(FAR_LIGHT.cold),
+      disc: sv.mesh.material.color.clone(), white: new THREE.Color(0xffffff), hemi: this.hemi.intensity, ambient: this.ambient.intensity,
+      glows: sv.glows.map((g) => g.scale.x),
+    };
+    this.far = farLight(0);
+    this.farK = 0;
+    this.farMap = false;
+  }
+
+  /**
+   * Ember from far away (#62, `farLight()`): out at Yonder its light is dim and cold (the sky's
+   * fill a little less too), and in the flight and drive views it's only a very bright star: a
+   * small white-hot disc and small glows. From where the view is: the rocket or buggy (`at`,
+   * world coordinates), on the map the world it's framing (the map shows Ember as usual). Every
+   * other world is always far closer in than where this starts, so they keep their look.
+   */
+  updateFarLight(at) {
+    let d = Math.hypot(at.x, at.y);
+    const map = this.mode === 'map';
+    if (map) {
+      const b = this.mapFocus;
+      d = 0;
+      if (b && b.kind !== 'star') {
+        const p = b.worldPos(this.flight.state.t, this.tmp3);
+        d = Math.hypot(p.x, p.y);
+      }
+    }
+    const f = farLight(d, this.far);
+    if (f.k === this.farK && map === this.farMap) return;
+    this.farK = f.k;
+    this.farMap = map;
+    const base = this.farBase, sv = this.sunVisual;
+    sv.light.intensity = base.sun * f.sun;
+    sv.light.color.lerpColors(base.colour, base.cold, f.k);
+    this.hemi.intensity = base.hemi * f.fill;
+    this.ambient.intensity = base.ambient * f.fill;
+    const star = map ? 0 : f.k;
+    sv.mesh.material.color.lerpColors(base.disc, base.white, FAR_LIGHT.white * star);
+    sv.mesh.scale.setScalar(map ? 1 : f.core);
+    sv.glows[0].scale.setScalar(base.glows[0] * (map ? 1 : f.glowA));
+    sv.glows[1].scale.setScalar(base.glows[1] * (map ? 1 : f.glowB));
   }
 
   placeRocket(rw) {

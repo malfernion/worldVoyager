@@ -78,6 +78,9 @@ export const STICKERS = {
   'land-flip': { icon: '⛲', name: 'Geyser Jumper' },
   'visit-ducky': { icon: '☄️', name: 'Comet Catcher', say: 'You caught a comet! When it zooms close to Ember it grows a tail, and the tail always points away from Ember.' },
   'land-ducky': { icon: '🦆', name: 'Comet Lander' },
+  // Yonder (#62), the far-out icy dwarf world: stickers only (#36). Pip notices the distance.
+  'visit-yonder': { icon: '🧊', name: 'Far, Far Away', say: 'Hello Yonder! We\'re so far from home that Ember looks like a tiny star. Its light is dim and cold out here.' },
+  'land-yonder': { icon: '🌠', name: 'Edge Explorer' },
   // Earned by crashing into a sea (#44: rockets can't float); same id, so old saves keep it.
   splash: { icon: '🌊', name: 'Splashdown!', say: 'Splash! Rockets can\'t float. Let\'s land on the ground!' },
   dive: { icon: '☁️', name: 'Cloud Diver', say: 'Whoosh! Giant planets are all clouds, there is no ground to land on!' },

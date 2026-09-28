@@ -23,8 +23,9 @@ import { createShowers } from './rain.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
-// their small craters have enough vertices across to look round: about 2.4, 1.3 and 1.8 m apart.)
-const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24 };
+// their small craters have enough vertices across to look round: about 2.4, 1.3 and 1.8 m apart;
+// Yonder's, #62, about 3.9 m, like Frosty's, for its dark lands' soft craters.)
+const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24, yonder: 44 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
@@ -258,6 +259,41 @@ function rings(body, sunDir) {
   return m;
 }
 
+/**
+ * Ember from far away (#62): out past the planets (at Yonder) its light is dim and cold, and it's
+ * only a very bright star. It comes in between `from` and `to` metres from Ember: no planet, moon
+ * or the comet ever gets that far (Tumble's SOI, the furthest, ends at 63000; a test checks), so
+ * every other world keeps its look. `sun`: the sunlight's strength, times the usual, at `to` and
+ * at `far` (dimmest; a little falloff across Yonder's stretched orbit); `cold`: its colour out
+ * there; `fill`: the sky's soft fill light (hemisphere and ambient), times the usual; `core`,
+ * `glow`: Ember's disc and its two glows, times their usual size (the disc then only a few
+ * pixels across); `white`: how far the disc turns white-hot.
+ */
+export const FAR_LIGHT = { from: 66000, to: 76000, far: 140000, sun: [0.5, 0.4], cold: 0xc4d2ff, fill: 0.75, core: 0.3, glow: [0.4, 0.2], white: 0.6 };
+
+const smoothstep = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * How Ember looks and lights things `dist` metres from it (#62, FAR_LIGHT): `k` how far into the
+ * far look (0: the usual, 1: Yonder's), and the multipliers `sun`, `fill`, `core`, `glowA`,
+ * `glowB` (all 1 when `k` is 0). Pure, into `out` (no allocation).
+ */
+export function farLight(dist, out = {}) {
+  const L = FAR_LIGHT;
+  const k = smoothstep(L.from, L.to, dist);
+  const dim = L.sun[0] + (L.sun[1] - L.sun[0]) * smoothstep(L.to, L.far, dist);
+  out.k = k;
+  out.sun = 1 - k * (1 - dim);
+  out.fill = 1 - k * (1 - L.fill);
+  out.core = 1 - k * (1 - L.core);
+  out.glowA = 1 - k * (1 - L.glow[0]);
+  out.glowB = 1 - k * (1 - L.glow[1]);
+  return out;
+}
+
 function starVisual(body) {
   const group = new THREE.Group();
   const core = new THREE.Mesh(
@@ -315,6 +351,8 @@ const ROCKS = {
   misty: { count: 90, size: [0.6, 1.6], palette: [0xcdb89a, 0xa88d6c, 0xe0cfb4, 0x7d6448] },
   flip: { count: 60, size: [1, 2.4], palette: [0xe9dcd6, 0xc5d0da, 0xf0c9bf, 0x8e8793] },
   ducky: { count: 36, size: [0.8, 2], palette: [0x4c525c, 0x5d6470, 0x3a3f48, 0xc8d4de] },
+  // Yonder's (#62): blocks of water ice (pale, a little blue) and a few stained reddish brown.
+  yonder: { count: 70, size: [0.9, 2.4], palette: [0xe9ecf0, 0xd3dbe6, 0xf2e6d8, 0x9a5a40] },
 };
 
 // Spots where rocks stay clear, because plumes and puffs rise there.
@@ -468,6 +506,7 @@ export function createBodyVisual(body) {
     group.add(s.group);
     out.mesh = s.mesh;
     out.light = s.light;
+    out.glows = s.glows; // (shrunk far away, #62: FlightScene.updateFarLight)
     out.updates.push(s.shimmer);
     out.landmarks = createLandmarks(body); // solar flares
     group.add(out.landmarks.group);

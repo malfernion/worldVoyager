@@ -54,10 +54,13 @@ describe('zoom in real distances (#18)', () => {
   it('the map can always see the whole solar system, out to the farthest world (#11)', () => {
     const planets = createSystem().bodies.filter((b) => b.parent?.kind === 'star');
     for (const b of planets) {
-      // Out to the far end of a stretched orbit (the comet, #13).
-      expect(SYSTEM_VIEW).toBeGreaterThan(b.apoapsis + b.radius);
+      // Out to the far end of a stretched orbit (the comet, #13; Yonder, #62).
       expect(SYSTEM_EXTENT).toBeGreaterThanOrEqual(b.apoapsis + b.soi);
+      // The default view is the planets' (and the comet's); a far-out dwarf world is beyond it.
+      if (b.dwarf) expect(b.periapsis - b.soi).toBeGreaterThan(SYSTEM_VIEW);
+      else expect(SYSTEM_VIEW).toBeGreaterThan(b.apoapsis + b.radius);
     }
+    expect(planets.some((b) => b.dwarf)).toBe(true);
     expect(SYSTEM_VIEW).toBeLessThan(SYSTEM_EXTENT);
   });
 
