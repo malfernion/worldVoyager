@@ -864,10 +864,14 @@ function makeYonder() {
     // shape the rest works from; this is where it's roughened.)
     const eastSide = smooth(-0.05, 0.25, hp.u);
     // (The left lobe leans out and down into a teardrop, like Sputnik Planitia.)
-    const wu = hp.u < 0 ? hp.u * (0.8 + 0.12 * smooth(0.2, 0.9, hp.v)) : hp.u * 1.12;
+    // (Towards the bottom it narrows into a clear point, and the wobble fades out there, so the
+    // point isn't rounded off: the owner wanted it pointier.)
+    const low = 1 - smooth(0.05, 0.5, hp.v);
+    const wu = (hp.u < 0 ? hp.u * (0.8 + 0.12 * smooth(0.2, 0.9, hp.v)) : hp.u * 1.12) * (1 + 0.7 * low);
     const wv = hp.v + 0.1 * Math.max(0, hp.u) - 0.12 * Math.min(0, hp.u);
-    const sd = heartDist(wu, wv) + 0.12 * noise(x * 2.6 + 13, y * 2.6, z * 2.6) + 0.05 * noise(x * 7 + 3, y * 7 + 1, z * 7)
-      + (1 - eastSide) * (0.11 * noise(x * 5.5 + 21, y * 5.5, z * 5.5 + 4) + 0.045 * noise(x * 12 + 2, y * 12 + 8, z * 12))
+    const wob = 0.25 + 0.75 * smooth(0.12, 0.55, hp.v);
+    const sd = heartDist(wu, wv) + wob * (0.12 * noise(x * 2.6 + 13, y * 2.6, z * 2.6) + 0.05 * noise(x * 7 + 3, y * 7 + 1, z * 7)
+      + (1 - eastSide) * (0.11 * noise(x * 5.5 + 21, y * 5.5, z * 5.5 + 4) + 0.045 * noise(x * 12 + 2, y * 12 + 8, z * 12)))
       + 0.01 * noise(x * 23, y * 23 + 5, z * 23);
     heart.sd = sd;
     heart.eastSide = eastSide;
