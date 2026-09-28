@@ -1149,8 +1149,10 @@ export class FlightScene {
     // that stays clear however far out the camera is, and only what's beyond it fogs over.
     const d = Math.hypot(c.x, c.y, c.z);
     const fl = look.fog ?? look.storm.fog, fk = look.fog ? k : st;
-    fog.near = (fl.near + d) / fk;
-    fog.far = (fl.far + d) / fk;
+    // (In a shower in a haze, #54 Misty's rain: the haze's fog closing in as deep as we are in it.)
+    const sf = look.fog && st > 0 ? look.storm.fog : fl;
+    fog.near = (fl.near + (sf.near - fl.near) * st + d) / fk;
+    fog.far = (fl.far + (sf.far - fl.far) * st + d) / fk;
     this.scene.background.copy(this.spaceColour).lerp(fog.color, fk);
     this.sky.visible = look.stars || k < 0.6;
   }

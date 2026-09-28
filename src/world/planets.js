@@ -18,6 +18,7 @@ import { createClouds, cloudShadows, noiseTexture } from './clouds.js';
 import { createEmbers } from './embers.js';
 import { createStorms } from './storms.js';
 import { BAND_LOOK, bandShader } from './hazeBands.js';
+import { createShowers } from './rain.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
@@ -120,7 +121,7 @@ function surfaceFromMesh(body, geo, liquidGeo = null) {
  * (a BAND_LOOK, #54: Misty's): lighter and darker drifting haze bands over its face and the
  * detached haze layer at its edge (hazeBands.js); without them the shader is as it always was.
  */
-function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null) {
+export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null) {
   const bs = bands ? bandShader(bands) : null;
   const mat = new THREE.ShaderMaterial({
     uniforms: {
@@ -493,10 +494,13 @@ export function createBodyVisual(body) {
       out.updates.push(clouds.update);
     }
     // Dust storms (#54: Dusty's), drawn from space by a cloud layer of their own, and the dust
-    // blowing across the ground down in one.
-    const storms = createStorms(body, out.sunDir);
+    // blowing across the ground down in one; Misty's rain showers the same way (#54: their
+    // clouds and shafts, and the drops and rings on the lakes down in one).
+    const storms = createStorms(body, out.sunDir) ?? createShowers(body, out.sunDir);
     if (storms) {
-      storms.layer.mesh.renderOrder = -1; // under the high clouds
+      // (Dusty's under the high clouds; Misty's showers over the haze's glow, which would
+      // wash them out.)
+      storms.layer.mesh.renderOrder = body.haze ? 1 : -1;
       group.add(storms.layer.mesh, storms.streams.mesh);
       out.storms = storms;
       out.updates.push(storms.layer.update);
@@ -579,6 +583,11 @@ export const SKY_LOOK = {
     low: 30, top: 200, fog: { near: 2, far: 80 }, stars: false, shell: 1, dawn: [-0.2, 0.3],
     horizon: 0xd98a3a, zenith: 0x7a3f16, glow: 0xffd28a, veil: [1, 1],
     night: 0.3,
+    // Down in a methane shower (#54, rain.js): a duskier, greyer orange, the distance closing
+    // in a little (`fog`, from `fog` above as deep as we are in it).
+    storm: {
+      horizon: 0xbc8150, zenith: 0x5c3820, night: { horizon: 0x3a2618, zenith: 0x150d08 }, veil: 1, fog: { near: 1, far: 58 }, low: 40, top: 100,
+    },
   },
   homestead: {
     low: 40, top: 170, stars: true, shell: 0.5, dawn: [-0.3, 0.3], zenithLag: 2, deepen: 1,
