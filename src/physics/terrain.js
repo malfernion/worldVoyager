@@ -810,6 +810,23 @@ export const YONDER_GLACIERS = [
   return { ...g, a: [s[0] - f[0] * g.back, s[1] - f[1] * g.back], f, len: g.back + g.out };
 });
 
+// The heart's tail (#62 stage 2): its point runs down along the mountains and on past them.
+// Along the heart's left side (heart units: `t` 0 at the point to 1 where the side meets the
+// lobe, as the mountains' `t`), from `top` down to `end` (below 0: past the old point, beyond
+// the last mountain); its left edge `edge` heart units outside the side (the mountains' inner
+// feet), `width` wide, narrowing to nothing from `full` down to `end`.
+export const HEART_TAIL = { top: 0.95, end: -0.4, full: 0.4, edge: 0.1, width: 0.28 };
+const TAIL_L = Math.hypot(HEART_TAN[0], HEART_TAN[1]);
+
+/** Signed distance to the heart's tail (heart units, negative inside; near enough, for masks). */
+export function heartTail(u, v) {
+  const T = HEART_TAIL;
+  const t = (u * -HEART_TAN[0] + v * HEART_TAN[1]) / (TAIL_L * TAIL_L);
+  const out = -(u * HEART_SIDE[1] + v * HEART_SIDE[0]); // outwards from the side, heart units
+  const w = T.width * smooth(T.end, T.full, t);
+  return Math.max((T.end - t) * TAIL_L, (t - T.top) * TAIL_L, out - T.edge, T.edge - w - out);
+}
+
 // Water-ice mountains (#62 stage 2) standing along the basin's west side, like Pluto's Tenzing
 // and Hillary Montes: tall, blocky, pale. Each is a rounded block (`r` [long, short] metres
 // half-widths, turned `turn`), `h` metres tall, with a flat, tilted top (`tilt`: metres of fall
@@ -867,12 +884,16 @@ function makeYonder() {
     // (Towards the bottom it narrows into a clear point, and the wobble fades out there, so the
     // point isn't rounded off: the owner wanted it pointier.)
     const low = 1 - smooth(0.05, 0.5, hp.v);
-    const wu = (hp.u < 0 ? hp.u * (0.8 + 0.12 * smooth(0.2, 0.9, hp.v)) : hp.u * 1.12) * (1 + 0.7 * low);
+    const wu = (hp.u < 0 ? hp.u * (0.8 + 0.12 * smooth(0.2, 0.9, hp.v)) : hp.u * 1.12) * (1 + 0.3 * low);
     const wv = hp.v + 0.1 * Math.max(0, hp.u) - 0.12 * Math.min(0, hp.u);
     const wob = 0.25 + 0.75 * smooth(0.12, 0.55, hp.v);
-    const sd = heartDist(wu, wv) + wob * (0.12 * noise(x * 2.6 + 13, y * 2.6, z * 2.6) + 0.05 * noise(x * 7 + 3, y * 7 + 1, z * 7)
+    const sd0 = heartDist(wu, wv) + wob * (0.12 * noise(x * 2.6 + 13, y * 2.6, z * 2.6) + 0.05 * noise(x * 7 + 3, y * 7 + 1, z * 7)
       + (1 - eastSide) * (0.11 * noise(x * 5.5 + 21, y * 5.5, z * 5.5 + 4) + 0.045 * noise(x * 12 + 2, y * 12 + 8, z * 12)))
       + 0.01 * noise(x * 23, y * 23 + 5, z * 23);
+    // Its point runs down along the mountains and on past them (the owner's ask; Sputnik
+    // Planitia's southern tip does the same): a tapering tail whose left edge is the mountains'
+    // feet, the chain's line (`HEART_TAIL`), out beyond the last mountain to a sharp tip.
+    const sd = Math.min(sd0, heartTail(hp.u, hp.v) + 0.012 * noise(x * 11 + 6, y * 11, z * 11 + 3));
     heart.sd = sd;
     heart.eastSide = eastSide;
     // (The heart's west: the dark lands and the mountains.)

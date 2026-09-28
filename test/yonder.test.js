@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createSystem } from '../src/physics/bodies.js';
-import { makeTerrain, SPIN_AXES, YONDER_HEART, YONDER_GLACIERS, heartAt, heartDir, heartDist } from '../src/physics/terrain.js';
+import { makeTerrain, SPIN_AXES, YONDER_HEART, YONDER_GLACIERS, heartAt, heartDir, heartDist, heartTail, HEART_TAIL } from '../src/physics/terrain.js';
 import { DISCOVERIES, HEART_NEAR, HEART_SPOT, HEART_IN, HEART_VIEW, heartSeen, finds, buggyFinds, groundPoint, discoveryTargets } from '../src/physics/discoveries.js';
 import { airOf } from '../src/physics/exhaust.js';
 import { Buggy, vec } from '../src/physics/buggy.js';
@@ -375,6 +375,24 @@ describe('Yonder\'s heart (#62 stage 2)', () => {
         last = h;
       }
     }
+  });
+
+  it('runs its point down along the mountains and on past them, to a sharp tip', () => {
+    // The mountains stand right against its tail: under each one's inner side is the heart.
+    for (const p of ter.peaks) {
+      const hp = heartAt(p.x, p.y, p.z);
+      // From the mountain's middle, a step in towards the heart's middle.
+      const len = Math.hypot(hp.u, hp.v - YONDER_HEART.mid);
+      const q = heartDir(hp.u - (0.14 * hp.u) / len, hp.v - (0.14 * (hp.v - YONDER_HEART.mid)) / len);
+      expect(ter.heart(q.x, q.y, q.z).in).toBeGreaterThan(0.5);
+    }
+    // Past the last mountain (below the old point) it goes on, narrowing to a tip...
+    const lowest = Math.min(...ter.peaks.map((p) => heartAt(p.x, p.y, p.z).v));
+    const tailV = (t) => { let best = Infinity; for (let u = -0.6; u < 0.6; u += 0.004) for (let v = -0.6; v < 0.3; v += 0.004) if (heartTail(u, v) < 0) best = Math.min(best, v); return best; };
+    expect(tailV()).toBeLessThan(lowest - 0.08);
+    // ...and ends there: nothing of it beyond `end`.
+    expect(heartTail(0, -0.9)).toBeGreaterThan(0);
+    expect(HEART_TAIL.end).toBeLessThan(0);
   });
 
   it('has tall ice mountains along the basin\'s west side, well away from the landing strip', () => {

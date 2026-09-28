@@ -1470,7 +1470,10 @@ come later.
   (`heartAt()` / `heartDir()`, true distances from its middle), then `heartOf()` roughens it:
   lopsided (the left lobe a bigger teardrop leaning out and down, the right lobe smaller and a
   little lower), its outline wobbling at several scales but narrowing into a clear point at
-  the bottom (the wobble fades out there, so it isn't rounded off), its west edge fairly sharp where the
+  the bottom (the wobble fades out there, so it isn't rounded off) and running down along the
+  mountains and on past the last of them to a sharp tip (`HEART_TAIL`, `heartTail()`: a tapering
+  tail whose left edge is the mountains' feet, as Sputnik Planitia's southern tip runs along
+  its mountains), its west edge fairly sharp where the
   dark lands and mountains meet it, and the right lobe breaking up into ragged frost fading into
   the ground (no dark outline there). It's placed well in on the side the cameras see and
   upright on the map (`up` is the map's +y). It doesn't reach the flight plane; the buggy drives
