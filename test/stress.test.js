@@ -23,6 +23,10 @@ const trips = [
   // Racing after the comet close to Ember dived into the star (#13).
   ['autopilot', 'sizzle', 'ducky', 9133],
   ['coach', 'tumble', 'ducky', 25399],
+  // Yonder's window here grazed Ringo's pull: burning on past the push made it worse and hit
+  // Ringo (#62); and from Pebble, nothing was found near that window.
+  ['autopilot', 'homestead', 'yonder', 6422],
+  ['coach', 'pebble', 'yonder', 6422],
 ];
 
 describe('take me there, stress subset', () => {
