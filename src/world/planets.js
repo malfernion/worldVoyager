@@ -14,9 +14,10 @@ import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
 import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
-import { createClouds, cloudShadows } from './clouds.js';
+import { createClouds, cloudShadows, noiseTexture } from './clouds.js';
 import { createEmbers } from './embers.js';
 import { createStorms } from './storms.js';
+import { BAND_LOOK, bandShader } from './hazeBands.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
@@ -115,9 +116,12 @@ function surfaceFromMesh(body, geo, liquidGeo = null) {
 
 /**
  * A glowing shell round a world: bright at the rim, fading towards the middle. `fill` tints the
- * whole face too, for a thick haze (Misty, #46) that you half see the ground through.
+ * whole face too, for a thick haze (Misty, #46) that you half see the ground through. `bands`
+ * (a BAND_LOOK, #54: Misty's): lighter and darker drifting haze bands over its face and the
+ * detached haze layer at its edge (hazeBands.js); without them the shader is as it always was.
  */
-function atmosphere(radius, color, strength = 1.2, fill = 0) {
+function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null) {
+  const bs = bands ? bandShader(bands) : null;
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       color: { value: new THREE.Color(color) },
@@ -125,14 +129,17 @@ function atmosphere(radius, color, strength = 1.2, fill = 0) {
       strength: { value: strength },
       fill: { value: fill },
       fade: { value: 1 }, // how much of it shows: less once we're down in a haze (#46)
+      ...(bands ? { time: { value: 0 }, noiseMap: { value: noiseTexture() }, bandLight: { value: new THREE.Color(bands.light) } } : {}),
     },
     vertexShader: /* glsl */ `
       #include <common>
       #include <logdepthbuf_pars_vertex>
       varying vec3 vN;
       varying vec3 vP;
+      ${bs ? 'varying vec3 vO;' : ''}
       void main() {
         vN = normalize(normalMatrix * normal);
+        ${bs ? 'vO = normal;' : ''}
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vP = mv.xyz;
         gl_Position = projectionMatrix * mv;
@@ -148,16 +155,29 @@ function atmosphere(radius, color, strength = 1.2, fill = 0) {
       uniform float fade;
       varying vec3 vN;
       varying vec3 vP;
+      ${bs ? bs.pars : ''}
       void main() {
         #include <logdepthbuf_fragment>
         float rim = 1.0 - abs(dot(normalize(-vP), vN));
         float day = 0.25 + 0.75 * smoothstep(-0.3, 0.5, dot(vN, sunDir));
         float a = min(1.0, (pow(rim, 2.6) * strength + fill) * day) * fade;
-        gl_FragColor = vec4(color * a, a);
+        ${bs ? `
+        // (How close this line of sight passes to the world's middle, a share of the shell's radius.)
+        float rho = sqrt(max(0.0, 1.0 - (1.0 - rim) * (1.0 - rim)));
+        vec3 light = vec3(0.0);
+        float dark = 0.0;
+        float shellK = 1.0;
+        ${bs.main}
+        a *= shellK;
+        // Premultiplied: the glow added as before (additive, colour * a * a), the bands' light
+        // on top, and a darker band dimming what's behind.
+        gl_FragColor = vec4(color * a * a + light, dark);` : `
+        gl_FragColor = vec4(color * a, a);`}
       }`,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    // (With bands: ONE, ONE_MINUS_SRC_ALPHA, the same as additive while nothing is darker.)
+    ...(bs ? { blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor } : { blending: THREE.AdditiveBlending }),
   });
   const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 40), mat);
   m.userData.atmosphere = true;
@@ -517,11 +537,14 @@ export function createBodyVisual(body) {
 
   if (body.atmosphere) {
     // A hazy world's (Misty, #46) is thicker: further out, brighter, and over its whole face.
+    const bands = BAND_LOOK[body.id] ?? null;
     const atm = body.haze
-      ? atmosphere(body.radius * 1.22, body.atmosphere, 1.5, 0.8)
+      ? atmosphere(body.radius * 1.22, body.atmosphere, 1.5, 0.8, bands)
       : atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4);
     group.add(atm);
     out.atmosphere = atm;
+    // Misty's haze bands drift on the real clock (#54).
+    if (bands) out.updates.push((time) => { atm.material.uniforms.time.value = time % 100000; });
     // ...and, down near the ground, its sky (#58 Misty's haze; #61 Homestead's and Dusty's).
     if (SKY_LOOK[body.id]) {
       out.hazeSky = hazeSky(body.radius, SKY_LOOK[body.id]);
