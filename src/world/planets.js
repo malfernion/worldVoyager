@@ -16,6 +16,7 @@ import { mulberry32 } from '../physics/noise.js';
 import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
 import { createClouds, cloudShadows } from './clouds.js';
 import { createEmbers } from './embers.js';
+import { createMist } from './mist.js';
 import { createStorms } from './storms.js';
 
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
@@ -464,6 +465,7 @@ export function createBodyVisual(body) {
     surfaceFromMesh(body, geo, liquid?.mesh.geometry);
     const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), flatShading: true });
     mesh = new THREE.Mesh(geo, richRocky(mat, body, out.sunDir)); // detail, slopes, rim, night fill (#51)
+    if (mat.userData.richUpdate) out.updates.push(mat.userData.richUpdate); // Frosty's ice sparkles (#54)
     // A cloud layer (#54: Homestead's, Dusty's thin high ones), and its soft shadows on the ground.
     const clouds = createClouds(body, out.sunDir);
     if (clouds) {
@@ -492,6 +494,13 @@ export function createBodyVisual(body) {
         out.embers = embers;
         out.updates.push(embers.update);
       }
+    }
+    // Mist seeping out of Frosty's glowing cracks (#54, stage 5).
+    const mist = createMist(body, out.sunDir);
+    if (mist) {
+      group.add(mist.mesh);
+      out.mist = mist;
+      out.updates.push(mist.update);
     }
     if (body.id === 'homestead') {
       out.trees = trees(body, group);

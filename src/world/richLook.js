@@ -162,6 +162,30 @@ function defines(list) {
 // ---- Rocky worlds ------------------------------------------------------------------------------
 
 /**
+ * Ice sparkles (#54 stage 5: Frosty's): tiny glints on sunlit ice, each a crystal facet that
+ * flashes when it mirrors the sun into the camera, so they twinkle as the camera moves (and a
+ * little on their own). `cell` (m): the finest grid they're on (one glint spot per cell, at
+ * most); further off the grid doubles so each spot stays a few pixels across (`sparkleCell()`);
+ * `px` (m per pixel): over this they fade out (landed and driving: all of them; low orbit: a
+ * few, faintly; the globe: none); `tilt`: how far the facets lean off the ground's (more: more
+ * of them glint from any view); `sharp`: how exactly one must face the sun (0..1, higher: fewer);
+ * `k`: how bright; `color` (raw 0..1, may be over 1).
+ */
+export const SPARKLE = { cell: 0.3, px: [0.25, 1.4], tilt: 2.2, sharp: 0.82, k: 1.2, color: [1, 1, 1] };
+
+/**
+ * The glint grid for a pixel covering `px` metres (pure; the shader does the same sums): the
+ * finer cell `cell` (m), the next one up (twice it) and how much of that one to blend in, so a
+ * spot always has about 26 (CSS) pixels' worth of cell (room for its little star), whatever the distance, and never pops.
+ * `k`: how much of the sparkle is left at this distance (0..1).
+ */
+export function sparkleCell(px, look = SPARKLE, dpr = 1) {
+  const L = Math.max(0, Math.log2((px * 26 * dpr) / look.cell));
+  const f = Math.floor(L);
+  return { cell: look.cell * 2 ** f, blend: L - f, k: 1 - smooth01(look.px[0], look.px[1], px) };
+}
+
+/**
  * Each rocky world's extra colours: `rock` for steep faces, `dust` for flat ground, `speck` and
  * `streak` for the fine detail, `rim` the sunlit edge, `night` the night side's fill (added, so
  * small), `ao` the baked relief's strength and `speckle` [how rare (0..1, higher: fewer), how bright]
@@ -194,6 +218,7 @@ export const ROCKY_LOOK = {
   frosty: {
     tint: true, rock: [0.6, 0.74, 0.95], dust: [1.03, 1.03, 1.03], speck: [1.08, 1.08, 1.08], streak: [0.92, 0.95, 1.0],
     rim: 0xeaf8ff, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.56, light: 0.3 }, speckle: [0.84, 0.35], keep: [[FROSTY_GLOWS, 0.22]],
+    sparkle: SPARKLE, // (#54 stage 5) its ice glints in the sun
   },
   flip: {
     tint: true, rock: [0.84, 0.82, 0.9], dust: [1.03, 1.02, 1.03], speck: [1.08, 1.08, 1.08], streak: [0.93, 0.92, 0.96],
@@ -276,7 +301,20 @@ export function richRocky(mat, body, sunDir) {
     rlDarken: { value: new THREE.Vector3(...(look.darken ?? [1, 0, 1])) },
     rlAmbientK: { value: look.ambientK ?? 1 },
   };
-  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface]]);
+  const sp = look.sparkle;
+  if (sp) {
+    Object.assign(uniforms, {
+      rlTime: { value: 0 },
+      rlSparkle: { value: new THREE.Vector4(sp.cell, sp.tilt, sp.px[0], sp.px[1]) },
+      rlSparkK: { value: new THREE.Vector3(...sp.color).multiplyScalar(sp.k) },
+      rlSparkSharp: { value: sp.sharp },
+      // Sized in CSS pixels, so they're as big on a phone's sharp screen (the renderer's ratio, main.js).
+      rlSparkDpr: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1 },
+    });
+    // Its glints' own twinkle runs on the clock (planets.js calls this with the other updates).
+    mat.userData.richUpdate = (time) => { uniforms.rlTime.value = time % 1000; };
+  }
+  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface], ['RL_SPARKLE', !!sp]]);
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\nvarying float rlLevel;\n'
@@ -292,10 +330,11 @@ export function richRocky(mat, body, sunDir) {
       uniform float rlSpeckK;
       uniform vec3 rlDarken;
       uniform float rlAmbientK;
+      ${sp ? SPARKLE_PARS : ''}
     ` + shader.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}`)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= rlAmbientK;')
-      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n#include <opaque_fragment>`);
+      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${sp ? SPARKLE_MAIN : ''}\n#include <opaque_fragment>`);
   };
   mat.customProgramCacheKey = () => `rich-rocky:${defs}`;
   return mat;
@@ -334,6 +373,71 @@ const ROCKY_COLOR = /* glsl */ `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockC, (1.0 - smoothstep(0.17, 0.19, fn)) * 0.3 * speckK);
     // Mixing in the extra colours greys things a little: win the colour back (bright for kids).
     diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.333))), diffuseColor.rgb, 1.15), 0.0);
+  }
+`;
+
+// Ice sparkles (#54 stage 5, only with RL_SPARKLE). One glint spot per grid cell, at a random
+// point in it (3D cells: the ground only passes near some of the spots, which scatters them); a
+// spot glints when its facet (the ground's normal tilted at random, wobbling a little in time)
+// mirrors the sun into the camera: the half-vector test, so they flash as the view moves. A
+// spot is at most a pixel and a half across and at most an eighth of its cell (pin-pricks up
+// close). The grid doubles with distance (sparkleCell()). View space throughout.
+const SPARKLE_PARS = /* glsl */ `
+  uniform float rlTime;
+  uniform vec4 rlSparkle; // cell, tilt, px fade
+  uniform vec3 rlSparkK;
+  uniform float rlSparkSharp;
+  uniform float rlSparkDpr;
+  // One cell's glint at this pixel, a little four-pointed star (in pixels: (jx, jy) are the
+  // metres one pixel steps across the ground): .x all of it, .y its core, .z its hue (0..1).
+  vec3 rlGlint(vec3 pos, float cell, vec3 jx, vec3 jy, vec3 H, vec3 N) {
+    vec3 g = pos / cell;
+    vec3 id = floor(g);
+    vec3 h = vec3(rlHash(id), rlHash(id + 19.19), rlHash(id + 47.31));
+    vec3 o = (id + 0.5 + (h - 0.5) * 0.4 - g) * cell; // to its spot (m)
+    // ...in pixels across the screen (least squares on the ground's plane), and off the ground.
+    float a = dot(jx, jx), b = dot(jx, jy), c = dot(jy, jy);
+    vec2 r = vec2(dot(jx, o), dot(jy, o));
+    vec2 sp = vec2(c * r.x - b * r.y, a * r.y - b * r.x) / max(a * c - b * b, 1e-12);
+    float off = length(o - sp.x * jx - sp.y * jy) / sqrt(max(a, c));
+    sp /= rlSparkDpr;
+    // The ground passes near only some of the spots (within a couple of pixels).
+    float on = 1.0 - smoothstep(1.0, 2.0, off / rlSparkDpr);
+    if (on <= 0.0) return vec3(0.0);
+    vec3 lean = vec3(rlHash(id + 7.7), rlHash(id + 3.13), rlHash(id + 11.37)) - 0.5;
+    lean += 0.12 * sin(rlTime * (0.7 + 1.6 * h) + h * 40.0);
+    vec3 f = normalize(N + rlSparkle.y * lean);
+    // A facet either mirrors the sun at us or not (a narrow edge, so it flashes on and off).
+    float flash = smoothstep(rlSparkSharp, rlSparkSharp + 0.025, dot(f, H));
+    if (flash <= 0.0) return vec3(0.0);
+    vec2 q = abs(sp);
+    float core = exp(-dot(sp, sp) * 0.3);
+    float rays = exp(-q.x * 0.2 - q.y * q.y * 1.5) + exp(-q.y * 0.2 - q.x * q.x * 1.5);
+    return vec3(on * flash * min(core + rays, 1.0), on * flash * core, h.z);
+  }
+`;
+const SPARKLE_MAIN = /* glsl */ `
+  {
+    vec3 jx = dFdx(rlObj), jy = dFdy(rlObj);
+    float px = length(jx + jy) * 0.7071;
+    // Sunlit ice only: not the night side, not the tan patches, red or glowing cracks (their
+    // colours are too dark: ice is the palest ground; rlRich is 0 all round the glowing cracks).
+    float lit = smoothstep(0.0, 0.2, dot(normal, rlSun)) * smoothstep(-0.05, 0.15, dot(normalize(rlRadial), rlSun));
+    float ice = smoothstep(0.6, 0.8, dot(diffuseColor.rgb, vec3(0.333)));
+    float k = lit * ice * (1.0 - smoothstep(rlSparkle.z, rlSparkle.w, px));
+    if (k > 0.001) {
+      vec3 H = normalize(rlSun + normalize(vViewPosition));
+      float L = max(0.0, log2(px * 26.0 * rlSparkDpr / rlSparkle.x));
+      float fl = floor(L), bl = L - fl;
+      float cell = rlSparkle.x * exp2(fl);
+      vec3 g1 = rlGlint(rlObj, cell, jx, jy, H, normal) * vec3(1.0 - bl, 1.0 - bl, 1.0);
+      vec3 g2 = rlGlint(rlObj + 71.3, cell * 2.0, jx, jy, H, normal) * vec3(bl, bl, 1.0);
+      vec3 g = g1.x > g2.x ? g1 : g2;
+      // Icy colours, like light through ice crystals: cyan, ice blue, a little lilac and gold.
+      vec3 hue = g.z < 0.45 ? vec3(0.25, 0.85, 1.0) : g.z < 0.75 ? vec3(0.4, 0.6, 1.0) : g.z < 0.9 ? vec3(0.75, 0.55, 1.0) : vec3(1.0, 0.8, 0.3);
+      // (On sunlit ice, nearly white already, it's the colour that shows; the core is brighter.)
+      outgoingLight = mix(outgoingLight, mix(hue, vec3(0.85, 1.0, 1.0), g.y) * rlSparkK * (1.0 + 0.4 * g.y), clamp(g.x * k, 0.0, 1.0));
+    }
   }
 `;
 
