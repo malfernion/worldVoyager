@@ -41,7 +41,10 @@ function terrainGeometry(body) {
   // where its convection cells and glaciers are, baked per vertex.
   const marks = t.marks ? new Float32Array(pos.count * 4) : null;
   const flow = t.marks ? new Float32Array(pos.count) : null;
-  const mk = [0, 0, 0, 0, 0];
+  // ...and the rest of its ground's (#62): cracked plains, pitted dark lands, the blades.
+  const ground = t.marks ? new Float32Array(pos.count * 4) : null;
+  const along = t.marks ? new Float32Array(pos.count) : null;
+  const mk = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const l = Math.hypot(x, y, z);
@@ -61,11 +64,15 @@ function terrainGeometry(body) {
       t.marks(x, y, z, mk);
       for (let k = 0; k < 4; k++) marks[i * 4 + k] = mk[k];
       flow[i] = mk[4];
+      for (let k = 0; k < 4; k++) ground[i * 4 + k] = mk[5 + k];
+      along[i] = mk[9];
     }
   }
   if (marks) {
     geo.setAttribute('heartMark', new THREE.BufferAttribute(marks, 4));
     geo.setAttribute('heartFlow', new THREE.BufferAttribute(flow, 1));
+    geo.setAttribute('groundMark', new THREE.BufferAttribute(ground, 4));
+    geo.setAttribute('groundAlong', new THREE.BufferAttribute(along, 1));
   }
   // Hollows darker, ridges lighter (#51; only colour, the shape is untouched).
   bakeRelief(body, geo, heights, dirs, colors);

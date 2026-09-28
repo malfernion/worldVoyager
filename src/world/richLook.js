@@ -7,7 +7,7 @@
 // A world opts in by having an entry in ROCKY_LOOK (rocky worlds) or GAS_LOOK (gas giants,
 // whose bands come from GAS_BANDS in terrain.js); every other world keeps the plain toon look.
 import * as THREE from 'three';
-import { SPIN_AXES, GAS_BANDS, SIZZLE_VENTS, FROSTY_GLOWS, facingPole } from '../physics/terrain.js';
+import { SPIN_AXES, GAS_BANDS, SIZZLE_VENTS, FROSTY_GLOWS, YONDER_BLADES, facingPole } from '../physics/terrain.js';
 import { toonGradient } from './materials.js';
 
 // Colours are used as raw 0..1 values, like the terrain's vertex colours (so the palettes match).
@@ -225,6 +225,66 @@ export function cellAt(q, time, hash, look = HEART_LOOK) {
 }
 
 /**
+ * The rest of Yonder's ground (#62), away from its heart, like Pluto's regions in New Horizons'
+ * pictures. Only in Yonder's ground shader (`#define RL_GROUND`), from how much of each kind of
+ * land each vertex is (terrain.js `landOf()`, baked by `marks()`): no mesh, no draw call, no
+ * texture. The patterns are in 3D cells of the ground's own (object-space) position, so they
+ * have no seams or poles anywhere round the world.
+ * - `crack`: the pale frost plains are cracked into big flat polygons (no domes: the heart's
+ *   churning cells are rounder, smaller and domed): `cell` (m) how wide one is, `width` how wide a
+ *   crack is (a share of a cell; never under a pixel and a half, fainter as it widens, like the
+ *   heart's troughs), `color` (times the ground's); some cracks are fainter than others (`faint`:
+ *   the faintest's strength), and close up a finer net of cracks (`fine`: its cell, m, and how
+ *   strong) shows inside the big ones.
+ * - `blade`: the bladed terrain (Tartarus Dorsa): ridges `gap` m apart (terrain.js
+ *   `YONDER_BLADES`), each flank lit or shaded by the sun (`flank`), frosty crests (`crest`,
+ *   the colour mixed in) and dark troughs (`trough`, times the ground's), broken into snakeskin
+ *   scales about `scale` m long.
+ * - `pit`: the dark lands (Cthulhu) are pitted with craters of three sizes (`cells`, m: one
+ *   grid each, at most one crater per cell, `rate` of the cells have one): a dark floor
+ *   (`floor`), a shadow on the sun's side inside (`shadow`), a frosty rim brightest facing the sun
+ *   (`rim`); and dark streaks (`streak`: [how far apart across them, m; how long, m; how dark]).
+ * Each fades out once it's only a few pixels across, like the heart's cells.
+ */
+export const YONDER_GROUND = {
+  crack: { cell: 30, width: 0.03, color: [0.74, 0.77, 0.88], faint: 0.35, fine: [8, 0.55] },
+  blade: { flank: 0.35, crest: [1, 0.95, 0.93], trough: [0.62, 0.5, 0.5], scale: 16 },
+  pit: { cells: [30, 13, 6], rate: [0.5, 0.55, 0.6], floor: [0.78, 0.7, 0.68], shadow: 0.6, rim: [1, 0.86, 0.76], streak: [14, 70, 0.78] },
+};
+
+/** A crater's radius (a share of its cell) and how far its middle strays from the cell's (each way): it always fits inside the cell. */
+export const CRATER_FIT = { r: [0.2, 0.34], stray: 0.15 };
+
+/**
+ * How far point `p` (in cells, 3D) is from the nearest crack of the frost plains' polygons,
+ * measured along the ground (`up`: the ground's unit normal): the edge between the two nearest
+ * cells' seeds is a plane, which the ground cuts at a slant. The shader's sums (the hash aside:
+ * `hash3(i, j, k)` gives three numbers 0..1 per cell). Also which two cells (`a`, `b`).
+ */
+export function crackAt(p, up, hash3) {
+  const ix = Math.floor(p[0]), iy = Math.floor(p[1]), iz = Math.floor(p[2]);
+  let d1 = 9, d2 = 9, o1 = null, o2 = null, a = null, b = null;
+  for (let k = -1; k <= 1; k++) {
+    for (let j = -1; j <= 1; j++) {
+      for (let i = -1; i <= 1; i++) {
+        const h = hash3(ix + i, iy + j, iz + k);
+        const o = [i + 0.5 + 0.8 * (h[0] - 0.5) - (p[0] - ix), j + 0.5 + 0.8 * (h[1] - 0.5) - (p[1] - iy), k + 0.5 + 0.8 * (h[2] - 0.5) - (p[2] - iz)];
+        const d = o[0] * o[0] + o[1] * o[1] + o[2] * o[2];
+        const id = [ix + i, iy + j, iz + k];
+        if (d < d1) { d2 = d1; o2 = o1; b = a; d1 = d; o1 = o; a = id; } else if (d < d2) { d2 = d; o2 = o; b = id; }
+      }
+    }
+  }
+  const e = o2.map((v, i) => v - o1[i]);
+  const el = Math.hypot(...e);
+  const n = e.map((v) => v / el);
+  const dist = ((o1[0] + o2[0]) * n[0] + (o1[1] + o2[1]) * n[1] + (o1[2] + o2[2]) * n[2]) / 2;
+  const nu = n[0] * up[0] + n[1] * up[1] + n[2] * up[2];
+  const lean = Math.hypot(n[0] - nu * up[0], n[1] - nu * up[1], n[2] - nu * up[2]);
+  return { dist: dist / Math.max(lean, 0.25), a, b };
+}
+
+/**
  * Each rocky world's extra colours: `rock` for steep faces, `dust` for flat ground, `speck` and
  * `streak` for the fine detail, `rim` the sunlit edge, `night` the night side's fill (added, so
  * small), `ao` the baked relief's strength and `speckle` [how rare (0..1, higher: fewer), how bright]
@@ -273,6 +333,7 @@ export const ROCKY_LOOK = {
   },
   // Yonder (#62), far out where Ember's light is dim and cold: a cool rim, bluish-grey slopes.
   yonder: {
+    ground: YONDER_GROUND, // (#62) the rest of its ground: cracked frost plains, bladed terrain, pitted dark lands
     tint: true, rock: [0.78, 0.8, 0.9], dust: [1.03, 1.02, 1.02], speck: [1.1, 1.1, 1.12], streak: [0.9, 0.88, 0.92],
     rim: 0xdce8ff, rimK: 0.45, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.5, light: 0.26 }, speckle: [0.84, 0.35],
     heart: HEART_LOOK, // (#62 stage 2) its heart's churning cells and its glaciers' flow lines
@@ -375,11 +436,32 @@ export function richRocky(mat, body, sunDir) {
     // The cells churn on the real clock, wrapping where every loop comes round (no jump).
     mat.userData.richUpdate = (time) => { uniforms.rlTime.value = time % hl.churn; };
   }
-  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface], ['RL_SPARKLE', !!sp], ['RL_HEART', !!hl]]);
+  const gr = look.ground;
+  if (gr) {
+    const { crack: c, blade: b, pit: p } = gr;
+    const ax = SPIN_AXES[body.id];
+    Object.assign(uniforms, {
+      rlCrack: { value: new THREE.Vector4(c.cell, c.width, c.faint, c.fine[1]) },
+      rlCrackFine: { value: c.fine[0] },
+      rlCrackC: { value: new THREE.Vector3(...c.color) },
+      rlBlade: { value: new THREE.Vector3(YONDER_BLADES.gap, b.scale, b.flank) },
+      rlBladeCrest: { value: new THREE.Vector3(...b.crest) },
+      rlBladeTrough: { value: new THREE.Vector3(...b.trough) },
+      rlPitCell: { value: new THREE.Vector3(...p.cells) },
+      rlPitRate: { value: new THREE.Vector3(...p.rate) },
+      rlPitFit: { value: new THREE.Vector3(CRATER_FIT.r[0], CRATER_FIT.r[1] - CRATER_FIT.r[0], CRATER_FIT.stray) },
+      rlPitFloor: { value: new THREE.Vector3(...p.floor) },
+      rlPitShadow: { value: p.shadow },
+      rlPitRim: { value: new THREE.Vector3(...p.rim) },
+      rlPitAxis: { value: new THREE.Vector3(ax.x, ax.y, ax.z) },
+      rlPitStreak: { value: new THREE.Vector3(...p.streak) },
+    });
+  }
+  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface], ['RL_SPARKLE', !!sp], ['RL_HEART', !!hl], ['RL_GROUND', !!gr]]);
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\nvarying float rlLevel;\n' + (hl ? HEART_VERT_PARS : '')
-      + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}\nrlRich = rich;\nrlLevel = abs(dot(normalize(normal), normalize(position)));${hl ? HEART_VERT : ''}`);
+    shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\nvarying float rlLevel;\n' + (hl ? HEART_VERT_PARS : '') + (gr ? GROUND_VERT_PARS : '')
+      + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}\nrlRich = rich;\nrlLevel = abs(dot(normalize(normal), normalize(position)));${hl ? HEART_VERT : ''}${gr ? GROUND_VERT : ''}`);
     shader.fragmentShader = defs + FRAG_PARS + /* glsl */ `
       varying float rlRich;
       varying float rlLevel;
@@ -391,8 +473,8 @@ export function richRocky(mat, body, sunDir) {
       uniform float rlSpeckK;
       uniform vec3 rlDarken;
       uniform float rlAmbientK;
-    ` + (sp ? SPARKLE_PARS : '') + (hl ? HEART_PARS : '') + shader.fragmentShader
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}${hl ? HEART_MAIN : ''}`)
+    ` + (sp ? SPARKLE_PARS : '') + (hl ? HEART_PARS : '') + (gr ? GROUND_PARS : '') + shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}${hl ? HEART_MAIN : ''}${gr ? GROUND_MAIN : ''}`)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= rlAmbientK;')
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${sp ? SPARKLE_MAIN + '\n' : ''}#include <opaque_fragment>`);
   };
@@ -502,6 +584,183 @@ const HEART_MAIN = /* glsl */ `
       float w = max(0.12, 1.5 * pf);
       float line = (1.0 - smoothstep(0.4 * w, w, dd)) * (0.12 / w);
       diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlFlowC, line * streak * seen * rlMark.w);
+    }
+  }
+`;
+
+// The rest of Yonder's ground (#62, only with RL_GROUND; YONDER_GROUND, `crackAt()` is the
+// cracks' sums). `rlGround`: how much of it is cracked frost plain, pitted dark land and bladed
+// terrain (baked per vertex, 0 on the heart, its rim, glaciers and mountains, so the heart's own
+// look is untouched), and metres across the blades. 3D cells of the ground's own position, so
+// no seams or poles; every edge antialiased with fwidth and at least a pixel and a half wide,
+// and each pattern faded out once it's only a few pixels across. `rlSunO`: the sun in the
+// world's own frame, for the craters' shadows.
+const GROUND_VERT_PARS = /* glsl */ `
+  attribute vec4 groundMark;
+  attribute float groundAlong;
+  uniform vec3 rlSun;
+  varying vec4 rlGround;
+  varying float rlBladeAlong;
+  varying vec3 rlSunO;
+`;
+const GROUND_VERT = /* glsl */ `
+  rlGround = groundMark;
+  rlBladeAlong = groundAlong;
+  rlSunO = normalize(transpose(mat3(modelViewMatrix)) * rlSun);
+`;
+const GROUND_PARS = /* glsl */ `
+  uniform vec4 rlCrack; // big cell (m), width (cells), the faintest cracks' strength, the fine net's strength
+  uniform float rlCrackFine; // the fine net's cell (m)
+  uniform vec3 rlCrackC;
+  uniform vec3 rlBlade; // gap (m), scales (m), how much lighter / darker the flanks facing / away from the sun
+  uniform vec3 rlBladeCrest;
+  uniform vec3 rlBladeTrough;
+  uniform vec3 rlPitCell;
+  uniform vec3 rlPitRate;
+  uniform vec3 rlPitFit; // smallest radius, the spread of radii, stray (shares of a cell)
+  uniform vec3 rlPitFloor;
+  uniform float rlPitShadow;
+  uniform vec3 rlPitRim;
+  uniform vec3 rlPitAxis; // the streaks run along it
+  uniform vec3 rlPitStreak; // across (m), along (m), how dark
+  varying vec4 rlGround;
+  varying float rlBladeAlong;
+  varying vec3 rlSunO;
+  // Three numbers 0..1 per cell (no sin(): steady on phones).
+  vec3 rlHash3(vec3 p) {
+    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+    p += dot(p, p.yxz + 33.33);
+    return fract((p.xxy + p.yxx) * p.zyx);
+  }
+  // The frost plains' cracks at p (cells): .x how far to the nearest along the ground (cells),
+  // .y how strong that crack is (one number per pair of cells), .z 0 where the edge between the
+  // cells lies almost flat along the ground (it would smear into a wide band: left out).
+  // up: the ground's unit normal.
+  vec3 rlCracks(vec3 p, vec3 up) {
+    vec3 i0 = floor(p), f0 = p - i0;
+    float d1 = 9.0, d2 = 9.0;
+    vec3 o1 = vec3(0.0), o2 = vec3(0.0), g1 = vec3(0.0), g2 = vec3(0.0);
+    for (int k = -1; k <= 1; k++) {
+      for (int j = -1; j <= 1; j++) {
+        for (int i = -1; i <= 1; i++) {
+          vec3 g = vec3(float(i), float(j), float(k));
+          vec3 o = g + 0.5 + 0.8 * (rlHash3(i0 + g) - 0.5) - f0;
+          float d = dot(o, o);
+          if (d < d1) { d2 = d1; o2 = o1; g2 = g1; d1 = d; o1 = o; g1 = g; }
+          else if (d < d2) { d2 = d; o2 = o; g2 = g; }
+        }
+      }
+    }
+    vec3 n = normalize(o2 - o1);
+    float lean = length(n - dot(n, up) * up);
+    return vec3(dot(0.5 * (o1 + o2), n) / max(lean, 0.25), rlHash(2.0 * i0 + g1 + g2 + 5.3), smoothstep(0.3, 0.5, lean));
+  }
+  // A crater in the grid of cells 'cell' m wide, if this cell has one (rate): .x how far out
+  // (0 its middle, 1 its rim), .y the same from a middle shifted away from the sun (outside 1:
+  // in the shadow), .z its radius on the ground (m), .w 1 if there is one.
+  vec4 rlCrater(float cell, float rate, float seed, vec3 up, vec3 sunT) {
+    vec3 p = rlObj / cell;
+    vec3 id = floor(p);
+    vec3 h = rlHash3(id + seed);
+    if (h.x > rate) return vec4(9.0, 9.0, 0.0, 0.0);
+    // (It fits inside its cell, so one cell's lookup is enough: never cut off.)
+    vec3 q = p - (id + 0.5 + (rlHash3(id + seed + 7.1) - 0.5) * 2.0 * rlPitFit.z);
+    float r = rlPitFit.x + rlPitFit.y * h.y;
+    float dn = dot(q, up);
+    float a2 = r * r - dn * dn;
+    // (A crater is a ball cut by the ground: too small a slice would be a speck.)
+    if (a2 < 0.2 * r * r) return vec4(9.0, 9.0, 0.0, 0.0);
+    float a = sqrt(a2);
+    vec3 qt = (q - dn * up) / a;
+    return vec4(length(qt), length(qt + 0.45 * sunT), a * cell, 1.0);
+  }
+`;
+
+const GROUND_MAIN = /* glsl */ `
+  {
+    vec3 up = normalize(rlObj);
+    float gpx = length(fwidth(rlObj)); // metres per pixel
+    // The frost plains' cracks: big polygons, and close up a finer net inside them.
+    if (rlGround.x > 0.01) {
+      float pc = gpx / rlCrack.x; // cells per pixel
+      float seen = 1.0 - smoothstep(0.1, 0.25, pc);
+      if (seen > 0.0) {
+        vec3 c = rlCracks(rlObj / rlCrack.x, up);
+        float w = max(rlCrack.y, 1.5 * pc);
+        float line = (1.0 - smoothstep(0.35 * w, w, c.x)) * (rlCrack.y / w) * c.z;
+        float k = rlGround.x * seen * mix(rlCrack.z, 1.0, smoothstep(0.3, 0.6, c.y));
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlCrackC, line * k);
+        float pf = gpx / rlCrackFine;
+        float fseen = 1.0 - smoothstep(0.08, 0.2, pf);
+        if (fseen > 0.0) {
+          vec3 f = rlCracks(rlObj / rlCrackFine + 17.0, up);
+          float fw = max(rlCrack.y * 1.2, 1.5 * pf);
+          float fl = (1.0 - smoothstep(0.35 * fw, fw, f.x)) * (rlCrack.y * 1.2 / fw) * smoothstep(0.35, 0.55, f.y) * f.z;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlCrackC, fl * rlGround.x * fseen * rlCrack.w);
+        }
+      }
+    }
+    // The bladed terrain: ridges across rlGround.w (crests where it's half a gap on), the flank
+    // facing the sun lit and the other shaded (which way across grows along the ground, in view
+    // space: least squares on the pixel's steps), frosty crests, dark troughs; each ridge broken
+    // along its length (rlBladeAlong) into scales, staggered from its neighbours': snakeskin.
+    if (rlGround.z > 0.01) {
+      float f = rlGround.w / rlBlade.x;
+      float pf = fwidth(f);
+      float seen = 1.0 - smoothstep(0.15, 0.35, pf);
+      if (seen > 0.0) {
+        vec3 jx = dFdx(vViewPosition), jy = dFdy(vViewPosition);
+        float sx = dFdx(rlGround.w), sy = dFdy(rlGround.w);
+        float a = dot(jx, jx), b = dot(jx, jy), c = dot(jy, jy);
+        vec3 g = ((c * sx - b * sy) * jx + (a * sy - b * sx) * jy) / max(a * c - b * b, 1e-12);
+        // (vViewPosition points from the ground to the camera: g is minus the way across grows,
+        // the way the rising flank faces.)
+        float lit = clamp(dot(normalize(g + 1e-9), rlSun) * 3.0, -1.0, 1.0);
+        float fr = fract(f);
+        float side = clamp((1.0 - 4.0 * abs(fract(f + 0.25) - 0.5)) / (4.0 * max(pf, 1e-4)), -1.0, 1.0); // 1 on the rising flank
+        float dc = abs(fr - 0.5), dt = 0.5 - dc;
+        float cw = max(0.035, 1.5 * pf);
+        float crest = (1.0 - smoothstep(0.4 * cw, cw, dc)) * (0.035 / cw);
+        float trough = (1.0 - smoothstep(0.4 * cw, cw, dt)) * (0.035 / cw);
+        // This ridge's scales: its own length and stagger, a short gap between each.
+        vec3 rh = rlHash3(vec3(floor(f), 3.1, 7.7));
+        float ta = rlBladeAlong / (rlBlade.y * (0.75 + 0.6 * rh.y)) + rh.x;
+        float seg = fract(ta);
+        float dash = clamp(min(seg - 0.16, 1.0 - seg) / max(fwidth(ta), 1e-4) + 0.5, 0.0, 1.0);
+        float k = rlGround.z * seen;
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlBladeTrough, trough * k);
+        k *= dash;
+        diffuseColor.rgb *= 1.0 + side * lit * rlBlade.z * k;
+        diffuseColor.rgb = mix(diffuseColor.rgb, rlBladeCrest, crest * 0.2 * k);
+      }
+    }
+    // The dark lands: dark streaks, then craters of three sizes (big first, small on top).
+    if (rlGround.y > 0.01) {
+      vec3 ax = rlPitAxis;
+      float along = dot(rlObj, ax);
+      float sn = rlNoise((rlObj - along * ax) / rlPitStreak.x + along * ax / rlPitStreak.y + 9.1);
+      float sseen = 1.0 - smoothstep(0.15, 0.35, gpx / rlPitStreak.x);
+      diffuseColor.rgb *= 1.0 - (1.0 - rlPitStreak.z) * smoothstep(0.6, 0.64, sn) * rlGround.y * sseen;
+      vec3 sunT = rlSunO - dot(rlSunO, up) * up;
+      for (int i = 0; i < 3; i++) {
+        float cell = i == 0 ? rlPitCell.x : i == 1 ? rlPitCell.y : rlPitCell.z;
+        float rate = i == 0 ? rlPitRate.x : i == 1 ? rlPitRate.y : rlPitRate.z;
+        vec4 cr = rlCrater(cell, rate, 31.7 * float(i + 1), up, sunT);
+        if (cr.w <= 0.0) continue;
+        float pw = gpx / cr.z; // radii per pixel
+        float seen = 1.0 - smoothstep(0.1, 0.25, pw);
+        if (seen <= 0.0 || cr.x > 1.4) continue;
+        float e = max(pw, 0.04);
+        float inside = 1.0 - smoothstep(1.0 - e, 1.0 + e, cr.x);
+        float rim = inside * smoothstep(0.8 - e, 0.8 + e, cr.x);
+        float shade = inside * smoothstep(1.0 - e, 1.0 + e, cr.y);
+        float k = rlGround.y * seen;
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlPitFloor, (inside - rim) * k);
+        diffuseColor.rgb = mix(diffuseColor.rgb, min(diffuseColor.rgb * 1.6 + 0.08, 1.0) * rlPitRim, rim * (1.0 - shade) * 0.75 * k);
+        diffuseColor.rgb *= 1.0 - (1.0 - rlPitShadow) * shade * k;
+        // A faint pale ring of thrown-out frost just outside.
+        diffuseColor.rgb *= 1.0 + 0.08 * (1.0 - inside) * (1.0 - smoothstep(1.0, 1.35, cr.x)) * k;
+      }
     }
   }
 `;

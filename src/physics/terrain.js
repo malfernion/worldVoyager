@@ -832,6 +832,15 @@ const YONDER_PEAKS = [
   { t: 0.97, out: 0.08, r: [15, 11], h: 8, turn: 0.2, tilt: 2 },
 ];
 
+// Bladed terrain (#62), like Pluto's Tartarus Dorsa east of its heart: long parallel ridges of
+// methane ice, wavy like snakeskin, on a raised oval north-east of the heart. The oval: its
+// middle `at` and half-widths `r` [across, along the blades] in heart units, turned `turn`
+// radians (heart frame); its blades `gap` m apart and `h` m from trough to crest, wobbling `wave`
+// m side to side; the whole oval `rise` m up. The ground shader draws the blades crisply
+// (richLook.js `YONDER_GROUND`) from how far across them each vertex is (baked, `marks()`); the
+// mesh's gentle ridges under them catch the light.
+export const YONDER_BLADES = { at: [1.4, 1.02], r: [0.34, 0.5], turn: -0.35, gap: 13, h: 1.1, wave: 7, rise: 0.8 };
+
 function makeYonder() {
   const { fbm, noise } = makeNoise(223);
   const ax = YONDER_AXIS;
@@ -947,11 +956,44 @@ function makeYonder() {
   const pits = YONDER_PITS.filter((c) => tholin(c.x, c.y, c.z) > 0.6).map((c) => ({ ...c, radius: 0.1 + c.size * 0.08, deep: 1.6 + c.depth * 1.6 }));
   // Rolling hills, round-topped (a smooth step of the noise, never a crease).
   const hills = (x, y, z) => smooth(0.05, 0.55, noise(x * 3.2 + 11, y * 3.2, z * 3.2));
+  // The rest of the ground (#62): what kind of land each point is, worked out once like the
+  // heart. `blade` 0..1 in the bladed terrain (YONDER_BLADES), `across` metres across its
+  // blades and `along` metres along them; `crack` 0..1 on the cracked frost plains; `pit` 0..1 in the pitted dark lands. The
+  // ground shader draws their patterns (richLook.js `YONDER_GROUND`, baked by `marks()`). None
+  // of it on the heart or its dark rim, its glaciers or the mountains: those stay as they are.
+  const B = YONDER_BLADES;
+  const bk = Math.cos(B.turn), bs = Math.sin(B.turn);
+  const bp = { u: 0, v: 0 };
+  const land = { x: NaN, y: 0, z: 0, blade: 0, across: 0, along: 0, crack: 0, pit: 0 };
+  const landOf = (x, y, z) => {
+    if (x === land.x && y === land.y && z === land.z) return land;
+    land.x = x; land.y = y; land.z = z;
+    land.blade = 0; land.across = 0; land.along = 0;
+    if (x * H.c.x + y * H.c.y + z * H.c.z > 0) {
+      heartAt(x, y, z, bp);
+      const du = bp.u - B.at[0], dv = bp.v - B.at[1];
+      const a = du * bk + dv * bs, b = dv * bk - du * bs;
+      const e = Math.hypot(a / B.r[0], b / B.r[1]) + 0.12 * noise(x * 7 + 3, y * 7 + 5, z * 7);
+      land.blade = 1 - smooth(0.7, 1, e);
+      land.across = a * H.size * R + B.wave * noise(x * 4 + 8, y * 4, z * 4 + 1);
+      land.along = b * H.size * R;
+    }
+    const hr = heartOf(x, y, z);
+    const clear = (1 - hr.in) * smooth(0.04, 0.14, hr.sd) * (1 - smooth(0, 0.05, hr.peak)) * (1 - hr.glacier);
+    land.blade *= clear;
+    const th = tholin(x, y, z);
+    land.pit = smooth(0.35, 0.75, th) * (1 - land.blade) * clear;
+    land.crack = (1 - smooth(0.2, 0.6, th)) * (1 - land.blade) * clear;
+    return land;
+  };
+  // (No soft craters under the blades.)
+  for (let i = pits.length - 1; i >= 0; i--) if (landOf(pits[i].x, pits[i].y, pits[i].z).blade > 0.05) pits.splice(i, 1);
   return {
     pits,
     peaks,
     tholin,
     heart: heartOf,
+    land: landOf,
     /** How much of the richer look's relief and fine detail goes here (0..1): little on the heart's ice. */
     richAt(x, y, z) {
       const hr = heartOf(x, y, z);
@@ -970,6 +1012,14 @@ function makeYonder() {
       out[2] = hr.basin * (1 - hr.glacier) * (1 - smooth(0, 0.03, hr.peak)); // (not on the mountains at its edge)
       out[3] = hr.glacier;
       out[4] = hr.glacier > 0 ? hr.flow : 0;
+      // (#62) The rest of the ground's patterns: the frost plains' cracks, the dark lands' pits,
+      // the blades and how far across and along them.
+      const ld = landOf(x, y, z);
+      out[5] = ld.crack;
+      out[6] = ld.pit;
+      out[7] = ld.blade;
+      out[8] = ld.across;
+      out[9] = ld.along;
       return out;
     },
     height(x, y, z) {
@@ -982,6 +1032,9 @@ function makeYonder() {
         h += (hr.glacierH - h) * hr.glacier;
       }
       if (hr.peakH > 0) h += hr.peakH;
+      // The blades (#62): raised ground in low, wavy ridges (crests where across is half a gap on).
+      const ld = landOf(x, y, z);
+      if (ld.blade > 0) h += ld.blade * (B.rise + B.h * (0.5 - 0.5 * Math.cos((2 * Math.PI * ld.across) / B.gap) - 0.5));
       return h;
     },
     color(x, y, z, h) {
@@ -1017,6 +1070,16 @@ function makeYonder() {
         c = mix(c, mix(rgb(0xfdfcf8), rgb(0xf1f4f8), n + 0.5), hr.basin);
         c = mix(c, rgb(0xb8d2f2), hr.glacier * 0.75);
       }
+      // The rest of the ground (#62; the shader draws its patterns): the dark lands mottled in
+      // big patches, darker and redder; the bladed terrain a dusky reddish brown (its crests' frost
+      // and its troughs are the shader's).
+      const ld = landOf(x, y, z);
+      if (ld.pit > 0) {
+        const m = noise(x * 9 + 2, y * 9 + 6, z * 9);
+        c = mix(c, mix(c, rgb(0x4a2016), 0.4), smooth(0.1, 0.2, m) * ld.pit);
+        c = mix(c, rgb(0xb4704f), smooth(-0.12, -0.22, m) * 0.4 * ld.pit);
+      }
+      if (ld.blade > 0) c = mix(c, mix(rgb(0xb88c7a), rgb(0x9c6a58), smooth(-0.2, 0.25, n)), ld.blade * 0.9);
       // The mountains: pale blocks of water ice, bluish grey low down.
       if (hr.peak > 0) c = mix(c, mix(rgb(0x8d7468), rgb(0xf0f3f6), smooth(0.15, 0.75, hr.peak)), smooth(0, 0.2, hr.peak));
       return c;
