@@ -1462,6 +1462,38 @@ come later.
   view); Ember's glint is one sprite, only drawn far out. Nothing per frame but a few
   multiplies (the light is only touched when it changes).
 
+### Yonder's heart, mountains, glaciers and blue haze (#62, stage 2)
+
+- **The heart** (`YONDER_HEART`, `heartDist()` in terrain.js): a cartoon heart (two round lobes and
+  a point, a signed-distance shape) laid on the ground in its own frame (`heartAt()` /
+  `heartDir()`, true distances from its middle), placed well in on the side the cameras see and
+  upright on the map (`up` is the map's +y). It doesn't reach the flight plane; the buggy drives
+  to it from the landing strip. An earlier try crossed the plane, but near the limb the heart was
+  foreshortened and tilted and no longer read as a heart.
+- **The basin** (its left lobe, like Sputnik Planitia): smooth, pale nitrogen ice 1.8 m below the
+  uplands, with **convection cells** in the ground shader (`HEART_LOOK`, `cellAt()`,
+  `#define RL_HEART`, from marks baked per vertex, `marks()`): cells round slowly wandering
+  middles, a little domed, with dark troughs, churning like a lava lamp on the real clock;
+  antialiased with `fwidth`, faded out when only a few pixels across. The right lobe is mottled
+  frost on higher ground.
+- **Glaciers** (`YONDER_GLACIERS`): three tongues flowing from the right lobe's uplands west
+  down into the basin, square to its shore, sliding smoothly downhill, with flow lines drawn
+  along them.
+- **Ice mountains** (like the Tenzing and Hillary Montes): five craggy blocks with flat tilted
+  tops, 8 to 14 m tall, just outside the heart's west side, clear of the flight plane, and bare
+  of boulders. The dark lands (tholin) reach up to the heart's west, like Cthulhu beside
+  Pluto's; they only count near the heart (far round the world its frame still says "west",
+  which once put a steep crater on the landing strip).
+- **Finding it** (`find-heart`): by seeing it, like the Hexagon Hunter (#55): its middle on
+  screen and clear of the buttons, facing us, at least 20 px (half its height). That's the map
+  zoomed in on Yonder or close flight views; not the default map, nor from its far side.
+- **The blue haze** (`HAZE_LAYERS`, `blueHazeAt()`, planets.js `hazeLayers()`): Pluto's thin
+  layered blue haze from New Horizons' backlit picture: a soft glow hugging the ground and a
+  few thin detached layers, only seen from space, brightest backlit. It's visual only: Yonder
+  stays airless for the rocket's exhaust (#60). It's a shell of its own, one draw call.
+- **Cost:** the mesh detail went to 56 (the mountains' steep sides need it); the cells and flow
+  lines are shader lines on Yonder only; the haze is one draw call. Other worlds are unchanged.
+
 ## Ideas for later
 
 Tracked as [GitHub Issues](https://github.com/malfernion/worldVoyager/issues).

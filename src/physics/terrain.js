@@ -746,13 +746,13 @@ export function heartDist(x, y) {
  * +y, turned `turn` radians), `size` radians of ground per heart unit, `mid` the heart units
  * from its point up to `c`. Its left lobe (like Sputnik Planitia) is a smooth basin `deep`
  * metres down with slowly churning convection cells (the ground shader, richLook.js
- * `HEART_LOOK`), and reaches down over the flight plane (landable); its right lobe is mottled
- * frost on higher ground (`east` m up); glaciers flow from it down into the basin. Placed so
- * the whole heart shows from the map and from orbit, with its upper-left lobe just crossing the
- * flight plane (a test checks both).
+ * `HEART_LOOK`); its right lobe is mottled frost on higher ground (`east` m up); glaciers
+ * flow from it down into the basin. Placed well in on the side the cameras see, so the whole
+ * heart shows upright from the map and from orbit (a test checks); it doesn't reach the flight
+ * plane, so the buggy drives to it from the landing strip (`HEART_NEAR` is on the way).
  */
 export const YONDER_HEART = (() => {
-  const { phi, elev, turn, size } = globalThis.__HEART ?? { phi: 2.55, elev: 0.88, turn: 0, size: 0.95 };
+  const { phi, elev, turn, size } = globalThis.__HEART ?? { phi: 2.2, elev: 1.1, turn: 0, size: 0.85 };
   const c = dirOf(phi, Math.sin(elev));
   let up = [-c.y * c.x, 1 - c.y * c.y, -c.y * c.z];
   const ul = Math.hypot(...up);
@@ -800,7 +800,7 @@ const heartShore = (v) => 0.6 * Math.max(0, 0.9 - v) - 0.02;
 // the shore (`v`, heart units), how far back into the uplands it starts and out onto the basin
 // it spreads (`back`, `out`), and how wide it is (`w`; its snout spreads a little wider).
 export const YONDER_GLACIERS = [
-  { v: 0.28, back: 0.2, out: 0.11, w: 0.05 },
+  { v: 0.36, back: 0.12, out: 0.12, w: 0.045 },
   { v: 0.5, back: 0.22, out: 0.13, w: 0.06 },
   { v: 0.72, back: 0.16, out: 0.1, w: 0.045 },
 ].map((g) => {
@@ -862,7 +862,8 @@ function makeYonder() {
     const sd = heartDist(hp.u, hp.v) + 0.016 * noise(x * 9 + 13, y * 9, z * 9) + 0.008 * noise(x * 23, y * 23 + 5, z * 23);
     heart.sd = sd;
     // (The heart's west: the dark lands and the mountains.)
-    heart.west = smooth(-0.05, -0.35, hp.u) * (1 - smooth(0.6, 1.05, hp.v));
+    // (Only near the heart: far round the world the heart's frame still says "west".)
+    heart.west = smooth(-0.05, -0.35, hp.u) * (1 - smooth(0.6, 1.05, hp.v)) * (1 - smooth(0.35, 0.6, sd));
     heart.near = 1 - smooth(0.1, 0.6, sd);
     if (heart.near <= 0 && heart.west <= 0) return heart;
     heart.in = 1 - smooth(-0.015, 0.01, sd);

@@ -60,7 +60,7 @@ export const HEXAGON_VIEW = { x: 0.75, top: 0.75, bottom: -0.5, facing: 0.2, px:
 // (`HEART_NEAR`, about 55 m from it, in its left lobe).
 export const HEART_SPOT = YONDER_HEART.c;
 export const HEART_SIZE = Math.sin(YONDER_HEART.mid * YONDER_HEART.size);
-export const HEART_VIEW = { x: 0.8, top: 0.8, bottom: -0.55, facing: 0.35, px: 40 };
+export const HEART_VIEW = { x: 0.8, top: 0.8, bottom: -0.55, facing: 0.35, px: 20 };
 export const HEART_IN = 0.04;
 export const HEART_NEAR = heartDir(-0.5, 0.85);
 

@@ -168,7 +168,10 @@ Ringo. It's tiny and hard to catch, so Pip waits for a good moment to set off, a
 get close Pip steers you in. Drive over its fizzy gas jets and they'll bounce your buggy up!
 
 **Yonder** is a little icy world like Pluto, twice as far out as Tumble on a long, stretched
-orbit: pale plains of frozen nitrogen and dark reddish lands round its middle. It's so far from
+orbit: pale plains of frozen nitrogen and dark reddish lands round its middle. On the side you
+see there's a giant heart of pale ice, like Pluto's: in its left half the ice slowly churns in
+cells like a lava lamp, glaciers flow into it, and tall ice mountains stand along its edge.
+A thin blue haze glows round Yonder's edge, brightest with Ember behind it. Can you find the heart? It's so far from
 Ember that the sunlight is dim and cold, and from its ground Ember is just a very bright star.
 Getting there is the big voyage: 🤖 Take me there speeds up time for you.
 

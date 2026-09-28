@@ -78,7 +78,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        `shoreDist()`: metres to the nearest pool's shore, #45)
   terrain.js           Height + colour functions per world (shared by physics and meshes), each world's liquid (`liquid: { kind, level }`,
                        the seabed shape `seabedDepth()`; #44), pools carved below a liquid's level (`makePools()`, Sizzle's lava
-                       `SIZZLE_LAVA`; #45; Misty's methane lakes `MISTY_LAKES`; #46, and its ground, dune fields `MISTY_DUNES` and soft lake banks, #59; Yonder's icy plains and dark tholin belt `makeYonder()`, #62), spin axes (the gas giants', and `YONDER_AXIS` for its ground's pattern; + `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
+                       `SIZZLE_LAVA`; #45; Misty's methane lakes `MISTY_LAKES`; #46, and its ground, dune fields `MISTY_DUNES` and soft lake banks, #59; Yonder's icy plains and dark tholin belt `makeYonder()`, #62, and its heart `YONDER_HEART` / `heartDist()` / `heartAt()`, glaciers `YONDER_GLACIERS` and ice mountains, #62 stage 2), spin axes (the gas giants', and `YONDER_AXIS` for its ground's pattern; + `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
                        the ring gap, flares, seeing Tumble's hexagon `hexagonSeen()`, #55), and the ✨ compass's targets
@@ -187,7 +187,9 @@ test/                  vitest suites; missions.js has the shared headless flight
                        sparkles only in Frosty's ground shader
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
                        yonder.test.js: Yonder (#62): its orbit (never meeting Tumble), ground, landing from all round, driving,
-                       the map reaching it, trips there and back (🤖, 🧭, a barely-flying rocket), the far light at Yonder only
+                       the map reaching it, trips there and back (🤖, 🧭, a barely-flying rocket), the far light at Yonder only;
+                       stage 2: the heart's shape and place (upright, all on the seen side), its basin, glaciers and mountains,
+                       gentle ground by the flight plane, driving onto it, finding it by seeing it, the cells and the blue haze
                        orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
                        world no orbit line through its ground (#48)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js

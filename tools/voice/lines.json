@@ -216,6 +216,10 @@
   "text": "Can you spot it?"
  },
  {
+  "key": "can you spot it from space",
+  "text": "Can you spot it from space?"
+ },
+ {
   "key": "can you wake it up",
   "text": "Can you wake it up?"
  },
@@ -672,6 +676,10 @@
   "text": "Its light is dim and cold out here."
  },
  {
+  "key": "its named tombaugh regio after clyde tombaugh who discovered pluto",
+  "text": "It's named Tombaugh Regio, after Clyde Tombaugh, who discovered Pluto."
+ },
+ {
   "key": "kaboom",
   "text": "Kaboom!"
  },
@@ -960,6 +968,10 @@
   "text": "Long ago, Galileo looked at Saturn with a tiny telescope."
  },
  {
+  "key": "look a giant heart made of ice",
+  "text": "Look, a giant heart made of ice!"
+ },
+ {
   "key": "look a glow deep in the crack",
   "text": "Look, a glow deep in the crack!"
  },
@@ -1190,6 +1202,10 @@
  {
   "key": "pip needs a cabin",
   "text": "Pip needs a cabin!"
+ },
+ {
+  "key": "pluto has one too",
+  "text": "Pluto has one too."
  },
  {
   "key": "pluto is so far away that sunlight takes more than five hours to get there",
@@ -1490,6 +1506,10 @@
  {
   "key": "the hopper",
   "text": "The Hopper!"
+ },
+ {
+  "key": "the ice in its left side slowly churns like a lava lamp",
+  "text": "The ice in its left side slowly churns, like a lava lamp!"
  },
  {
   "key": "the light bounces back and tells them how far away the moon is",
@@ -2078,6 +2098,10 @@
  {
   "key": "yonder",
   "text": "Yonder!"
+ },
+ {
+  "key": "yonder has a giant secret shape on it",
+  "text": "Yonder has a giant secret shape on it."
  },
  {
   "key": "yonder is a little icy world just like pluto",
