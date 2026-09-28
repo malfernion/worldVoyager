@@ -165,6 +165,29 @@ describe('Misty\'s methane showers: where they are (#54 stage 4)', () => {
     expect(prev).toBe(0);
   });
 
+  it('are weather seen from low down: gone from the globe in space, shafts first', () => {
+    const { layer } = createShowers(misty, new THREE.Vector3(1, 0, 0));
+    const group = new THREE.Group();
+    const cam = new THREE.Vector3();
+    const fades = (alt) => {
+      cam.set(0, 0, R + alt);
+      layer.fade(cam, [], 0, group);
+      const c = [], s = [];
+      layer.clouds.forEach((cl, i) => (cl.shaft ? s : c).push(layer.fades[i]));
+      return { c: Math.max(...c), s: Math.max(...s) };
+    };
+    expect(fades(40).c).toBeGreaterThan(0.5);
+    expect(fades(40).s).toBeGreaterThan(0.5);
+    expect(fades(150).s).toBe(0);
+    expect(fades(150).c).toBeGreaterThan(0.2);
+    expect(fades(400).c).toBe(0);
+    // (The map draws the world bigger: counted in the world's own metres.)
+    group.scale.setScalar(3);
+    cam.set(0, 0, 3 * (R + 400));
+    layer.fade(cam, [], 0, group);
+    expect(Math.max(...layer.fades)).toBe(0);
+  });
+
   it('their clouds sit under the space line, with shafts of rain from their bases to the ground', () => {
     const p = showerPlan(look, R);
     const shafts = p.clouds.filter((c) => c.shaft);

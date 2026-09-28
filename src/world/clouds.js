@@ -627,6 +627,7 @@ export function createCloudLayer(look, { clouds, puffs }, radius, sunDir, name) 
     mesh,
     shadow,
     clouds,
+    fades, // each cloud's fade this frame (fade() sets them; the showers thin theirs out further, rain.js)
     sprites: count,
     opacity: uniforms.opacity, // how much of the layer shows (the storms thin theirs out round the camera)
     noFade: false, // testing only: no per-cloud fades (the screenshots show what they save)

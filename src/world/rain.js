@@ -28,7 +28,8 @@ import { stormShapes, stormEdge, stormAt } from './storms.js';
  * time), each shower's middle at time 0 (`lon`, `z` a share of the radius), half-length and
  * half-width (m), `tilt` and `lumps`. `cell`: metres between its clouds; `alt`: their bases (m
  * above the radius; under the space line). Colours as the clouds'. `shafts`: the rain shafts
- * under the clouds (how many per cloud, their half-width in m, how dense). `rain`: the drops
+ * under the clouds (how many per cloud, their half-width in m, how dense). `seen`: the camera's
+ * heights (m) over which the clouds, and the shafts, fade out as it climbs. `rain`: the drops
  * round what the camera follows: how many drops and rings, the box they're in (m), how high they
  * start (m above the ground there), how long a drop takes to fall (s) and a ring to spread,
  * their sizes (m: a drop's half-width and its length over that, a ring's radius), the slant
@@ -55,9 +56,10 @@ export const RAIN_LOOK = {
     limbRound: 0.25,
     shadow: 0,
     shafts: { count: 2, size: [2.2, 3.4], dens: 0.2 },
+    seen: { clouds: [120, 190], shafts: [60, 110] },
     rain: {
       drops: 560,
-      rings: 110,
+      rings: 75,
       box: 36,
       top: 14,
       fall: [5.5, 7.5],
@@ -335,7 +337,7 @@ const FRAG = /* glsl */ `
       float r1 = 0.15 + 0.85 * vAge;
       float w = 0.09 + 0.1 * vAge;
       a = exp(-pow((r - r1) / w, 2.0)) + 0.5 * exp(-pow((r - r1 + 0.35) / w, 2.0)) * step(0.35, r1);
-      a *= 0.55 * vAlpha;
+      a *= 0.45 * vAlpha;
     } else {
       // A fat, soft drop.
       float f = (1.0 - r2) * (1.0 - r2);
@@ -457,6 +459,18 @@ export function createShowers(body, sunDir) {
   if (!look) return null;
   const layer = createCloudLayer(look, showerPlan(look, body.radius), body.radius, sunDir, 'showers');
   const streams = createRain(look, body.liquidR || body.radius - 5, sunDir);
+  // A shower is weather seen from low down: its clouds fade out as the camera climbs away (the
+  // globe from space keeps its haze bands clean), its shafts sooner.
+  const fade = layer.fade;
+  const shafts = layer.clouds.map((c) => !!c.shaft);
+  layer.fade = (cam, foci, n, group, near) => {
+    fade(cam, foci, n, group, near);
+    const g = group.position, sc = group.scale.x || 1;
+    const alt = Math.hypot(cam.x - g.x, cam.y - g.y, cam.z - g.z) / sc - body.radius;
+    const kc = 1 - smooth(look.seen.clouds[0], look.seen.clouds[1], alt), ks = 1 - smooth(look.seen.shafts[0], look.seen.shafts[1], alt);
+    const f = layer.fades;
+    for (let i = 0; i < f.length; i++) f[i] *= shafts[i] ? ks : kc;
+  };
   return {
     look,
     layer,
