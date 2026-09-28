@@ -1204,7 +1204,7 @@ function makeHither() {
     }
     // Kubrick Mons.
     const km = x * M.x + y * M.y + z * M.z;
-    const [fH, fR] = KUBRICK.foot, [mMid, mHalf, mDeep] = KUBRICK.moat;
+    const fH = KUBRICK.foot[0], fR = KUBRICK.foot[1], mMid = KUBRICK.moat[0], mHalf = KUBRICK.moat[1], mDeep = KUBRICK.moat[2];
     if (km > Math.cos((mMid + mHalf + 6) / R)) {
       const u = (x * ke[0] + y * ke[1] + z * ke[2]) * R, v = (x * kn[0] + y * kn[1] + z * kn[2]) * R;
       const rr = Math.hypot(u, v);
