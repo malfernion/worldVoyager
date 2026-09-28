@@ -124,6 +124,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   ground and curls away, faint by day; at night it shows pale blue, lit cyan from below by the
   glow in the cracks. And like on Saturn's moon Enceladus, tall thin jets of icy spray shoot up
   from the cracks, shining where they rise into sunlight; you can see them from orbit.
+- **Gas giants:** bright white cloud streaks ride round Ringo's and Tumble's bands, and a thin
+  high haze glows at their edges: warm gold on Ringo, pale cyan on Tumble.
 - **Methane lakes:** Misty has dark, still lakes of liquid methane, mostly round its poles
   (two cross the rocket's path). Rockets can't land on them either (an amber splash); Pip's
   helpers land on the ground beside them ("Oops, a lake! I'll fly us over to dry land.").

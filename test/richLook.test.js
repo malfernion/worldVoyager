@@ -3,7 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { reliefShade, bakeRelief, GAS_LOOK, HEXAGON } from '../src/world/richLook.js';
+import { reliefShade, bakeRelief, GAS_LOOK, HEXAGON, MAX_STREAKS, CLOUD_WRAP, streakLon, streakReach, veilAt, limbHazeAt } from '../src/world/richLook.js';
+import { atmosphere } from '../src/world/planets.js';
 import { SPIN_AXES, facingPole } from '../src/physics/terrain.js';
 
 // A closed sphere mesh (like a world's), with each vertex's unit direction.
@@ -111,5 +112,68 @@ describe('Tumble\'s hexagon (#55)', () => {
   it('is Tumble\'s alone: Ringo keeps its approved look', () => {
     expect(GAS_LOOK.tumble.hexagon).toBe(HEXAGON);
     expect(GAS_LOOK.ringo.hexagon).toBeUndefined();
+  });
+});
+
+describe('the gas giants\' bright streaks and limb haze (#54 stage 6)', () => {
+  const giants = ['ringo', 'tumble'];
+
+  it('gives each giant a few streaks, all on the planet and clear of Tumble\'s hexagon', () => {
+    // The hexagon's outer corners, as a latitude along the axis (Tumble's seen pole is +axis).
+    const corner = Math.asin((HEXAGON.size + HEXAGON.width) / Math.cos(Math.PI / 6));
+    for (const id of giants) {
+      const { streaks } = GAS_LOOK[id];
+      expect(streaks.length).toBeGreaterThanOrEqual(3);
+      expect(streaks.length).toBeLessThanOrEqual(MAX_STREAKS);
+      for (const st of streaks) {
+        const [lo, hi] = streakReach(st);
+        expect(lo).toBeGreaterThan(-0.95);
+        expect(hi).toBeLessThan(id === 'tumble' ? Math.cos(corner) - 0.05 : 0.95);
+      }
+    }
+  });
+
+  it('moves each streak round its band without a jump when the cloud clock wraps', () => {
+    for (const id of giants) {
+      for (const st of GAS_LOOK[id].streaks) {
+        const d = Math.abs(streakLon(st, CLOUD_WRAP - 1e-6) - streakLon(st, 0));
+        expect(Math.min(d, 2 * Math.PI - d)).toBeLessThan(1e-3);
+        expect(streakLon(st, 100)).not.toBeCloseTo(streakLon(st, 0), 3); // it does move
+      }
+    }
+  });
+
+  it('lays the haze over the disc only towards the limb, strongest there', () => {
+    for (const id of giants) {
+      const h = GAS_LOOK[id].haze;
+      expect(veilAt(h, 0)).toBe(0);
+      expect(veilAt(h, h.veil[0])).toBe(0);
+      expect(veilAt(h, 1)).toBeCloseTo(h.veil[1], 6);
+      expect(veilAt(h, 0.9)).toBeLessThan(veilAt(h, 0.98));
+    }
+  });
+
+  it('hugs the cloud tops just off the limb, with a thin detached layer standing clear', () => {
+    for (const id of giants) {
+      const h = GAS_LOOK[id].haze;
+      expect(limbHazeAt(h, 0.99).hug).toBe(0); // (on the disc that's the veil's job)
+      expect(limbHazeAt(h, 1.0).hug).toBeCloseTo(h.hug[1], 6);
+      expect(limbHazeAt(h, 1 + h.hug[0]).hug).toBe(0);
+      expect(limbHazeAt(h, h.layer[0]).layer).toBeCloseTo(h.layer[2], 6);
+      expect(limbHazeAt(h, h.layer[0] + 2 * h.layer[1]).layer).toBe(0);
+      expect(h.layer[0]).toBeLessThan(1.06); // inside the glowing shell
+      // Wider than a pixel and a half, it's dimmed to match (so it never shimmers).
+      expect(limbHazeAt(h, h.layer[0], 0.02).layer).toBeLessThan(h.layer[2]);
+    }
+  });
+
+  it('leaves every other world\'s glowing shell as it was', () => {
+    for (const [id, look] of Object.entries(GAS_LOOK)) expect(look.haze, id).toBeTruthy();
+    const plain = atmosphere(1, 0x88aaff, 1.4);
+    expect(plain.material.fragmentShader).not.toContain('limbHug');
+    expect(plain.material.uniforms.limbHug).toBeUndefined();
+    const hazy = atmosphere(1, 0x88aaff, 1, 0, null, { haze: GAS_LOOK.ringo.haze, shell: 1.06 });
+    expect(hazy.material.fragmentShader).toContain('limbHug');
+    expect(hazy.material.blending).toBe(plain.material.blending);
   });
 });

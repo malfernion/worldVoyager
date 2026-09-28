@@ -13,7 +13,7 @@ import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS, OBSER
 import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
-import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer } from './richLook.js';
+import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer, GAS_LOOK } from './richLook.js';
 import { createClouds, cloudShadows, noiseTexture } from './clouds.js';
 import { createEmbers } from './embers.js';
 import { createMist } from './mist.js';
@@ -122,8 +122,11 @@ function surfaceFromMesh(body, geo, liquidGeo = null) {
  * (a BAND_LOOK, #54: Misty's): lighter and darker drifting haze bands over its face and the
  * detached haze layer at its edge (hazeBands.js); without them the shader is as it always was.
  */
-export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null) {
+export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null, limb = null) {
   const bs = bands ? bandShader(bands) : null;
+  // A gas giant's high-altitude haze just off its limb (#54 stage 6, richLook.js \`limbHazeAt()\`):
+  // \`limb\` is { haze: GAS_LOOK's haze, shell: this shell's radius in planet radii }.
+  const lh = limb?.haze;
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       color: { value: new THREE.Color(color) },
@@ -132,6 +135,11 @@ export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null
       fill: { value: fill },
       fade: { value: 1 }, // how much of it shows: less once we're down in a haze (#46)
       ...(bands ? { time: { value: 0 }, noiseMap: { value: noiseTexture() }, bandLight: { value: new THREE.Color(bands.light) } } : {}),
+      ...(lh ? {
+        limbColor: { value: new THREE.Color(lh.color) },
+        limbHug: { value: new THREE.Vector3(lh.hug[0], lh.hug[1], limb.shell) },
+        limbLayer: { value: new THREE.Vector3(...lh.layer) },
+      } : {}),
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -158,6 +166,7 @@ export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null
       varying vec3 vN;
       varying vec3 vP;
       ${bs ? bs.pars : ''}
+      ${lh ? 'uniform vec3 limbColor, limbHug, limbLayer;' : ''}
       void main() {
         #include <logdepthbuf_fragment>
         float rim = 1.0 - abs(dot(normalize(-vP), vN));
@@ -174,7 +183,16 @@ export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null
         // Premultiplied: the glow added as before (additive, colour * a * a), the bands' light
         // on top, and a darker band dimming what's behind.
         gl_FragColor = vec4(color * a * a + light, dark);` : `
-        gl_FragColor = vec4(color * a, a);`}
+        ${lh ? `
+        // How close this line of sight passes to the planet's middle, in planet radii: the haze
+        // hugs the cloud tops just off the limb, and a thin detached layer stands clear of it.
+        float s = sqrt(max(0.0, 1.0 - (1.0 - rim) * (1.0 - rim))) * limbHug.z;
+        float hug = s < 1.0 ? 0.0 : limbHug.y * (1.0 - smoothstep(1.0, 1.0 + limbHug.x, s));
+        float w = max(limbLayer.y, 1.5 * fwidth(s));
+        float layer = (1.0 - smoothstep(0.0, 1.0, abs(s - limbLayer.x) / w)) * (limbLayer.y / w) * limbLayer.z;
+        float lit = 0.08 + 0.92 * smoothstep(-0.25, 0.35, dot(vN, sunDir));
+        gl_FragColor = vec4(color * a + limbColor * (hug + layer) * lit * fade, a);` : `
+        gl_FragColor = vec4(color * a, a);`}`}
       }`,
     transparent: true,
     depthWrite: false,
@@ -553,7 +571,8 @@ export function createBodyVisual(body) {
     const bands = BAND_LOOK[body.id] ?? null;
     const atm = body.haze
       ? atmosphere(body.radius * 1.22, body.atmosphere, 1.5, 0.8, bands)
-      : atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4);
+      : atmosphere(body.radius * (body.gas ? 1.06 : 1.14), body.atmosphere, body.gas ? 1.0 : 1.4, 0, null,
+        GAS_LOOK[body.id]?.haze ? { haze: GAS_LOOK[body.id].haze, shell: 1.06 } : null);
     group.add(atm);
     out.atmosphere = atm;
     // Misty's haze bands drift on the real clock (#54).

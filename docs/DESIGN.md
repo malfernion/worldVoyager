@@ -1044,8 +1044,8 @@ Clouds came first (`src/world/clouds.js`), in the same one-look way as #51: no s
 - **One layer per world, from a table.** `CLOUD_LOOK` says how high the clouds' bases are, how
   big they are, how many sprites make one, how many are thin wisps, where they go, how fast the
   layer drifts, their colours and how dark their shadows are. Homestead and Dusty (its thin
-  high clouds, stage 3 below) have entries; other worlds (Misty's haze bands, Tumble's and
-  Ringo's streaks) can reuse it, with new shapes where they need them.
+  high clouds, stage 3 below) have entries; other worlds (Misty's haze bands) can reuse it, with new shapes where they need them; Tumble's and
+  Ringo's streaks turned out simpler in their own shader (stage 6).
 - **Where they go.** The views all look at the flight plane from its +z side, so clouds are
   placed for them rather than evenly: a band behind the plane that the landed and launch views
   see as their sky (16 clouds), a ring right round the plane that a launch climbs past (7), and
@@ -1386,6 +1386,33 @@ same soft style, one look, no setting.
   little over a hollow, and seen across a rise the wisps over a crack beyond it float above the
   skyline like low streaks of cloud; it doesn't react to the buggy driving through
   it (it fades near the lens and in front of the buggy instead).
+
+### Tumble's and Ringo's bright streaks and limb haze (#54, stage 6)
+
+The last stage: the two gas giants, all in their existing shaders (no mesh, no draw call).
+Their approved looks are kept: Ringo's storms and ring shadows, Tumble's dark spot and its
+hexagon (#55), which are drawn over the streaks.
+
+- **Bright cloud streaks** (`GAS_LOOK.*.streaks`, `gStreaks()` in `gasColor()`): five on Ringo
+  (Saturn's white spots and streaks) and six on Tumble (Uranus's bright methane-ice clouds),
+  each at a latitude along the spin axis, travelling round with its band (a whole number of
+  turns per wrap of the cloud clock, `CLOUD_WRAP`, so it never jumps). Long ones (0.6 to 0.9
+  radians) bow a little across the band; short ones (about 0.2) are bright spots. Across a
+  streak a soft profile is eaten into by the noise tile, and it thins and fades towards its
+  ends, so it reads as a feathered wisp, not a stripe. Tumble's are placed on the side the
+  cameras see (its seen pole is +axis), between its dark spot and the hexagon (a test keeps
+  them clear), and tinted a little cool, since white under Ember's warm light read as peach.
+- **High-altitude haze at the limb** (`GAS_LOOK.*.haze`): warm pale gold on Ringo, pale cyan on
+  Tumble. On the disc (`LIMB_VEIL`, `veilAt()`) a sunlit veil of it is laid over the clouds
+  towards the limb, washing them out a little, never over the hexagon. Just off the limb the
+  gas giants' glowing shell (planets.js `atmosphere()`, its new `limb` option,
+  `limbHazeAt()`) adds the haze hugging the cloud tops and a thin detached layer standing
+  clear of it, widened to a pixel and a half with `fwidth` so it never shimmers. The shell
+  keeps its additive blending; every other world's shell is the same shader as before.
+- **Cost:** a few lines of shader per pixel of the two giants (up to six short loops, early
+  outs for pixels nowhere near a streak); no draw calls, uniforms only.
+- **Not done:** on pale Tumble the streaks are subtle; the detached layer is faint at the
+  distances the flight views usually show.
 
 ## Ideas for later
 

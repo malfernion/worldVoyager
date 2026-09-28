@@ -481,14 +481,14 @@ export const GAS_LOOK = {
     nightK: 0.12,
     // Saturn's white spots and streaks, clear of the storms' latitudes (0.0 to 0.6) and the cap.
     streaks: [
-      { lat: 0.68, lon: 1.0, len: 0.34, wid: 0.018, turns: 1, k: 0.85, bend: 0.8 },
-      { lat: 0.74, lon: 3.3, len: 0.07, wid: 0.016, turns: 1, k: 0.95, bend: 0 },
-      { lat: 0.78, lon: 5.2, len: 0.26, wid: 0.014, turns: -1, k: 0.7, bend: -0.6 },
-      { lat: -0.12, lon: 2.2, len: 0.3, wid: 0.016, turns: -1, k: 0.75, bend: 0.5 },
-      { lat: 0.65, lon: 4.6, len: 0.06, wid: 0.014, turns: 1, k: 0.9, bend: 0 },
+      { lat: 0.68, lon: 1.0, len: 0.9, wid: 0.04, turns: 1, k: 0.85, bend: 0.8 },
+      { lat: 0.73, lon: 3.3, len: 0.2, wid: 0.035, turns: 1, k: 0.95, bend: 0 },
+      { lat: 0.78, lon: 5.2, len: 0.7, wid: 0.03, turns: -1, k: 0.75, bend: -0.6 },
+      { lat: -0.12, lon: 2.2, len: 0.8, wid: 0.035, turns: -1, k: 0.8, bend: 0.5 },
+      { lat: 0.64, lon: 4.6, len: 0.18, wid: 0.03, turns: 1, k: 0.9, bend: 0 },
     ],
     streakColor: 0xfffbf0,
-    haze: { color: 0xffe6b0, veil: [0.55, 0.32, 0.45], hug: [0.022, 0.5], layer: [1.045, 0.006, 0.45] },
+    haze: { color: 0xffe6b0, veil: [0.45, 0.5, 0.5], hug: [0.03, 1.1], layer: [1.045, 0.005, 1.0] },
   },
   // Tipped on its side, pale blue-green, with a dark Neptune-style spot (#52) and, like
   // Saturn's, a six-sided jet stream round the pole the cameras see (#55).
@@ -503,14 +503,15 @@ export const GAS_LOOK = {
     // Uranus's bright methane-ice clouds: mostly at mid-latitudes on the side the cameras see,
     // between the dark spot (0.04 to 0.36) and the hexagon (from about 0.96).
     streaks: [
-      { lat: 0.5, lon: 0.6, len: 0.36, wid: 0.02, turns: -1, k: 0.9, bend: 0.7 },
-      { lat: 0.6, lon: 2.5, len: 0.08, wid: 0.018, turns: -1, k: 1, bend: 0 },
-      { lat: 0.68, lon: 4.4, len: 0.24, wid: 0.016, turns: 1, k: 0.8, bend: -0.6 },
-      { lat: -0.12, lon: 5.4, len: 0.3, wid: 0.018, turns: 1, k: 0.8, bend: 0.5 },
-      { lat: -0.32, lon: 1.9, len: 0.07, wid: 0.016, turns: -1, k: 0.85, bend: 0 },
+      { lat: 0.45, lon: 0.0, len: 0.9, wid: 0.04, turns: -1, k: 0.95, bend: 0.7 },
+      { lat: 0.62, lon: 1.05, len: 0.2, wid: 0.035, turns: -1, k: 1, bend: 0 },
+      { lat: 0.52, lon: 2.1, len: 0.75, wid: 0.034, turns: 1, k: 0.9, bend: -0.6 },
+      { lat: 0.7, lon: 3.15, len: 0.6, wid: 0.03, turns: 1, k: 0.85, bend: 0.5 },
+      { lat: 0.42, lon: 4.2, len: 0.18, wid: 0.034, turns: -1, k: 0.95, bend: 0 },
+      { lat: 0.58, lon: 5.25, len: 0.8, wid: 0.036, turns: -1, k: 0.9, bend: -0.5 },
     ],
-    streakColor: 0xf6ffff,
-    haze: { color: 0xa8e8ff, veil: [0.5, 0.38, 0.5], hug: [0.025, 0.55], layer: [1.05, 0.006, 0.5] },
+    streakColor: 0xc4f2ff, // (cool, so it still reads white under Ember's warm light)
+    haze: { color: 0xa8e8ff, veil: [0.45, 0.5, 0.5], hug: [0.03, 1.1], layer: [1.045, 0.005, 1.0] },
   },
 };
 
@@ -577,6 +578,8 @@ export function streakReach(st) {
 }
 // How many widths out a streak's feathered edge reaches (the shader stops there).
 export const STREAK_REACH = 3;
+// At most this many streaks per planet (the shader's arrays).
+export const MAX_STREAKS = 6;
 
 // The cloud clock follows game time (time warp speeds the clouds up) but never faster than
 // MAX_RATE times real time, so at ×1000 they stream by instead of strobing.
@@ -638,6 +641,15 @@ export function gasMaterial(body, sunDir) {
       gHexGlowC: { value: raw(hex.glow) },
     });
   }
+  // Bright cloud streaks riding in the bands (#54 stage 6).
+  const streaks = (look.streaks ?? []).slice(0, MAX_STREAKS);
+  const streakA = [], streakB = [];
+  for (let i = 0; i < MAX_STREAKS; i++) {
+    const st = streaks[i];
+    streakA.push(st ? new THREE.Vector4(st.lat, st.lon, st.len / 2, st.wid) : new THREE.Vector4());
+    streakB.push(st ? new THREE.Vector4(streakSpeed(st), st.k, st.bend, 0) : new THREE.Vector4());
+  }
+  const haze = look.haze;
   const palette = [];
   for (let i = 0; i < 8; i++) palette.push(raw(bands.bands[i % bands.bands.length]));
   const r = body.rings;
@@ -662,11 +674,19 @@ export function gasMaterial(body, sunDir) {
     gStorm1C: stormU[1].c, gStorm1E: stormU[1].east, gStorm1N: stormU[1].north,
     gStorm1A: stormU[1].col0, gStorm1B: stormU[1].col1, gStorm1D: stormU[1].col2, gStorm1T: stormU[1].turn, gStorm1On: stormU[1].on,
     ...hexU,
+    gStreakA: { value: streakA },
+    gStreakB: { value: streakB },
+    gStreakN: { value: streaks.length },
+    gStreakC: { value: raw(look.streakColor ?? 0xffffff) },
+    gHazeC: { value: raw(haze?.color ?? 0) },
+    gHazeV: { value: new THREE.Vector3(...(haze?.veil ?? [1, 0, 0])) },
   };
   const defs = defines([
     ['RL_STORM', storms.length > 0], // (faint rings, like Tumble's, cast no shadow worth drawing)
     ['RL_RINGSHADOW', !!r && !r.faint],
     ['RL_HEX', !!hex],
+    ['RL_STREAK', streaks.length > 0],
+    ['RL_HAZE', !!haze],
   ]);
   const mat = new THREE.MeshToonMaterial({ gradientMap: toonGradient() });
   mat.onBeforeCompile = (shader) => {
@@ -680,7 +700,7 @@ export function gasMaterial(body, sunDir) {
     let frag = shader.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb = gasColor(normalize(rlObj));`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>\n${RING_SHADOW_ON_PLANET}`)
-      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${HEX_GLOW}\n#include <opaque_fragment>`);
+      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${HEX_GLOW}\n${LIMB_VEIL}\n#include <opaque_fragment>`);
     frag = frag.replace('#include <gradientmap_pars_fragment>', SOFT_GRADIENT)
       .replace('#include <lights_toon_fragment>', 'rlViewDir = normalize(vViewPosition);\n#include <lights_toon_fragment>');
     shader.fragmentShader = defs + FRAG_PARS + GAS_PARS + frag;
@@ -731,6 +751,35 @@ const GAS_PARS = /* glsl */ `
   uniform float gTime;
   uniform float gDrift;
   uniform vec2 gRing;
+  #ifdef RL_STREAK
+    uniform vec4 gStreakA[${MAX_STREAKS}], gStreakB[${MAX_STREAKS}];
+    uniform int gStreakN;
+    uniform vec3 gStreakC;
+    // Bright cloud streaks (#54 stage 6), in the drifting bands' frame: each travels round its
+    // band (A: lat, lon, half its length, width; B: speed, brightness, bend). Along it, it fades
+    // in and out at the ends and thins towards them; across it, a soft profile eaten into by the
+    // noise, so the edges are feathered wisps. Its middle bows across the band by \`bend\` widths.
+    vec3 gStreaks(vec3 p, float lat, float lon, vec3 c) {
+      for (int i = 0; i < ${MAX_STREAKS}; i++) {
+        if (i >= gStreakN) break;
+        vec4 A = gStreakA[i];
+        vec4 B = gStreakB[i];
+        float dl = mod(lon - A.y - B.x * gTime + 3.14159265, 6.2831853) - 3.14159265;
+        float t = dl / A.z;
+        if (abs(t) > 1.0) continue;
+        float w = A.w * (1.0 - 0.45 * abs(t));
+        float across = (lat - A.x - B.z * A.w * t * t) / w;
+        if (abs(across) > ${STREAK_REACH}.0) continue;
+        float n = rlNoise(p * 26.0 + vec3(0.0, 0.0, gTime * 0.003));
+        float k = exp(-across * across * 1.6) * (1.0 - smoothstep(0.5, 1.0, abs(t)));
+        c = mix(c, gStreakC, smoothstep(0.12, 0.7, k + (n - 0.5) * 0.55) * B.y);
+      }
+      return c;
+    }
+  #endif
+  #ifdef RL_HAZE
+    uniform vec3 gHazeC, gHazeV;
+  #endif
   uniform vec3 gStorm0C, gStorm0E, gStorm0N, gStorm0A, gStorm0B, gStorm0D;
   uniform float gStorm0T, gStorm0On;
   uniform vec3 gStorm1C, gStorm1E, gStorm1N, gStorm1A, gStorm1B, gStorm1D;
@@ -855,6 +904,9 @@ const GAS_PARS = /* glsl */ `
     c = mix(c, mix(gBand(0.0), vec3(1.0, 0.97, 0.9), 0.35), smoothstep(0.86, 0.95, pole) * 0.75);
     // A little more colour than the vertex bands had (kids like it bright).
     c = mix(vec3(dot(c, vec3(0.333))), c, 1.25);
+    #ifdef RL_STREAK
+      c = gStreaks(p, lat, lon, c);
+    #endif
     #ifdef RL_HEX
       c = gHex(p0, c);
     #endif
@@ -877,6 +929,25 @@ const GAS_PARS = /* glsl */ `
     a *= mix(0.35, 1.0, smoothstep(0.0, 0.06, t) * (1.0 - smoothstep(0.94, 1.0, t)));
     return clamp(a * soft, 0.0, 1.0);
   }
+`;
+
+// The high-altitude haze on the disc (#54 stage 6, `veilAt()`): towards the limb a sunlit
+// veil of the haze's colour is laid over the clouds, washing them out a little (never over the
+// hexagon). Just off the limb, the glowing shell adds the rest (planets.js `atmosphere()`).
+const LIMB_VEIL = /* glsl */ `
+  #ifdef RL_HAZE
+  {
+    vec3 rad = normalize(rlRadial);
+    float ndv = clamp(dot(rad, normalize(vViewPosition)), 0.0, 1.0);
+    float t = smoothstep(gHazeV.x, 1.0, sqrt(max(0.0, 1.0 - ndv * ndv)));
+    float v = t * t * gHazeV.y;
+    #ifdef RL_HEX
+      v *= 1.0 - smoothstep(0.9, 0.96, dot(normalize(rlObj), gHexPole));
+    #endif
+    float day = 0.08 + 0.92 * smoothstep(-0.25, 0.35, dot(rad, rlSun));
+    outgoingLight = mix(outgoingLight, outgoingLight * (1.0 - gHazeV.z) + gHazeC * day, v);
+  }
+  #endif
 `;
 
 // The hexagon's jet glows softly on the night side (#55; Saturn's and Uranus's poles have
