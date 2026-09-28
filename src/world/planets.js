@@ -26,7 +26,7 @@ import { createShowers } from './rain.js';
 // their small craters have enough vertices across to look round: about 2.4, 1.3 and 1.8 m apart;
 // Yonder's, #62, about 3 m, for its dark lands' soft craters and, stage 2, its heart's mountains' steep sides;
 // Hither's, #62 stage 3, about 2.9 m too, for its canyons' walls.)
-const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24, yonder: 56, hither: 36 };
+const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24, yonder: 56, hither: 48 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
