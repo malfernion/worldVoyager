@@ -247,10 +247,13 @@ export function cellAt(q, time, hash, look = HEART_LOOK) {
  * Each fades out once it's only a few pixels across, like the heart's cells.
  */
 export const YONDER_GROUND = {
-  crack: { cell: 30, width: 0.03, color: [0.74, 0.77, 0.88], faint: 0.35, fine: [8, 0.55] },
+  crack: { cell: 30, width: 0.032, color: [0.64, 0.68, 0.83], faint: 0.4, fine: [7, 0.5] },
   blade: { flank: 0.35, crest: [1, 0.95, 0.93], trough: [0.62, 0.5, 0.5], scale: 16 },
-  pit: { cells: [30, 13, 6], rate: [0.5, 0.55, 0.6], floor: [0.78, 0.7, 0.68], shadow: 0.6, rim: [1, 0.86, 0.76], streak: [14, 70, 0.78] },
+  pit: { cells: [36, 15, 6], rate: [0.5, 0.55, 0.6], floor: [0.78, 0.7, 0.68], shadow: 0.6, rim: [1, 0.86, 0.76], streak: [14, 70, 0.78] },
 };
+
+/** How far each crack cell's seed may be from the cell's middle (the whole range, in cells): little enough that the shader need only look in 8 cells. */
+export const CRACK_STRAY = 0.6;
 
 /** A crater's radius (a share of its cell) and how far its middle strays from the cell's (each way): it always fits inside the cell. */
 export const CRATER_FIT = { r: [0.2, 0.34], stray: 0.15 };
@@ -259,19 +262,23 @@ export const CRATER_FIT = { r: [0.2, 0.34], stray: 0.15 };
  * How far point `p` (in cells, 3D) is from the nearest crack of the frost plains' polygons,
  * measured along the ground (`up`: the ground's unit normal): the edge between the two nearest
  * cells' seeds is a plane, which the ground cuts at a slant. The shader's sums (the hash aside:
- * `hash3(i, j, k)` gives three numbers 0..1 per cell). Also which two cells (`a`, `b`).
+ * `hash3(i, j, k)` gives three numbers 0..1 per cell). Also which two cells (`a`, `b`), and
+ * how far the edge's plane leans off lying flat along the ground (`lean`: the shader leaves
+ * out cracks under 0.3 to 0.5, which would smear into wide bands).
  */
-export function crackAt(p, up, hash3) {
-  const ix = Math.floor(p[0]), iy = Math.floor(p[1]), iz = Math.floor(p[2]);
+export function crackAt(p, up, hash3, block = true) {
   let d1 = 9, d2 = 9, o1 = null, o2 = null, a = null, b = null;
-  for (let k = -1; k <= 1; k++) {
-    for (let j = -1; j <= 1; j++) {
-      for (let i = -1; i <= 1; i++) {
-        const h = hash3(ix + i, iy + j, iz + k);
-        const o = [i + 0.5 + 0.8 * (h[0] - 0.5) - (p[0] - ix), j + 0.5 + 0.8 * (h[1] - 0.5) - (p[1] - iy), k + 0.5 + 0.8 * (h[2] - 0.5) - (p[2] - iz)];
+  // The shader's 2 x 2 x 2 block round the point (or, block = false, all 27 round its cell: the
+  // true answer, for the tests).
+  const from = p.map((v) => (block ? Math.floor(v - 0.5) : Math.floor(v) - 1)), size = block ? 2 : 3;
+  for (let k = 0; k < size; k++) {
+    for (let j = 0; j < size; j++) {
+      for (let i = 0; i < size; i++) {
+        const c = [from[0] + i, from[1] + j, from[2] + k];
+        const h = hash3(...c);
+        const o = c.map((v, m) => v + 0.5 + CRACK_STRAY * (h[m] - 0.5) - p[m]);
         const d = o[0] * o[0] + o[1] * o[1] + o[2] * o[2];
-        const id = [ix + i, iy + j, iz + k];
-        if (d < d1) { d2 = d1; o2 = o1; b = a; d1 = d; o1 = o; a = id; } else if (d < d2) { d2 = d; o2 = o; b = id; }
+        if (d < d1) { d2 = d1; o2 = o1; b = a; d1 = d; o1 = o; a = c; } else if (d < d2) { d2 = d; o2 = o; b = c; }
       }
     }
   }
@@ -281,7 +288,7 @@ export function crackAt(p, up, hash3) {
   const dist = ((o1[0] + o2[0]) * n[0] + (o1[1] + o2[1]) * n[1] + (o1[2] + o2[2]) * n[2]) / 2;
   const nu = n[0] * up[0] + n[1] * up[1] + n[2] * up[2];
   const lean = Math.hypot(n[0] - nu * up[0], n[1] - nu * up[1], n[2] - nu * up[2]);
-  return { dist: dist / Math.max(lean, 0.25), a, b };
+  return { dist: dist / Math.max(lean, 0.25), lean, a, b };
 }
 
 /**
@@ -443,6 +450,7 @@ export function richRocky(mat, body, sunDir) {
     Object.assign(uniforms, {
       rlCrack: { value: new THREE.Vector4(c.cell, c.width, c.faint, c.fine[1]) },
       rlCrackFine: { value: c.fine[0] },
+      rlCrackStray: { value: CRACK_STRAY },
       rlCrackC: { value: new THREE.Vector3(...c.color) },
       rlBlade: { value: new THREE.Vector3(YONDER_BLADES.gap, b.scale, b.flank) },
       rlBladeCrest: { value: new THREE.Vector3(...b.crest) },
@@ -611,6 +619,7 @@ const GROUND_VERT = /* glsl */ `
 const GROUND_PARS = /* glsl */ `
   uniform vec4 rlCrack; // big cell (m), width (cells), the faintest cracks' strength, the fine net's strength
   uniform float rlCrackFine; // the fine net's cell (m)
+  uniform float rlCrackStray; // how far a cell's seed may be from its middle (the whole range, cells)
   uniform vec3 rlCrackC;
   uniform vec3 rlBlade; // gap (m), scales (m), how much lighter / darker the flanks facing / away from the sun
   uniform vec3 rlBladeCrest;
@@ -637,23 +646,26 @@ const GROUND_PARS = /* glsl */ `
   // cells lies almost flat along the ground (it would smear into a wide band: left out).
   // up: the ground's unit normal.
   vec3 rlCracks(vec3 p, vec3 up) {
+    // (Each cell's seed strays only a little from its middle (CRACK_STRAY), so the two nearest
+    // are all but always among the 2 x 2 x 2 cells nearest the point: 8 lookups, not 27.)
     vec3 i0 = floor(p), f0 = p - i0;
+    vec3 b0 = i0 + step(0.5, f0) - 1.0; // the block's first cell
     float d1 = 9.0, d2 = 9.0;
-    vec3 o1 = vec3(0.0), o2 = vec3(0.0), g1 = vec3(0.0), g2 = vec3(0.0);
-    for (int k = -1; k <= 1; k++) {
-      for (int j = -1; j <= 1; j++) {
-        for (int i = -1; i <= 1; i++) {
-          vec3 g = vec3(float(i), float(j), float(k));
-          vec3 o = g + 0.5 + 0.8 * (rlHash3(i0 + g) - 0.5) - f0;
+    vec3 o1 = vec3(0.0), o2 = vec3(0.0), c1 = vec3(0.0), c2 = vec3(0.0);
+    for (int k = 0; k <= 1; k++) {
+      for (int j = 0; j <= 1; j++) {
+        for (int i = 0; i <= 1; i++) {
+          vec3 c = b0 + vec3(float(i), float(j), float(k));
+          vec3 o = c + 0.5 + rlCrackStray * (rlHash3(c) - 0.5) - p;
           float d = dot(o, o);
-          if (d < d1) { d2 = d1; o2 = o1; g2 = g1; d1 = d; o1 = o; g1 = g; }
-          else if (d < d2) { d2 = d; o2 = o; g2 = g; }
+          if (d < d1) { d2 = d1; o2 = o1; c2 = c1; d1 = d; o1 = o; c1 = c; }
+          else if (d < d2) { d2 = d; o2 = o; c2 = c; }
         }
       }
     }
     vec3 n = normalize(o2 - o1);
     float lean = length(n - dot(n, up) * up);
-    return vec3(dot(0.5 * (o1 + o2), n) / max(lean, 0.25), rlHash(2.0 * i0 + g1 + g2 + 5.3), smoothstep(0.3, 0.5, lean));
+    return vec3(dot(0.5 * (o1 + o2), n) / max(lean, 0.25), rlHash(c1 + c2 + 5.3), smoothstep(0.3, 0.5, lean));
   }
   // A crater in the grid of cells 'cell' m wide, if this cell has one (rate): .x how far out
   // (0 its middle, 1 its rim), .y the same from a middle shifted away from the sun (outside 1:
@@ -691,7 +703,8 @@ const GROUND_MAIN = /* glsl */ `
         float k = rlGround.x * seen * mix(rlCrack.z, 1.0, smoothstep(0.3, 0.6, c.y));
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlCrackC, line * k);
         float pf = gpx / rlCrackFine;
-        float fseen = 1.0 - smoothstep(0.08, 0.2, pf);
+        // (Only close up: from further off it would look like the heart's cells.)
+        float fseen = 1.0 - smoothstep(0.03, 0.06, pf);
         if (fseen > 0.0) {
           vec3 f = rlCracks(rlObj / rlCrackFine + 17.0, up);
           float fw = max(rlCrack.y * 1.2, 1.5 * pf);
@@ -748,7 +761,7 @@ const GROUND_MAIN = /* glsl */ `
         vec4 cr = rlCrater(cell, rate, 31.7 * float(i + 1), up, sunT);
         if (cr.w <= 0.0) continue;
         float pw = gpx / cr.z; // radii per pixel
-        float seen = 1.0 - smoothstep(0.1, 0.25, pw);
+        float seen = 1.0 - smoothstep(0.18, 0.35, pw);
         if (seen <= 0.0 || cr.x > 1.4) continue;
         float e = max(pw, 0.04);
         float inside = 1.0 - smoothstep(1.0 - e, 1.0 + e, cr.x);

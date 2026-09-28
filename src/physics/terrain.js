@@ -839,7 +839,7 @@ const YONDER_PEAKS = [
 // m side to side; the whole oval `rise` m up. The ground shader draws the blades crisply
 // (richLook.js `YONDER_GROUND`) from how far across them each vertex is (baked, `marks()`); the
 // mesh's gentle ridges under them catch the light.
-export const YONDER_BLADES = { at: [1.4, 1.02], r: [0.34, 0.5], turn: -0.35, gap: 13, h: 1.1, wave: 7, rise: 0.8 };
+export const YONDER_BLADES = { at: [1.32, 0.92], r: [0.36, 0.46], turn: -0.35, gap: 13, h: 0.9, wave: 7, rise: 0.8 };
 
 function makeYonder() {
   const { fbm, noise } = makeNoise(223);
@@ -979,7 +979,7 @@ function makeYonder() {
       land.along = b * H.size * R;
     }
     const hr = heartOf(x, y, z);
-    const clear = (1 - hr.in) * smooth(0.04, 0.14, hr.sd) * (1 - smooth(0, 0.05, hr.peak)) * (1 - hr.glacier);
+    const clear = (1 - smooth(0, 0.05, hr.in)) * smooth(0.04, 0.14, hr.sd) * (1 - smooth(0, 0.02, hr.peak)) * (1 - smooth(0, 0.05, hr.glacier));
     land.blade *= clear;
     const th = tholin(x, y, z);
     land.pit = smooth(0.35, 0.75, th) * (1 - land.blade) * clear;
