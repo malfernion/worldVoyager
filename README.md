@@ -111,7 +111,8 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   that drift slowly round, a dark hood over its top, and a thin pale ring of high haze standing
   clear of its edge, like Titan's. Now and then a methane shower drifts across it: from low down
   pale rain clouds with faint grey shafts of rain under them. Land or drive into one and the sky
-  dims, big slow drops drift down around you, and the lakes are covered in little spreading
+  dims, big slow drops drift down around you with a soft patter of rain, little splashes and
+  damp spots appear on the ground where they land, and the lakes are covered in little spreading
   rings. It's gentle: the rocket and buggy always stay easy to see.
 - **Lava:** Sizzle has glowing pools and flows of lava by its volcanoes (they glow at night
   and you can see them from orbit). Glowing embers drift up from them and wink out, brighter by

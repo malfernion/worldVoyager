@@ -496,7 +496,7 @@ export function createBodyVisual(body) {
     // Dust storms (#54: Dusty's), drawn from space by a cloud layer of their own, and the dust
     // blowing across the ground down in one; Misty's rain showers the same way (#54: their
     // clouds and shafts, and the drops and rings on the lakes down in one).
-    const storms = createStorms(body, out.sunDir) ?? createShowers(body, out.sunDir);
+    const storms = createStorms(body, out.sunDir) ?? createShowers(body, out.sunDir, geo);
     if (storms) {
       // (Dusty's under the high clouds; Misty's showers over the haze's glow, which would
       // wash them out.)

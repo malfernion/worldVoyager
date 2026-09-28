@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, the rings, the sky in a shower), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, splashes on the baked ground, the rings, the rain's volume, the sky in a shower), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -127,8 +127,10 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; a ha
                        glowing shell's shader (`bandShader()`, planets.js `atmosphere()`), `bandAt()` / `detachedAt()` its sums in JS)
                        rain (#54 stage 4: Misty's methane showers, `RAIN_LOOK`, shaped like the storms so the flight scene treats them alike
                        (`createShowers()` fills `v.storms`): `showerAt()` where they are (`stormAt()`), `showerPlan()` their clouds and rain
-                       shafts (a cloud layer, fading out as the camera climbs), `createRain()` the drops and the rings on the lakes (a shader
-                       loop per drop, `dropAt()` / `dropHeight()` / `dropShown()`, one draw call))
+                       shafts (a cloud layer, fading out as the camera climbs), `createRain()` the drops, their splashes and damp spots on the
+                       ground and their rings on the lakes (a shader loop per drop, `dropLoop()` / `dropShown()`, one draw call), the drawn
+                       ground's height baked from the terrain mesh into a cube map (`groundFaces()`, `groundSample()`), and the rain's sound
+                       level `rainVolume()` / `RAIN_SOUND` (audio.js `setRain()`))
                        embers (#54 stage 2: sparks and heat haze over lava, `EMBER_LOOK` per liquid kind, only Sizzle's lava:
                        `emberPlan()` where they rise from, `emberAt()` a spark's loop (the vertex shader's sums), `sightFade()` /
                        `nearFade()` when they fade, `createEmbers()` the one-draw-call mesh)
@@ -153,7 +155,8 @@ src/ui/                flightHud.js (controls, readouts, gestures, which helpers
                        the SOI hand-off's `carry` and when it may settle, #49)
                        pageZoom.js (#39: the *page* never stays zoomed: blocks WebKit's page pinch / double-tap, and if the page
                        is zoomed anyway resets it, then fits #ui into the visual viewport with the 🔍 zoom-out button; pure `zoomAction()`)
-src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking
+src/audio/audio.js     All sound is generated live: music sequencer (+ the friends' parts, #16), SFX, voice channel + music ducking,
+                       ambient loops made the first time they're needed (the sea's lapping, lava's bubbling, Misty's rain: `setRain()`, #54)
 src/audio/unlock.js    The AudioContext's life on iPad/iPhone WebKit (#24): playback audio session, tap-to-resume,
                        silent unlock buffer, older-iOS silent <audio>, promise-safe decoding, debugState()
 public/voice/          Pip's recorded lines (one clip per sentence) + manifest.json
@@ -274,10 +277,13 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   keeps a storm within the clouds' overdraw (measured at most 1.41). Misty's rain showers (#54 stage 4, `src/world/rain.js`) are
   the same kind again (`createShowers()` fills the same `v.storms` slot; `SKY_LOOK.misty.storm`
   dims the haze and pulls its fog in a little, still counted from what the camera follows): one
-  draw call of clouds and rain shafts, faded out as the camera climbs (`seen`), and one of drops
-  and lake rings, hidden outside a shower. The rings lie at the lakes' level, so they rely on
-  "one liquid level per world, below all natural ground" (the ground hides every ring not on a
-  lake). Misty's haze bands add no mesh: they're in its shell's shader (`hazeBands.js`), and the
+  draw call of clouds and rain shafts, faded out as the camera climbs (`seen`), and one of drops,
+  hidden outside a shower. Each drop instance falls, then lies flat where it landed as its
+  splash (on the ground) or ring (on a lake): where it lands is the drawn mesh's own height, baked
+  once at load into a cube map (`groundFaces()`), so if the terrain mesh changes the bake follows
+  it; never place ground effects from the terrain function (the mesh's flat triangles differ from
+  it by up to ~15 cm on Misty's dunes). Its sound (`setRain()`, through the sound-effects
+  channel) follows `rainVolume()`: shower depth, camera height, softer from the rocket's view. Misty's haze bands add no mesh: they're in its shell's shader (`hazeBands.js`), and the
   banded shell blends ONE / ONE_MINUS_SRC_ALPHA, which is the old additive glow while nothing is
   darker (a shell without bands is the exact old shader). New `CLOUD_LOOK` knobs must default to the
   old behaviour (a test pins Homestead's plan; `limbRound`, the side-on puffs at the world's edge, and `ragged`,

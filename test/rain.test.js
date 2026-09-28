@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { PUFF_STRIDE } from '../src/world/clouds.js';
 import { STORM_LOOK, createStorms } from '../src/world/storms.js';
 import { BAND_LOOK, bandAt, bandFrame, detachedAt, bandShader } from '../src/world/hazeBands.js';
-import { RAIN_LOOK, showerAt, showerPlan, rainPlan, RAIN_STRIDE, DROP, RING, dropAt, dropHeight, dropShown, createRain, createShowers } from '../src/world/rain.js';
+import { RAIN_LOOK, RAIN_SOUND, showerAt, showerPlan, rainPlan, RAIN_STRIDE, dropLife, dropLoop, dropShown, groundFaces, groundSample, rainVolume, createRain, createShowers } from '../src/world/rain.js';
 import { FlightScene } from '../src/scenes/flight.js';
 import { hazeSky, SKY_LOOK, atmosphere } from '../src/world/planets.js';
 import { createSystem } from '../src/physics/bodies.js';
@@ -219,49 +219,58 @@ describe('the rain (#54 stage 4)', () => {
   const plan = rainPlan(look);
   const n = plan.length / RAIN_STRIDE;
   const at = (i) => plan.subarray(i * RAIN_STRIDE, (i + 1) * RAIN_STRIDE);
+  const r = look.rain;
 
-  it('is a fixed set of big, slow drops and rings on the lakes', () => {
-    expect(n).toBe(look.rain.drops + look.rain.rings);
-    let drops = 0;
+  it('is a fixed set of big, slow drops', () => {
+    expect(n).toBe(r.drops);
     for (let i = 0; i < n; i++) {
       const p = at(i);
-      if (p[4] === DROP) {
-        drops++;
-        // Slow: a few metres a second (Titan's rain falls slowly).
-        const speed = (look.rain.top + 5) / p[7];
-        expect(speed).toBeGreaterThan(1.5);
-        expect(speed).toBeLessThan(5);
-        // Fat: a few centimetres across, a few times as long.
-        expect(p[5]).toBeGreaterThan(0.03);
-        expect(p[6]).toBeGreaterThan(2);
-        expect(p[6]).toBeLessThan(8);
-      } else {
-        expect(p[4]).toBe(RING);
-        expect(p[5]).toBeLessThan(1);
-      }
       for (let k = 0; k < 4; k++) expect(p[k]).toBeGreaterThanOrEqual(0);
+      // Fat: a few centimetres across, a few times as long; slow (Titan's rain falls slowly).
+      expect(p[4]).toBeGreaterThan(0.03);
+      expect(p[5]).toBeGreaterThan(2);
+      expect(p[5]).toBeLessThan(8);
+      expect(p[6]).toBeGreaterThan(1.5);
+      expect(p[6]).toBeLessThan(5);
+      // Its splash: small.
+      expect(p[7]).toBeGreaterThan(0.1);
+      expect(p[7]).toBeLessThan(0.4);
     }
-    expect(drops).toBe(look.rain.drops);
   });
 
-  it('each drop loops: falling from above the ground to the lakes\' level, then again elsewhere', () => {
+  it('each drop falls onto a spot, splashes there (a ring on a lake), then goes round again elsewhere', () => {
     const o = {};
-    let last = dropAt(0.3, 6, 0, {}).cycle;
-    let prevH = Infinity;
-    for (let t = 0.01; t < 30; t += 0.05) {
-      dropAt(0.3, 6, t, o);
-      expect(o.age).toBeGreaterThanOrEqual(0);
-      expect(o.age).toBeLessThan(1);
-      const h = dropHeight(look.rain.top, -5, o.age);
-      if (o.cycle === last) expect(h).toBeLessThan(prevH);
-      else expect(o.cycle).toBe(last + 1);
-      last = o.cycle;
-      prevH = h;
+    const groundR = R + 1;
+    for (const [ground, lake] of [[R + 2.5, false], [R - 1, false], [R - 6, true]]) {
+      const floorR = R - 5;
+      let prev = null, falls = 0, lands = 0;
+      for (let t = 0; t < 60; t += 0.02) {
+        dropLoop(look, 0.3, 3, t, groundR, ground, floorR, o);
+        expect(o.age).toBeGreaterThanOrEqual(0);
+        expect(o.age).toBeLessThan(1);
+        if (o.phase === 'fall') {
+          falls++;
+          // Always above where it lands, and coming down.
+          expect(o.r).toBeGreaterThan(Math.max(ground, floorR) - 1e-6);
+          if (prev?.phase === 'fall' && prev.cycle === o.cycle) expect(o.r).toBeLessThan(prev.r);
+        } else if (o.phase === 'land') {
+          lands++;
+          expect(o.lake).toBe(lake);
+          // On the ground (or the lake), exactly: never floating or sunk.
+          expect(o.r).toBe(lake ? floorR : ground);
+          // It lands where it was falling to, with no jump.
+          if (prev?.phase === 'fall' && prev.cycle === o.cycle) expect(prev.r - o.r).toBeLessThan(3 * 0.02 + 1e-6);
+        }
+        if (prev && o.cycle === prev.cycle && prev.phase === 'land') expect(o.phase).not.toBe('fall');
+        prev = { ...o };
+      }
+      expect(falls).toBeGreaterThan(0);
+      expect(lands).toBeGreaterThan(0);
     }
-    expect(dropHeight(14, -5, 0)).toBe(14);
-    expect(dropHeight(14, -5, 1)).toBe(-5);
     // Different drops are at different points of their loops.
-    expect(dropAt(0.1, 6, 5).age).not.toBeCloseTo(dropAt(0.2, 6, 5).age, 2);
+    expect(dropLoop(look, 0.1, 3, 5, R, R, R - 5).age).not.toBeCloseTo(dropLoop(look, 0.2, 3, 5, R, R, R - 5).age, 2);
+    // The loop is long enough for any drop to land and finish its splash.
+    for (let i = 0; i < n; i++) expect(dropLife(look, at(i)[6]) * at(i)[6]).toBeGreaterThan(r.top + r.below);
   });
 
   it('a light shower has fewer drops, not fainter ones; a full one has them all', () => {
@@ -273,16 +282,39 @@ describe('the rain (#54 stage 4)', () => {
     let half = 0;
     for (let i = 0; i < n; i++) half += dropShown(at(i)[3], 0.5) > 0.99 ? 1 : 0;
     expect(half / n).toBeGreaterThan(0.4);
-    expect(half / n).toBeLessThan(0.65);
+    expect(half / n).toBeLessThan(0.7);
   });
 
-  it('is hidden (no draw call) outside a shower, rings on the lakes\' level, drawn after the lakes', () => {
+  it('knows the drawn ground\'s height all round: the mesh itself, baked', () => {
+    // A small lumpy test mesh (the real one is Misty's terrain mesh: planets.js passes it).
+    const geo = new THREE.IcosahedronGeometry(1, 12);
+    const pos = geo.attributes.position;
+    const h = (x, y, z) => 1.5 * Math.sin(5 * x + 2 * y) * Math.cos(4 * z);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const l = Math.hypot(x, y, z), rr = R + h(x / l, y / l, z / l);
+      pos.setXYZ(i, (x / l) * rr, (y / l) * rr, (z / l) * rr);
+    }
+    const N = 96;
+    const faces = groundFaces(pos.array, null, R, N);
+    for (const f of faces) for (const v of f) expect(Number.isNaN(v)).toBe(false);
+    // In the middle of each triangle: the flat triangle's own height there (not the smooth shape).
+    const a = pos.array;
+    let worst = 0;
+    for (let k = 0; k < a.length; k += 9 * 7) {
+      const cx = (a[k] + a[k + 3] + a[k + 6]) / 3, cy = (a[k + 1] + a[k + 4] + a[k + 7]) / 3, cz = (a[k + 2] + a[k + 5] + a[k + 8]) / 3;
+      const l = Math.hypot(cx, cy, cz);
+      worst = Math.max(worst, Math.abs(groundSample(faces, N, cx / l, cy / l, cz / l) - (l - R)));
+    }
+    expect(worst).toBeLessThan(0.05);
+  });
+
+  it('is only in a shower: hidden (no draw call) outside one; drawn after the lakes', () => {
     const shw = createShowers(misty, new THREE.Vector3(1, 0, 0));
     const rain = shw.streams;
     expect(rain.mesh.visible).toBe(false);
     expect(rain.mesh.renderOrder).toBeGreaterThan(1);
     const u = rain.mesh.material.uniforms;
-    // (The lakes' level is below all of Misty's dry ground, so the ground hides the other rings.)
     expect(u.floorR.value).toBeGreaterThan(misty.liquidR);
     expect(u.floorR.value).toBeLessThan(misty.liquidR + 0.1);
     rain.set(0.8, 1, 0, 0, R + 1, 12, 1 / 60);
@@ -291,9 +323,26 @@ describe('the rain (#54 stage 4)', () => {
     expect(u.wind.value.y).toBeCloseTo(1, 5); // slanting eastwards, the way the showers go
     rain.set(0);
     expect(rain.mesh.visible).toBe(false);
-    // One draw call whatever the number of drops.
+    // One draw call whatever the number of drops (their splashes and rings are the same instances).
     expect(rain.mesh.geometry.instanceCount).toBe(n);
-    expect(createRain(look, R - 5, new THREE.Vector3()).mesh.name).toBe('rain');
+    expect(createRain(look, R, R - 5, new THREE.Vector3()).mesh.name).toBe('rain');
+  });
+
+  it('sounds as deep as we are in a shower, fading as we climb, softer from the rocket\'s view', () => {
+    expect(rainVolume(0, 2, true)).toBe(0);
+    expect(rainVolume(1, 2, true)).toBe(1);
+    expect(rainVolume(0.5, 2, true)).toBeCloseTo(0.5, 5);
+    expect(rainVolume(1, 2, false)).toBeCloseTo(RAIN_SOUND.rocket, 5);
+    expect(RAIN_SOUND.rocket).toBeLessThan(1);
+    let prev = 1;
+    for (let hgt = 0; hgt < 200; hgt += 1) {
+      const v = rainVolume(1, hgt, true);
+      expect(v).toBeLessThanOrEqual(prev + 1e-9);
+      expect(prev - v).toBeLessThan(0.05);
+      prev = v;
+    }
+    expect(rainVolume(1, RAIN_SOUND.top, true)).toBe(0);
+    expect(rainVolume(1, 500, true)).toBe(0);
   });
 });
 
@@ -373,12 +422,24 @@ describe('down in a shower (#54 stage 4)', () => {
       }
       prev = now;
     }
+    // Its sound: loud down in it, quieter from the rocket's view, gone as we climb, in the map and in space.
+    at(s, 2, inside);
+    s.updateHaze();
+    expect(rainVolume(s.rainDepth, s.rainHeight, true)).toBeGreaterThan(0.9);
+    expect(rainVolume(s.rainDepth, s.rainHeight, false)).toBeLessThan(0.7);
+    at(s, 80, inside);
+    s.updateHaze();
+    expect(rainVolume(s.rainDepth, s.rainHeight, true)).toBe(0);
     at(s, 150, inside);
     s.updateHaze();
     expect(s.storm).toBe(0);
+    at(s, 400, inside);
+    s.updateHaze();
+    expect(s.rainDepth).toBe(0);
     at(s, 2, inside);
     s.mode = 'map';
     s.updateHaze();
     expect(s.storm).toBe(0);
+    expect(s.rainDepth).toBe(0);
   });
 });

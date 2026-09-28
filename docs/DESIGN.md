@@ -1287,14 +1287,31 @@ the approved shell and haze (#46, #58) are kept, and the rain reuses the storms'
 - **Down in a shower** (`SKY_LOOK.misty.storm`): the haze dims to a duskier, greyer orange, and
   its fog (counted from what the camera follows, as always) closes in from 80 to 58 m: a mood,
   the far side of a lake still there. No bank on the horizon (the haze hides the distance).
-- **Drops and rings** (`createRain()`): 560 drops and 75 rings in a 36 m box round what the
-  camera follows, each a loop in the vertex shader on the real clock (as the embers): a drop
-  falls from 14 m above the ground there, slowly (about 3 m/s, Titan's rain is slow) and a
-  little slanted along the drift, then starts again elsewhere. It falls on down to the lakes'
-  level, and the ground's depth hides it where it lands, so it never needs to know the ground's
-  height. The rings (two soft spreading circles) lie flat just above the lakes' level, which is
-  below all of Misty's dry ground (#45, #46), so the ground hides every ring that isn't on a
-  lake: rain on the lakes with no lake lookup at all. A drop is a fat soft streak (4 to 6 cm
+- **Splashes on the ground, and the rain's sound** (owner's additions after the first look):
+  each drop instance falls onto a spot, then lies flat there as its splash: a quick little crown
+  of spray and a soft damp spot that darkens the ground and dries over 2.6 s (on a lake, its
+  ring instead), all in the same loop and the same draw call. The splash must lie on the drawn
+  ground, and the terrain mesh's flat triangles (about 3 m apart) differ from the smooth terrain
+  function by up to ~15 cm on the dunes, so the function wouldn't do. Instead the mesh itself is
+  baked once at load into a 256² cube map of heights (`groundFaces()`: each texel's ray from the
+  middle through the triangle it meets; half floats, linearly filtered; about 30 to 70 ms on a
+  desktop, 1.2 cm off on average), read in the vertex shader for where the drop lands and, either
+  side, for the splash's tilt with the slope; it's then pulled 6 cm towards the camera so it's
+  never lost between texels. The drop now stops where it lands (no fragments under the ground).
+  The sound is audio.js's `setRain()`, made like the lapping: the shared noise band-passed into a
+  soft hiss that swells slowly, and two loops (5.3 s and 3.7 s) of soft plips of big drops at
+  random times, rendered once. Its level is `rainVolume()`: as deep as the camera is in a
+  shower, full up to 15 m and gone by 60 m, 60% from the rocket's view; nothing in the map, in
+  space or with no shower; through the sound-effects channel (the 🔊 switch, the lake's muffle,
+  only after the unlock), checked with the lapping every 0.4 s.
+- **Drops and rings** (`createRain()`): 640 drops in a 36 m box round what the camera
+  follows, each a loop in the vertex shader on the real clock (as the embers): a drop falls from
+  14 m above the ground there, slowly (2.6 to 3.4 m/s, Titan's rain is slow) and a little slanted
+  along the drift, lands, splashes, then starts again elsewhere. Over a lake (the baked ground
+  under the lakes' level) it lands on the surface and makes a ring (two soft spreading circles);
+  the first version had separate ring sprites at the lakes' level, hidden under dry ground by
+  the depth test, and they looked like scattered coins; now there's one ring per drop that
+  really lands there. A drop is a fat soft streak (4 to 6 cm
   wide, 3.5 to 5 times as long), never thinner than a pixel (fainter instead), dropped near the
   lens and when big on screen, and thinned across the line of sight to the rocket and buggy (the
   clouds' foci). A light shower (its edge) has fewer drops, not fainter ones. One draw call,
@@ -1305,9 +1322,10 @@ the approved shell and haze (#46, #58) are kept, and the rain reuses the storms'
   landed in a shower, 0.11 driving in one, 0.05 by a lake, 0.48 on the approach, 0.55 flying
   low over one, at most 0.79 landed zoomed out beside one: within the clouds' budget (1.4).
   Per-frame script (fades, haze, rain) about 0.07 to 0.13 ms against 0.05 to 0.09 before; nothing
-  allocated. The plan takes about 5 ms at load.
-- **Not done:** the showers don't build up and rain out (a rigid turn, like the storms), there
-  are no splashes on dry ground (its height isn't known to the shader), and no sound of rain.
+  allocated. The plan takes about 5 ms at load, the ground's bake 30 to 70 ms (desktop). With the
+  splashes the rain's overdraw went down (0.06 landed, 0.09 driving: drops no longer fall on
+  under the ground), draw calls the same.
+- **Not done:** the showers don't build up and rain out (a rigid turn, like the storms).
   The lighter bands show much less than the darker ones (the face's haze is nearly saturated).
 
 ## Ideas for later
