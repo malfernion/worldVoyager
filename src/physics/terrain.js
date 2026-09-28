@@ -810,22 +810,13 @@ export const YONDER_GLACIERS = [
   return { ...g, a: [s[0] - f[0] * g.back, s[1] - f[1] * g.back], f, len: g.back + g.out };
 });
 
-// The heart's tail (#62 stage 2): its point runs down along the mountains and on past them.
-// Along the heart's left side (heart units: `t` 0 at the point to 1 where the side meets the
-// lobe, as the mountains' `t`), from `top` down to `end` (below 0: past the old point, beyond
-// the last mountain); its left edge `edge` heart units outside the side (the mountains' inner
-// feet), `width` wide, narrowing to nothing from `full` down to `end`.
-export const HEART_TAIL = { top: 0.95, end: -0.4, full: 0.4, edge: 0.1, width: 0.28 };
-const TAIL_L = Math.hypot(HEART_TAN[0], HEART_TAN[1]);
-
-/** Signed distance to the heart's tail (heart units, negative inside; near enough, for masks). */
-export function heartTail(u, v) {
-  const T = HEART_TAIL;
-  const t = (u * -HEART_TAN[0] + v * HEART_TAN[1]) / (TAIL_L * TAIL_L);
-  const out = -(u * HEART_SIDE[1] + v * HEART_SIDE[0]); // outwards from the side, heart units
-  const w = T.width * smooth(T.end, T.full, t);
-  return Math.max((T.end - t) * TAIL_L, (t - T.top) * TAIL_L, out - T.edge, T.edge - w - out);
-}
+// The heart's longer point (#62 stage 2): its lower part is drawn out downwards (the owner wanted
+// its point to run down along the mountains and on past them). Below `pivot` (heart units) the
+// tidy heart's `v` is stretched by 1 / `k`: `heartV()` from the tidy shape to the ground,
+// `tidyV()` back.
+export const HEART_POINT = { pivot: 0.45, k: 0.62 };
+export const heartV = (v) => (v >= HEART_POINT.pivot ? v : HEART_POINT.pivot - (HEART_POINT.pivot - v) / HEART_POINT.k);
+export const tidyV = (v) => (v >= HEART_POINT.pivot ? v : HEART_POINT.pivot - (HEART_POINT.pivot - v) * HEART_POINT.k);
 
 // Water-ice mountains (#62 stage 2) standing along the basin's west side, like Pluto's Tenzing
 // and Hillary Montes: tall, blocky, pale. Each is a rounded block (`r` [long, short] metres
@@ -834,11 +825,11 @@ export function heartTail(u, v) {
 // heart units outside it. Kept well clear of the flight plane (the rocket's landing strip and
 // where the buggy rolls out; a test checks).
 const YONDER_PEAKS = [
-  { t: 0.25, out: 0.14, r: [20, 13], h: 11, turn: 0.3, tilt: 2 },
-  { t: 0.45, out: 0.17, r: [17, 15], h: 14, turn: -0.4, tilt: -3 },
-  { t: 0.62, out: 0.14, r: [22, 13], h: 12, turn: 0.9, tilt: 2.5 },
-  { t: 0.8, out: 0.18, r: [16, 12], h: 10, turn: -0.7, tilt: -2 },
-  { t: 0.95, out: 0.15, r: [15, 11], h: 8, turn: 0.2, tilt: 2 },
+  { t: 0.42, out: 0.07, r: [20, 13], h: 11, turn: 0.3, tilt: 2 },
+  { t: 0.56, out: 0.10, r: [17, 15], h: 14, turn: -0.4, tilt: -3 },
+  { t: 0.70, out: 0.07, r: [22, 13], h: 12, turn: 0.9, tilt: 2.5 },
+  { t: 0.84, out: 0.11, r: [16, 12], h: 10, turn: -0.7, tilt: -2 },
+  { t: 0.97, out: 0.08, r: [15, 11], h: 8, turn: 0.2, tilt: 2 },
 ];
 
 function makeYonder() {
@@ -851,7 +842,7 @@ function makeYonder() {
   const peaks = YONDER_PEAKS.map((p) => {
     const [sx, sy] = HEART_SIDE, [tx, ty] = HEART_TAN;
     // Out from the heart's left side (square to it, pointing away from the middle).
-    const d = heartDir(-(tx * p.t) - sy * p.out, ty * p.t - sx * p.out);
+    const d = heartDir(-(tx * p.t) - sy * p.out, heartV(ty * p.t - sx * p.out)); // (along the longer point's side)
     let e = [-d.y, d.x, 0];
     const el = Math.hypot(e[0], e[1]);
     e = e.map((v) => v / el);
@@ -867,33 +858,23 @@ function makeYonder() {
   // inside, `basin` the left lobe's plain, `east` the right lobe, `sd` the (wobbled) distance to
   // its edge in heart units, `glacier` 0..1 on a glacier and `flow` metres across it from its
   // middle line, `peak` 0..1 up a mountain (`peakH` its height, m).
-  const heart = { x: NaN, y: 0, z: 0, near: 0, in: 0, basin: 0, east: 0, sd: 1, eastSide: 0, glacier: 0, flow: 0, glacierH: 0, peak: 0, peakH: 0, west: 0, u: 0, v: 0 };
+  const heart = { x: NaN, y: 0, z: 0, near: 0, in: 0, basin: 0, east: 0, sd: 1, eastSide: 0, fade: 0, glacier: 0, flow: 0, glacierH: 0, peak: 0, peakH: 0, west: 0, u: 0, v: 0 };
   const heartOf = (x, y, z) => {
     if (x === heart.x && y === heart.y && z === heart.z) return heart;
     heart.x = x; heart.y = y; heart.z = z;
-    heart.near = 0; heart.in = 0; heart.basin = 0; heart.east = 0; heart.sd = 1; heart.eastSide = 0; heart.glacier = 0; heart.peak = 0; heart.peakH = 0; heart.west = 0;
+    heart.near = 0; heart.in = 0; heart.basin = 0; heart.east = 0; heart.sd = 1; heart.eastSide = 0; heart.fade = 0; heart.glacier = 0; heart.peak = 0; heart.peakH = 0; heart.west = 0;
     if (x * H.c.x + y * H.c.y + z * H.c.z < 0.05) return heart;
     heartAt(x, y, z, hp);
     heart.u = hp.u;
     heart.v = hp.v;
-    // Like Pluto's, not a drawn heart: lopsided (the left lobe a bigger teardrop, the right one
-    // smaller and a little lower) and wobbly at every scale. (`heartDist()` stays the tidy
-    // shape the rest works from; this is where it's roughened.)
+    // The owner's heart: the crisp cartoon heart, a little lopsided (the left lobe slightly
+    // bigger) with rough edges along the lobes' tops, and a longer point running down along the
+    // mountains and on past them (`tidyV()`, HEART_POINT).
     const eastSide = smooth(-0.05, 0.25, hp.u);
-    // (The left lobe leans out and down into a teardrop, like Sputnik Planitia.)
-    // (Towards the bottom it narrows into a clear point, and the wobble fades out there, so the
-    // point isn't rounded off: the owner wanted it pointier.)
-    const low = 1 - smooth(0.05, 0.5, hp.v);
-    const wu = (hp.u < 0 ? hp.u * (0.8 + 0.12 * smooth(0.2, 0.9, hp.v)) : hp.u * 1.12) * (1 + 0.3 * low);
-    const wv = hp.v + 0.1 * Math.max(0, hp.u) - 0.12 * Math.min(0, hp.u);
-    const wob = 0.25 + 0.75 * smooth(0.12, 0.55, hp.v);
-    const sd0 = heartDist(wu, wv) + wob * (0.12 * noise(x * 2.6 + 13, y * 2.6, z * 2.6) + 0.05 * noise(x * 7 + 3, y * 7 + 1, z * 7)
-      + (1 - eastSide) * (0.11 * noise(x * 5.5 + 21, y * 5.5, z * 5.5 + 4) + 0.045 * noise(x * 12 + 2, y * 12 + 8, z * 12)))
-      + 0.01 * noise(x * 23, y * 23 + 5, z * 23);
-    // Its point runs down along the mountains and on past them (the owner's ask; Sputnik
-    // Planitia's southern tip does the same): a tapering tail whose left edge is the mountains'
-    // feet, the chain's line (`HEART_TAIL`), out beyond the last mountain to a sharp tip.
-    const sd = Math.min(sd0, heartTail(hp.u, hp.v) + 0.012 * noise(x * 11 + 6, y * 11, z * 11 + 3));
+    const wu = hp.u < 0 ? hp.u * 0.93 : hp.u * 1.06;
+    const topEdge = smooth(0.62, 0.95, hp.v);
+    const sd = heartDist(wu, tidyV(hp.v)) + 0.016 * noise(x * 9 + 13, y * 9, z * 9) + 0.008 * noise(x * 23, y * 23 + 5, z * 23)
+      + topEdge * (0.05 * noise(x * 8 + 21, y * 8, z * 8 + 4) + 0.025 * noise(x * 17 + 2, y * 17 + 8, z * 17));
     heart.sd = sd;
     heart.eastSide = eastSide;
     // (The heart's west: the dark lands and the mountains.)
@@ -901,10 +882,12 @@ function makeYonder() {
     heart.west = smooth(-0.05, -0.35, hp.u) * (1 - smooth(0.6, 1.05, hp.v)) * (1 - smooth(0.35, 0.6, sd));
     heart.near = 1 - smooth(0.1, 0.6, sd);
     if (heart.near <= 0 && heart.west <= 0) return heart;
-    // Its west edge fairly sharp (the dark lands and the mountains meet it there); the right
-    // lobe's edge breaks up into ragged frost fading into the ground.
-    const rag = eastSide * (0.07 * noise(x * 13 + 5, y * 13, z * 13 + 2) + 0.035 * noise(x * 31, y * 31 + 9, z * 31));
-    heart.in = 1 - smooth(-0.015 - 0.05 * eastSide, 0.01 + 0.07 * eastSide, sd + rag);
+    // Like Pluto's: a crisp, broken-edged top, and a lower part that fades out into the ground in
+    // ragged frost patches (`fade`, 1 towards the point), with no dark rim there.
+    const fade = 1 - smooth(0.12, 0.55, tidyV(hp.v));
+    heart.fade = fade;
+    const rag = fade * (0.09 * noise(x * 13 + 5, y * 13, z * 13 + 2) + 0.045 * noise(x * 31, y * 31 + 9, z * 31));
+    heart.in = 1 - smooth(-0.015 - 0.12 * fade, 0.01 + 0.1 * fade, sd + rag);
     // The left lobe and the point: west of the shore line (wobbled). A gentle bank.
     const shore = heartShore(hp.v) + 0.03 * noise(x * 6 + 3, y * 6 + 1, z * 6);
     heart.basin = (1 - smooth(-0.05, 0.005, sd)) * (1 - smooth(shore - 0.035, shore + 0.035, hp.u));
@@ -1014,12 +997,10 @@ function makeYonder() {
       // (Much darker than it looks: Ember's light over-exposes pale ground a lot, and the heart
       // must stay far brighter than its surroundings to read from space.)
       if (hr.near > 0) {
-        // (Round the frosty east too, broken up, so the heart stands out from the pale plains
-        // there without a drawn outline.)
-        const k = hr.near * (1 - hr.in) * (1 - hr.eastSide * (0.25 + 0.35 * smooth(-0.2, 0.3, noise(x * 9 + 4, y * 9, z * 9 + 7))));
+        const k = hr.near * (1 - hr.in) * (1 - 0.6 * hr.fade); // (fading out towards the point)
         c = mix(c, mix(rgb(0x7a4a30), rgb(0x5e3722), smooth(-0.3, 0.3, n)), k * (0.8 + 0.2 * noise(x * 5 + 9, y * 5, z * 5)));
-        // A darker, redder rim where it meets the dark lands on its west (none round the east).
-        c = mix(c, rgb(0x46241a), (1 - smooth(0.01, 0.07, hr.sd)) * (1 - hr.in) * 0.5 * (1 - hr.eastSide));
+        // A darker, redder band right round its edge, so its outline is crisp.
+        c = mix(c, rgb(0x46241a), (1 - smooth(0.01, 0.07, hr.sd)) * (1 - hr.in) * 0.75 * (1 - hr.fade));
       }
       // The dark lands: a peach edge, then deep reddish brown.
       const th = tholin(x, y, z);

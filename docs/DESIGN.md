@@ -1464,21 +1464,18 @@ come later.
 
 ### Yonder's heart, mountains, glaciers and blue haze (#62, stage 2)
 
-- **The heart** (`YONDER_HEART`, `heartDist()` in terrain.js): heart-like, as Pluto's is, not a
-  drawn heart (the owner found a literal heart shape too fake). It starts from a tidy
-  signed-distance heart (two round lobes and a point) in its own frame on the ground
-  (`heartAt()` / `heartDir()`, true distances from its middle), then `heartOf()` roughens it:
-  lopsided (the left lobe a bigger teardrop leaning out and down, the right lobe smaller and a
-  little lower), its outline wobbling at several scales but narrowing into a clear point at
-  the bottom (the wobble fades out there, so it isn't rounded off) and running down along the
-  mountains and on past the last of them to a sharp tip (`HEART_TAIL`, `heartTail()`: a tapering
-  tail whose left edge is the mountains' feet, as Sputnik Planitia's southern tip runs along
-  its mountains), its west edge fairly sharp where the
-  dark lands and mountains meet it, and the right lobe breaking up into ragged frost fading into
-  the ground (no dark outline there). It's placed well in on the side the cameras see and
-  upright on the map (`up` is the map's +y). It doesn't reach the flight plane; the buggy drives
-  to it from the landing strip. An earlier try crossed the plane, but near the limb the heart was
-  foreshortened and tilted and no longer read as a heart.
+- **The heart** (`YONDER_HEART`, `heartDist()` in terrain.js): a crisp cartoon heart (two round
+  lobes and a point, a signed-distance shape) in its own frame on the ground (`heartAt()` /
+  `heartDir()`, true distances from its middle), with a dark rim so its outline reads from space.
+  After a try at a ragged, Pluto-realistic outline, the owner preferred the crisp heart with
+  just rough edges along the lobes' tops and a little lopsidedness (the left lobe slightly
+  bigger); and, like the real one, its lower part fades out into the ground in ragged frost
+  patches (`fade`, no dark rim there) while the top stays crisp. Its lower half is drawn out into a longer point (`HEART_POINT`, `heartV()` /
+  `tidyV()`), running down along the ice mountains, which line its left edge, and on past the
+  last of them. It's placed well in on the side the cameras see and upright on the map (`up` is
+  the map's +y). It doesn't reach the flight plane; the buggy drives to it from the landing
+  strip. An earlier placement crossed the plane, but near the limb the heart was foreshortened
+  and tilted and no longer read as a heart.
 - **The basin** (its left lobe, like Sputnik Planitia): smooth, pale nitrogen ice 1.8 m below the
   uplands, with **convection cells** in the ground shader (`HEART_LOOK`, `cellAt()`,
   `#define RL_HEART`, from marks baked per vertex, `marks()`): cells round slowly wandering

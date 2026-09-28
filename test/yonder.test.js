@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createSystem } from '../src/physics/bodies.js';
-import { makeTerrain, SPIN_AXES, YONDER_HEART, YONDER_GLACIERS, heartAt, heartDir, heartDist, heartTail, HEART_TAIL } from '../src/physics/terrain.js';
+import { makeTerrain, SPIN_AXES, YONDER_HEART, YONDER_GLACIERS, heartAt, heartDir, heartDist, heartV, tidyV, HEART_POINT } from '../src/physics/terrain.js';
 import { DISCOVERIES, HEART_NEAR, HEART_SPOT, HEART_IN, HEART_VIEW, heartSeen, finds, buggyFinds, groundPoint, discoveryTargets } from '../src/physics/discoveries.js';
 import { airOf } from '../src/physics/exhaust.js';
 import { Buggy, vec } from '../src/physics/buggy.js';
@@ -377,22 +377,22 @@ describe('Yonder\'s heart (#62 stage 2)', () => {
     }
   });
 
-  it('runs its point down along the mountains and on past them, to a sharp tip', () => {
+  it('runs its point down along the mountains and on past them', () => {
     // The mountains stand right against its tail: under each one's inner side is the heart.
     for (const p of ter.peaks) {
       const hp = heartAt(p.x, p.y, p.z);
       // From the mountain's middle, a step in towards the heart's middle.
       const len = Math.hypot(hp.u, hp.v - YONDER_HEART.mid);
       const q = heartDir(hp.u - (0.14 * hp.u) / len, hp.v - (0.14 * (hp.v - YONDER_HEART.mid)) / len);
-      expect(ter.heart(q.x, q.y, q.z).in).toBeGreaterThan(0.5);
+      expect(ter.heart(q.x, q.y, q.z).in).toBeGreaterThan(0.25); // (fading out low down, like Pluto's)
     }
-    // Past the last mountain (below the old point) it goes on, narrowing to a tip...
+    // Past the last mountain it goes on down to its point.
     const lowest = Math.min(...ter.peaks.map((p) => heartAt(p.x, p.y, p.z).v));
-    const tailV = (t) => { let best = Infinity; for (let u = -0.6; u < 0.6; u += 0.004) for (let v = -0.6; v < 0.3; v += 0.004) if (heartTail(u, v) < 0) best = Math.min(best, v); return best; };
-    expect(tailV()).toBeLessThan(lowest - 0.08);
-    // ...and ends there: nothing of it beyond `end`.
-    expect(heartTail(0, -0.9)).toBeGreaterThan(0);
-    expect(HEART_TAIL.end).toBeLessThan(0);
+    expect(heartV(0)).toBeLessThan(lowest - 0.15);
+    const tip = heartDir(0, heartV(0) + 0.04), past = heartDir(0, heartV(0) - 0.3); // (its frost fades out a little way past it)
+    expect(ter.heart(tip.x, tip.y, tip.z).in).toBeGreaterThan(0.5);
+    expect(ter.heart(past.x, past.y, past.z).in).toBeLessThan(0.05);
+    expect(HEART_POINT.k).toBeLessThan(1);
   });
 
   it('has tall ice mountains along the basin\'s west side, well away from the landing strip', () => {
@@ -403,8 +403,8 @@ describe('Yonder\'s heart (#62 stage 2)', () => {
       expect(Math.asin(p.z) * yonder.radius).toBeGreaterThan(40); // clear of the flight plane
       const hp = heartAt(p.x, p.y, p.z);
       expect(hp.u).toBeLessThan(0); // on the west (left) side
-      expect(heartDist(hp.u, hp.v)).toBeGreaterThan(0); // just outside the heart
-      expect(heartDist(hp.u, hp.v)).toBeLessThan(0.2);
+      expect(heartDist(hp.u, tidyV(hp.v))).toBeGreaterThan(0); // just outside the heart (its longer point, HEART_POINT)
+      expect(heartDist(hp.u, tidyV(hp.v))).toBeLessThan(0.2);
       expect(ter.bare(p.x, p.y, p.z)).toBe(true); // no boulders on them
     }
   });
