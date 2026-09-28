@@ -252,6 +252,18 @@ export const YONDER_GROUND = {
   pit: { cells: [36, 15, 6], rate: [0.5, 0.55, 0.6], floor: [0.78, 0.7, 0.68], shadow: 0.6, rim: [1, 0.86, 0.76], streak: [14, 70, 0.78] },
 };
 
+/**
+ * Hither's cracked grey ice (#62, like Charon's fractured plains): Yonder's cracks only (no
+ * blades, no pits), a little smaller, so it isn't a copy, in darker blue-grey lines that show on
+ * grey ice rather than Yonder's pale blue on cream. Where they go is baked per vertex
+ * (terrain.js `makeHither()`'s `land()`, `groundMarks()`): strongest on the smooth southern
+ * plains, fainter in the north, none on the red cap's middle, down the chasms, on Kubrick or
+ * inside craters.
+ */
+export const HITHER_GROUND = {
+  crack: { cell: 22, width: 0.034, color: [0.56, 0.6, 0.72], faint: 0.35, fine: [5.5, 0.6] },
+};
+
 /** How far each crack cell's seed may be from the cell's middle (the whole range, in cells): little enough that the shader need only look in 8 cells. */
 export const CRACK_STRAY = 0.6;
 
@@ -348,6 +360,7 @@ export const ROCKY_LOOK = {
   // Hither (#62 stage 3), Yonder's moon, like Charon: grey ice in the same dim, cold light;
   // bluish-grey cliffs and slopes, bright specks of fresh ice.
   hither: {
+    ground: HITHER_GROUND, // (#62) cracked grey ice, Yonder's cracks
     tint: true, rock: [0.74, 0.76, 0.84], dust: [1.03, 1.03, 1.03], speck: [1.14, 1.14, 1.16], streak: [0.88, 0.88, 0.9],
     rim: 0xdce8ff, rimK: 0.45, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.28 }, speckle: [0.82, 0.4],
   },
@@ -450,14 +463,21 @@ export function richRocky(mat, body, sunDir) {
     mat.userData.richUpdate = (time) => { uniforms.rlTime.value = time % hl.churn; };
   }
   const gr = look.ground;
+  // (Hither's grey ice, #62, has only the cracks: `all` is Yonder's whole set.)
+  const all = !!(gr?.blade && gr?.pit);
   if (gr) {
-    const { crack: c, blade: b, pit: p } = gr;
-    const ax = SPIN_AXES[body.id];
+    const c = gr.crack;
     Object.assign(uniforms, {
       rlCrack: { value: new THREE.Vector4(c.cell, c.width, c.faint, c.fine[1]) },
       rlCrackFine: { value: c.fine[0] },
       rlCrackStray: { value: CRACK_STRAY },
       rlCrackC: { value: new THREE.Vector3(...c.color) },
+    });
+  }
+  if (all) {
+    const { blade: b, pit: p } = gr;
+    const ax = SPIN_AXES[body.id];
+    Object.assign(uniforms, {
       rlBlade: { value: new THREE.Vector3(YONDER_BLADES.gap / b.split, b.scale, b.flank) },
       rlBladeCrest: { value: new THREE.Vector3(...b.crest) },
       rlBladeTrough: { value: new THREE.Vector3(...b.trough) },
@@ -471,7 +491,7 @@ export function richRocky(mat, body, sunDir) {
       rlPitStreak: { value: new THREE.Vector3(...p.streak) },
     });
   }
-  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface], ['RL_SPARKLE', !!sp], ['RL_HEART', !!hl], ['RL_GROUND', !!gr]]);
+  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface], ['RL_SPARKLE', !!sp], ['RL_HEART', !!hl], ['RL_GROUND', !!gr], ['RL_CRACKS_ONLY', !!gr && !all]]);
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\nvarying float rlLevel;\n' + (hl ? HEART_VERT_PARS : '') + (gr ? GROUND_VERT_PARS : '')
@@ -487,8 +507,8 @@ export function richRocky(mat, body, sunDir) {
       uniform float rlSpeckK;
       uniform vec3 rlDarken;
       uniform float rlAmbientK;
-    ` + (sp ? SPARKLE_PARS : '') + (hl ? HEART_PARS : '') + (gr ? GROUND_PARS : '') + shader.fragmentShader
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}${hl ? HEART_MAIN : ''}${gr ? GROUND_MAIN : ''}`)
+    ` + (sp ? SPARKLE_PARS : '') + (hl ? HEART_PARS : '') + (gr ? groundPars(all) : '') + shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}${hl ? HEART_MAIN : ''}${gr ? groundMain(all) : ''}`)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= rlAmbientK;')
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${sp ? SPARKLE_MAIN + '\n' : ''}#include <opaque_fragment>`);
   };
@@ -622,12 +642,15 @@ const GROUND_VERT = /* glsl */ `
   rlBladeAlong = groundAlong;
   rlSunO = normalize(transpose(mat3(modelViewMatrix)) * rlSun);
 `;
-const GROUND_PARS = /* glsl */ `
+// Split so a world with only the cracks (Hither's grey ice, #62) gets only their parts; Yonder's,
+// all of them joined, is the same shader as before (tested).
+const CRACK_PARS = /* glsl */ `
   uniform vec4 rlCrack; // big cell (m), width (cells), the faintest cracks' strength, the fine net's strength
   uniform float rlCrackFine; // the fine net's cell (m)
   uniform float rlCrackStray; // how far a cell's seed may be from its middle (the whole range, cells)
   uniform vec3 rlCrackC;
-  uniform vec3 rlBlade; // the drawn blades' gap (m), scales (m), how much lighter / darker the flanks facing / away from the sun
+`;
+const LAND_PARS = /* glsl */ `  uniform vec3 rlBlade; // the drawn blades' gap (m), scales (m), how much lighter / darker the flanks facing / away from the sun
   uniform vec3 rlBladeCrest;
   uniform vec3 rlBladeTrough;
   uniform vec3 rlPitCell;
@@ -638,7 +661,8 @@ const GROUND_PARS = /* glsl */ `
   uniform vec3 rlPitRim;
   uniform vec3 rlPitAxis; // the streaks run along it
   uniform vec3 rlPitStreak; // across (m), along (m), how dark
-  varying vec4 rlGround;
+`;
+const CRACK_FNS = /* glsl */ `  varying vec4 rlGround;
   varying float rlBladeAlong;
   varying vec3 rlSunO;
   // Three numbers 0..1 per cell (no sin(): steady on phones).
@@ -673,7 +697,8 @@ const GROUND_PARS = /* glsl */ `
     float lean = length(n - dot(n, up) * up);
     return vec3(dot(0.5 * (o1 + o2), n) / max(lean, 0.25), rlHash(c1 + c2 + 5.3), smoothstep(0.3, 0.5, lean));
   }
-  // A crater in the grid of cells 'cell' m wide, if this cell has one (rate): .x how far out
+`;
+const CRATER_FN = /* glsl */ `  // A crater in the grid of cells 'cell' m wide, if this cell has one (rate): .x how far out
   // (0 its middle, 1 its rim), .y the same from a middle shifted away from the sun (outside 1:
   // in the shadow), .z its radius on the ground (m), .w 1 if there is one.
   vec4 rlCrater(float cell, float rate, float seed, vec3 up, vec3 sunT) {
@@ -693,8 +718,9 @@ const GROUND_PARS = /* glsl */ `
     return vec4(length(qt), length(qt + 0.45 * sunT), a * cell, 1.0);
   }
 `;
+const groundPars = (all) => CRACK_PARS + (all ? LAND_PARS : '') + CRACK_FNS + (all ? CRATER_FN : '');
 
-const GROUND_MAIN = /* glsl */ `
+const CRACK_MAIN = /* glsl */ `
   {
     vec3 up = normalize(rlObj);
     float gpx = length(fwidth(rlObj)); // metres per pixel
@@ -719,7 +745,8 @@ const GROUND_MAIN = /* glsl */ `
         }
       }
     }
-    // The bladed terrain: ridges across rlGround.w (crests where it's half a gap on), the flank
+`;
+const LAND_MAIN = /* glsl */ `    // The bladed terrain: ridges across rlGround.w (crests where it's half a gap on), the flank
     // facing the sun lit and the other shaded (which way across grows along the ground, in view
     // space: least squares on the pixel's steps), frosty crests, dark troughs; each ridge broken
     // along its length (rlBladeAlong) into scales, staggered from its neighbours': snakeskin.
@@ -784,7 +811,8 @@ const GROUND_MAIN = /* glsl */ `
         diffuseColor.rgb *= 1.0 + 0.08 * (1.0 - inside) * (1.0 - smoothstep(1.0, 1.35, cr.x)) * k;
       }
     }
-  }
+`;
+const groundMain = (all) => CRACK_MAIN + (all ? LAND_MAIN : '') + `  }
 `;
 
 // Ice sparkles (#54 stage 5, only with RL_SPARKLE). One glint spot per grid cell, at a random

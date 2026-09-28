@@ -1625,7 +1625,32 @@ tidally locked, always facing each other ("like two dancers holding hands").
 - **Cost**: Hither's globe (about 48,000 triangles at `DETAIL` 48, one draw call plus ink, and two
   for its rocks) only when on screen; its orbit line is one more line. Per frame: one rotation
   for each of the two worlds' groups, and a few multiplies in the drive view; nothing allocated.
-- **Not done / weak spots:** a cracked-ice pattern like Yonder's is still to come; driving straight
+- **Cracked ice** (#62, after the owner approved the rest of Yonder's ground): Charon's plains
+  are fractured, so Hither gets Yonder's crack machinery, not a copy of it (`HITHER_GROUND` in
+  richLook.js, `land()` / `groundMarks()` in `makeHither()`):
+  - *The same cracks, suited to grey ice*: 3D object-space cells (no seams; they turn with the
+    ground), antialiased with `fwidth`, fading when only a few pixels across, a finer net close
+    up. Polygons a little smaller than Yonder's (22 m, fine net 5.5 m, a little stronger), in
+    darker blue-grey lines (the ground's colour times [0.56, 0.6, 0.72]) that read on grey ice
+    where Yonder's pale blue on cream would be lost.
+  - *Where*: a weight baked per vertex. Full on the smooth southern plains (Vulcan Planitia),
+    about half in the rugged north, fading out across the red cap's ragged edge and none in its
+    middle; none down a chasm or on its cliffs, on Kubrick's massif and foothills (above 2 m),
+    inside a crater's rim or on a fresh one's rays, so every landmark reads as before.
+  - *Only colour*: Hither's height, colours and physics are exactly as before (checked against
+    the old code; the weight's crater `bowl` is a new field that nothing else reads).
+  - *Only Hither's shader changed*: Yonder's ground shader was split into parts (the cracks'
+    uniforms and functions, the blades' and pits' uniforms, the craters' function; the cracks'
+    and the other lands' main code) that join back to the old one byte for byte; Hither takes
+    only the cracks', with its own program key (`RL_CRACKS_ONLY`). A test pins every other
+    world's built ground shader (source, key and uniforms) as it was.
+  - *Cost*: shader lines on Hither's ground only (8 cell lookups per pixel, twice that close up;
+    no clock, nothing per frame), 5 floats more per vertex of its mesh (about 0.5 MB), no draw
+    call or texture.
+  - *Weak spots*: close to the ground at a grazing angle the lines are faint (the antialiasing
+    widens and fades them, like Yonder's); from the whole-globe map they're gone (they show
+    zoomed in, in orbit and on the ground).
+- **Not done / weak spots:** driving straight
   at a chasm's cliff the buggy climbs it and leaps off the top (arcade traction, low gravity: a
   long hop, harmless); Yonder hangs in Hither's sky (always in the same spot,
   as from Charon), but the drive camera looks along the ground, so you mostly see it from space.

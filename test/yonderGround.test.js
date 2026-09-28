@@ -39,18 +39,22 @@ const fr = (x) => x - Math.floor(x);
 const hash3 = (i, j, k) => [fr(Math.sin(i * 12.9898 + j * 78.233 + k * 37.719) * 43758.5453), fr(Math.sin(i * 39.3468 + j * 11.135 + k * 83.155) * 24634.6345), fr(Math.sin(i * 73.156 + j * 52.235 + k * 9.151) * 56445.2345)];
 
 describe('the rest of Yonder\'s ground (#62)', () => {
-  it('is only in Yonder\'s ground shader', () => {
+  it('is only in Yonder\'s ground shader (Hither has its cracks only, test/hitherGround.test.js)', () => {
     for (const b of sys.bodies) {
       const look = ROCKY_LOOK[b.id];
       if (!look) continue;
-      const has = b.id === 'yonder';
-      expect(!!look.ground, b.id).toBe(has);
+      const has = b.id === 'yonder', cracks = has || b.id === 'hither';
+      expect(!!look.ground, b.id).toBe(cracks);
       const { mat, shader } = built(b);
-      expect(shader.fragmentShader.includes('rlCracks'), b.id).toBe(has);
-      expect(shader.fragmentShader.includes('rlGround'), b.id).toBe(has);
-      expect(shader.vertexShader.includes('groundMark'), b.id).toBe(has);
-      expect('rlCrack' in shader.uniforms, b.id).toBe(has);
-      expect(mat.customProgramCacheKey().includes('RL_GROUND'), b.id).toBe(has);
+      expect(shader.fragmentShader.includes('rlCracks'), b.id).toBe(cracks);
+      expect(shader.fragmentShader.includes('rlGround'), b.id).toBe(cracks);
+      expect(shader.vertexShader.includes('groundMark'), b.id).toBe(cracks);
+      expect('rlCrack' in shader.uniforms, b.id).toBe(cracks);
+      expect(mat.customProgramCacheKey().includes('RL_GROUND'), b.id).toBe(cracks);
+      // The blades and the pitted dark lands: Yonder's alone.
+      expect(shader.fragmentShader.includes('rlCrater'), b.id).toBe(has);
+      expect('rlBlade' in shader.uniforms, b.id).toBe(has);
+      expect('rlPitCell' in shader.uniforms, b.id).toBe(has);
     }
     // The heart's cells are still drawn, before the rest of the ground's patterns.
     const f = built(yonder).shader.fragmentShader;

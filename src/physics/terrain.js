@@ -1250,12 +1250,12 @@ function makeHither() {
   // the buggy asks height a few times a step): `chasm` how deep in one (m), `wall` 0..1 on its
   // cliffs, `lip` 0..1 along its rims; `mount` Kubrick's height (m, its moat below 0), `peak`
   // 0..1 up its massif; `pit` the craters' height (m), `rim` 0..1 on a crater's rim, `floor` 0..1
-  // in its bowl, `fresh` 0..1 in a fresh one's bright ejecta.
-  const site = { x: NaN, y: 0, z: 0, chasm: 0, wall: 0, lip: 0, mount: 0, peak: 0, pit: 0, rim: 0, floor: 0, fresh: 0 };
+  // in its bowl, `bowl` 0..1 inside its rim (for the cracks), `fresh` 0..1 in a fresh one's bright ejecta.
+  const site = { x: NaN, y: 0, z: 0, chasm: 0, wall: 0, lip: 0, mount: 0, peak: 0, pit: 0, rim: 0, floor: 0, bowl: 0, fresh: 0 };
   const siteOf = (x, y, z) => {
     if (x === site.x && y === site.y && z === site.z) return site;
     site.x = x; site.y = y; site.z = z;
-    site.chasm = 0; site.wall = 0; site.lip = 0; site.mount = 0; site.peak = 0; site.pit = 0; site.rim = 0; site.floor = 0; site.fresh = 0;
+    site.chasm = 0; site.wall = 0; site.lip = 0; site.mount = 0; site.peak = 0; site.pit = 0; site.rim = 0; site.floor = 0; site.bowl = 0; site.fresh = 0;
     // The chasms: a flat floor, a steep cliff (its edge wandering in and out in blocks), and the
     // ground lifted a little along the rim. Never near the flight plane.
     const plane = smooth(0.13, 0.2, Math.abs(z));
@@ -1300,6 +1300,7 @@ function makeHither() {
       site.pit += pitProfile(d) * c.deep;
       site.rim = Math.max(site.rim, smooth(0.7, 0.95, d) * (1 - smooth(1.05, 1.4, d)));
       site.floor = Math.max(site.floor, 1 - smooth(0.35, 0.75, d));
+      site.bowl = Math.max(site.bowl, 1 - smooth(0.9, 1.15, d));
       if (c.fresh && d < 3) {
         // Bright ejecta in rays.
         const rays = smooth(-0.1, 0.35, noise((x - c.x) * 40 / c.radius, (y - c.y) * 40 / c.radius, (z - c.z) * 40 / c.radius) + noise(c.x * 90, c.y * 90, c.z * 90) * 0.2);
@@ -1326,10 +1327,31 @@ function makeHither() {
     pits.push({ ...p, radius, deep: radius * R * (0.3 + 0.08 * p.depth), fresh: i % 5 === 0, cos: Math.cos(Math.max(radius * 1.5, i % 5 === 0 ? radius * 3 : 0)) });
   }
   const hills = (x, y, z) => smooth(0.05, 0.55, noise(x * 3.4 + 5, y * 3.4, z * 3.4));
+  // Cracked ice (#62, like Charon's fractured plains): how much of Yonder's crack pattern each
+  // point gets (richLook.js `ROCKY_LOOK.hither.ground`, baked by `groundMarks()`). Strongest on the
+  // smooth southern plains, fainter in the rugged north, fading out across the red cap's edge
+  // (none in its middle); none down a chasm or on its cliffs, on Kubrick's massif and foothills,
+  // inside a crater's rim or on a fresh one's bright rays, so those stay as they were.
+  const land = { crack: 0 };
+  const landOf = (x, y, z) => {
+    const s = siteOf(x, y, z);
+    land.crack = (0.55 + 0.45 * plains(x, y, z)) * (1 - smooth(0.05, 0.5, cap(x, y, z)))
+      * (1 - smooth(0.1, 0.8, s.chasm)) * (1 - smooth(0, 0.25, s.wall))
+      * (1 - smooth(0.3, 2, Math.max(0, s.mount))) * (1 - smooth(0, 0.05, s.peak))
+      * (1 - s.bowl) * (1 - s.fresh);
+    return land;
+  };
   return {
     pits,
     cap,
     plains,
+    land: landOf,
+    /** What the ground shader needs baked per vertex (#62): the cracks' weight (the rest unused). */
+    groundMarks(x, y, z, out) {
+      out[0] = landOf(x, y, z).crack;
+      out[1] = 0; out[2] = 0; out[3] = 0; out[4] = 0;
+      return out;
+    },
     /** How deep in a chasm (0..1: 1 is 6 m down or more). */
     canyon(x, y, z) {
       return Math.min(1, siteOf(x, y, z).chasm / 6);
