@@ -153,7 +153,7 @@ Built with [three.js](https://threejs.org), runs in the browser, and works on ph
   R rewind, O orbit, L land, B buggy out / home. When driving: ↑/W go, ↓/S reverse,
   Space jump (Hopper).
 
-The farthest world is **Tumble**, a sideways ice giant. Its moon **Flip** goes round the wrong
+The farthest planet is **Tumble**, a sideways ice giant. Its moon **Flip** goes round the wrong
 way, so to catch it you have to go round Tumble backwards too (Pip turns you round if you
 don't).
 
@@ -166,6 +166,11 @@ methane.
 to Ember (and grows a tail that always points away from it), then drifts slowly out past
 Ringo. It's tiny and hard to catch, so Pip waits for a good moment to set off, and when you
 get close Pip steers you in. Drive over its fizzy gas jets and they'll bounce your buggy up!
+
+**Yonder** is a little icy world like Pluto, twice as far out as Tumble on a long, stretched
+orbit: pale plains of frozen nitrogen and dark reddish lands round its middle. It's so far from
+Ember that the sunlight is dim and cold, and from its ground Ember is just a very bright star.
+Getting there is the big voyage: 🤖 Take me there speeds up time for you.
 
 **Discoveries:** little secrets hide around the solar system, each one a real bit of space
 science: an old observatory on a hill near home, footprints and a flag and a shiny laser mirror
@@ -201,7 +206,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Misty's haze bands and rain, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Misty's haze bands and rain, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), Yonder (#62: its orbit, landing, driving, trips there, the dim far light), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

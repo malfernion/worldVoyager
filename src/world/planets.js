@@ -267,9 +267,10 @@ function rings(body, sunDir) {
  * at `far` (dimmest; a little falloff across Yonder's stretched orbit); `cold`: its colour out
  * there; `fill`: the sky's soft fill light (hemisphere and ambient), times the usual; `core`,
  * `glow`: Ember's disc and its two glows, times their usual size (the disc then only a few
- * pixels across); `white`: how far the disc turns white-hot.
+ * pixels across); `white`: how far the disc turns white-hot; `glint`: the size on screen of the
+ * bright star's four-pointed glint drawn over it (a share of the view's height, about).
  */
-export const FAR_LIGHT = { from: 66000, to: 76000, far: 140000, sun: [0.5, 0.4], cold: 0xc4d2ff, fill: 0.75, core: 0.3, glow: [0.4, 0.2], white: 0.6 };
+export const FAR_LIGHT = { from: 66000, to: 76000, far: 140000, sun: [0.62, 0.5], cold: 0xe6ebff, fill: 0.5, core: 0.35, glow: [0.5, 0.2], white: 0.6, glint: 0.09 };
 
 const smoothstep = (a, b, x) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -313,7 +314,49 @@ function starVisual(body) {
   group.add(glowA, glowB);
   const light = new THREE.PointLight(0xfff0d8, 2.6, 0, 0);
   group.add(light);
-  return { group, mesh: core, light, glows: [glowA, glowB], shimmer };
+  // Far away (#62, FAR_LIGHT) Ember is a very bright star: a four-pointed glint a steady size on
+  // screen (hidden until then; FlightScene.updateFarLight fades it in).
+  const glint = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glintTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false, opacity: 0,
+  }));
+  glint.scale.setScalar(FAR_LIGHT.glint);
+  glint.visible = false;
+  group.add(glint);
+  return { group, mesh: core, light, glows: [glowA, glowB], glint, shimmer };
+}
+
+/** A bright star's glint (#62): a white-hot middle, a soft warm halo and four thin spikes. */
+function glintTexture(size = 128) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const h = size / 2;
+  const halo = g.createRadialGradient(h, h, 0, h, h, h);
+  halo.addColorStop(0, 'rgba(255,255,255,1)');
+  halo.addColorStop(0.08, 'rgba(255,250,235,0.95)');
+  halo.addColorStop(0.22, 'rgba(255,215,150,0.35)');
+  halo.addColorStop(1, 'rgba(255,180,100,0)');
+  g.fillStyle = halo;
+  g.fillRect(0, 0, size, size);
+  // Spikes: thin diamonds along the axes, bright in the middle, fading out to the tips.
+  for (const [dx, dy] of [[1, 0], [0, 1]]) {
+    const grd = g.createLinearGradient(h - dx * h, h - dy * h, h + dx * h, h + dy * h);
+    grd.addColorStop(0, 'rgba(255,240,220,0)');
+    grd.addColorStop(0.5, 'rgba(255,255,255,0.9)');
+    grd.addColorStop(1, 'rgba(255,240,220,0)');
+    g.fillStyle = grd;
+    const w = size * 0.035;
+    g.beginPath();
+    g.moveTo(h - dx * h, h - dy * h);
+    g.lineTo(h + dy * w, h + dx * w);
+    g.lineTo(h + dx * h, h + dy * h);
+    g.lineTo(h - dy * w, h - dx * w);
+    g.closePath();
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 /** Scatter the forest over Homestead's lowlands; returns the tree list (for collisions). */
@@ -506,7 +549,8 @@ export function createBodyVisual(body) {
     group.add(s.group);
     out.mesh = s.mesh;
     out.light = s.light;
-    out.glows = s.glows; // (shrunk far away, #62: FlightScene.updateFarLight)
+    out.glows = s.glows; // (shrunk far away, #62: FlightScene.updateFarLight, and the glint shown)
+    out.glint = s.glint;
     out.updates.push(s.shimmer);
     out.landmarks = createLandmarks(body); // solar flares
     group.add(out.landmarks.group);

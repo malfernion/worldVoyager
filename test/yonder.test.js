@@ -200,7 +200,7 @@ describe('Ember from far away (#62)', () => {
     }
     const f = farLight(yonder.periapsis - yonder.soi);
     expect(f.k).toBe(1);
-    expect(f.sun).toBeLessThan(0.6);
+    expect(f.sun).toBeLessThan(0.65);
     expect(f.core).toBeLessThan(0.5);
     // Dimmer still at its farthest; never dark.
     const far = farLight(yonder.apoapsis + yonder.soi);
@@ -216,6 +216,7 @@ describe('Ember from far away (#62)', () => {
     s.sunVisual = {
       body: ember, group: new THREE.Group(), light: new THREE.PointLight(0xfff0d8, 2.6, 0, 0),
       mesh: new THREE.Mesh(new THREE.SphereGeometry(1), new THREE.MeshBasicMaterial({ color: 0xffd98a })), glows: [glow(3.2), glow(8)],
+      glint: Object.assign(new THREE.Sprite(), { visible: false }),
     };
     s.hemi = new THREE.HemisphereLight(0x8a9cff, 0x2a1d30, 0.55);
     s.ambient = new THREE.AmbientLight(0x404060, 0.35);
@@ -228,6 +229,7 @@ describe('Ember from far away (#62)', () => {
   const lookOf = (s) => ({
     sun: s.sunVisual.light.intensity, colour: s.sunVisual.light.color.getHex(), hemi: s.hemi.intensity, ambient: s.ambient.intensity,
     disc: s.sunVisual.mesh.material.color.getHex(), core: s.sunVisual.mesh.scale.x, glows: s.sunVisual.glows.map((g) => g.scale.x),
+    glint: s.sunVisual.glint.visible,
   });
 
   it('at every other world the light and Ember look exactly as before', () => {
@@ -253,19 +255,20 @@ describe('Ember from far away (#62)', () => {
     const before = lookOf(s);
     s.updateFarLight(yonder.worldPos(0));
     const at = lookOf(s);
-    expect(at.sun).toBeLessThan(before.sun * 0.6);
+    expect(at.sun).toBeLessThan(before.sun * 0.65);
     expect(at.hemi).toBeLessThan(before.hemi);
     const c = new THREE.Color(at.colour);
     expect(c.b).toBeGreaterThan(c.r); // cold, bluish
     expect(at.core).toBeLessThanOrEqual(FAR_LIGHT.core + 1e-9);
     expect(at.glows[1]).toBeLessThan(before.glows[1] * 0.3);
+    expect([before.glint, at.glint]).toEqual([false, true]); // a bright star's glint
     // On the map framing Yonder: dim there too, but Ember drawn as usual.
     s.mode = 'map';
     s.mapFocus = yonder;
     s.updateFarLight({ x: 0, y: 0 });
     const map = lookOf(s);
-    expect(map.sun).toBeLessThan(before.sun * 0.6);
-    expect([map.core, map.glows, map.disc]).toEqual([before.core, before.glows, before.disc]);
+    expect(map.sun).toBeLessThan(before.sun * 0.65);
+    expect([map.core, map.glows, map.disc, map.glint]).toEqual([before.core, before.glows, before.disc, false]);
     // Framing Ember (or any other world): all as before.
     s.mapFocus = ember;
     s.updateFarLight({ x: 0, y: 0 });

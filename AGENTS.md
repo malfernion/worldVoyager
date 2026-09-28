@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, splashes on the baked ground, the rings, the rain's volume, the sky in a shower), the gas giants' streaks and limb haze (#54: clear of the hexagon, no jump at the clock's wrap, veil and haze profiles, other shells unchanged), Frosty's crack mist, plumes and ice sparkles (#54: always out of a crack, each wisp's and plume puff's loop, day and night, sunlit plumes, fades; sparkles only in Frosty's ground shader, a steady size on screen), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp)
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, splashes on the baked ground, the rings, the rain's volume, the sky in a shower), the gas giants' streaks and limb haze (#54: clear of the hexagon, no jump at the clock's wrap, veil and haze profiles, other shells unchanged), Frosty's crack mist, plumes and ice sparkles (#54: always out of a crack, each wisp's and plume puff's loop, day and night, sunlit plumes, fades; sparkles only in Frosty's ground shader, a steady size on screen), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp), Yonder (#62: its orbit and never meeting Tumble, landing, driving, trips there and back, Ember's dim far light and every other world's light unchanged)
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -72,13 +72,13 @@ src/progress.js        The starter journey's goals (`GOALS`, `starterDone`, `goa
                        which screen markers Pip has explained (#33), which worlds were driven round (#29; localStorage)
 src/physics/           Pure, headless, unit-tested; no three.js here
   orbit.js             Universal-variable Kepler propagation, orbital elements, conic geometry
-  bodies.js            The solar system: on-rails orbits (round, or Ducky the comet's Kepler ellipse), SOIs, per-world surfaces
+  bodies.js            The solar system: on-rails orbits (round, or a Kepler ellipse: Ducky the comet's, Yonder the far dwarf world's, #62, `dwarf`), SOIs, per-world surfaces
                        (along z = 0: `ground`, the liquid's `liquidTop`, the rocket's `surface` = the higher; `wetAt()`,
                        `landableAt()` / `nearestLandable()` for dry landings, `liquidDepth()`, `nearLiquid()`; #44;
                        `shoreDist()`: metres to the nearest pool's shore, #45)
   terrain.js           Height + colour functions per world (shared by physics and meshes), each world's liquid (`liquid: { kind, level }`,
                        the seabed shape `seabedDepth()`; #44), pools carved below a liquid's level (`makePools()`, Sizzle's lava
-                       `SIZZLE_LAVA`; #45; Misty's methane lakes `MISTY_LAKES`; #46, and its ground, dune fields `MISTY_DUNES` and soft lake banks, #59), gas giants' spin axes (+ `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
+                       `SIZZLE_LAVA`; #45; Misty's methane lakes `MISTY_LAKES`; #46, and its ground, dune fields `MISTY_DUNES` and soft lake banks, #59; Yonder's icy plains and dark tholin belt `makeYonder()`, #62), spin axes (the gas giants', and `YONDER_AXIS` for its ground's pattern; + `facingPole()`, the pole the cameras see, #55), vents, geysers and the comet's gas jets,
                        and the ground discoveries shape (observatory hilltop, Nibble's giant crater, Frosty's glowing cracks)
   discoveries.js       Discoveries (#15): where each secret is, what finds it (buggy near/parked/at night, landing, dust devils,
                        the ring gap, flares, seeing Tumble's hexagon `hexagonSeen()`, #55), and the ✨ compass's targets
@@ -106,7 +106,7 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        jump bursts and jets) with real gravity, air drag and ground stops; emission rates; dust colour from terrain.js;
                        in a sea (#44) spray, a splash going in or out, a bow wave, and bubbles (`FLOAT_*`: they pop at the surface);
                        at lava's edge (#45) `steam()` puffs and `wisp()`s
-src/world/             three.js visuals: planets (incl. rings, atmospheres; a hazy world's thicker one, #46; the skies over the ground, `SKY_LOOK`, and their dome `hazeSky()`: Misty's haze #58, Homestead's and Dusty's skies #61, a dust storm's bank on the horizon #54), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
+src/world/             three.js visuals: planets (incl. rings, atmospheres; Ember far away, #62: `FAR_LIGHT`, `farLight()`, its glint sprite; a hazy world's thicker one, #46; the skies over the ground, `SKY_LOOK`, and their dome `hazeSky()`: Misty's haze #58, Homestead's and Dusty's skies #61, a dust storm's bank on the horizon #54), liquid (#44: each world's one sea mesh + shader; `LOOKS` per liquid kind;
                        lava's own glowing crust shader, #45; methane: the water shader, dark and still, mirroring the haze, #46), ambient (plumes/dust/dust devils/geysers/jets, comet tails), dust (draws the
                        buggy dust pool: two instanced billboard meshes), trees, rocks (moon boulders),
                        landmarks (the discoveries' observatory, flag, mirror, rover, lander, Huygens and its parachute, crack glows, Ember's flares; the friends' campfires
@@ -147,7 +147,7 @@ src/scenes/            builder.js (workshop), flight.js (flight + map views; its
                        `updateWait()`: a coached long wait's "tap ⏩" and glow, #50; under a sea `updateUnderwater()`, #44;
                        a world's sky near its ground `updateHaze()` (Misty's orange haze, #46, flying and driving, #58; Homestead's and Dusty's skies, #61;
                        down in a dust storm, #54, `this.storm`), the blowing dust `updateStorms()`; the map's fixed centre `mapAt`, `toggleMap()`,
-                       `focusMapOn()`, 🎯 `findRocket()`, #57; orbit lines and the path: `updateLines()`, hidden
+                       `focusMapOn()`, 🎯 `findRocket()`, #57; Ember's dim far light and bright-star look at Yonder `updateFarLight()`, #62; orbit lines and the path: `updateLines()`, hidden
                        while driving, and in the flight view a line through the world we're at fades close up: `lineShown()`, #48),
                        drive.js (buggy mode)
 src/ui/                flightHud.js (controls, readouts, gestures, which helpers show, the 🧭 (`coachButton()`), the target card's two choices,
@@ -186,6 +186,8 @@ test/                  vitest suites; missions.js has the shared headless flight
                        never in the ice, the plumes' vents on the cracks, each loop, day and night, sunlit plumes, fades;
                        sparkles only in Frosty's ground shader
                        garage.test.js drives real buggies at the garage door (and at the rocket's side and back, #37);
+                       yonder.test.js: Yonder (#62): its orbit (never meeting Tumble), ground, landing from all round, driving,
+                       the map reaching it, trips there and back (🤖, 🧭, a barely-flying rocket), the far light at Yonder only
                        orbitLines.test.js: nothing from the flight or map views drawn while driving, and landed on every
                        world no orbit line through its ground (#48)
 tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built on test/missions.js
@@ -233,19 +235,25 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   launch pad is on land. `test/liquid.test.js`, `test/lava.test.js` and `test/misty.test.js` land from all round the
   orbit.
 - **Floating origin.** Every frame the scene is positioned relative to the rocket, buggy or the map's
-  fixed centre (`mapAt`, #57). Never put raw world coordinates (up to ~65 km, out to Tumble) into three.js positions.
+  fixed centre (`mapAt`, #57). Never put raw world coordinates (up to ~145 km, out to Yonder, #62) into three.js positions.
 - **Orbits can go either way.** `Body.orbitDir` is -1 (clockwise) for almost everything and +1
   for Flip, Tumble's backwards moon (#11); `angularSpeed` carries the sign. Never assume
   clockwise: use `orbitDir` / `angularSpeed` (the planner's arrival direction, `flipOrbit`,
-  `parkAt` in the missions all do). Moving a world further out than Tumble? Raise
-  `SYSTEM_EXTENT` / `SYSTEM_VIEW` in `zoom.js` (a test checks them).
-- **Orbits aren't always round.** Ducky the comet (#13) is on a Kepler ellipse (`Body.ecc`,
+  `parkAt` in the missions all do). Moving a world further out? Raise
+  `SYSTEM_EXTENT` in `zoom.js` (the map's zoom-out, out to Yonder); `SYSTEM_VIEW` (the default view)
+  covers the planets and the comet, not a `dwarf` far out (a test checks them).
+- **Orbits aren't always round.** Ducky the comet (#13) and Yonder (#62) are on Kepler ellipses (`Body.ecc`,
   `periArg`; `orbitRadius` is then the semi-major axis and `phase` the mean anomaly at t = 0).
   Ask a body where it is with `relPos` / `relVel` / `distAt` / `angleAt`, and for its range
   with `periapsis` / `apoapsis`; never use `orbitRadius` as a distance, or
   `phase + angularSpeed * t` as an angle (for the comet `angularSpeed` is only the average).
   The ellipse is solved with a few Newton steps on Kepler's equation, cached per time, since
   prediction asks a lot.
+- **Ember's far look is only for far out** (#62, `FAR_LIGHT` in `planets.js`): the dim, cold
+  light, the smaller fill and Ember as a bright star (`FlightScene.updateFarLight()`) start past
+  66,000 from Ember, beyond anything but Yonder ever reaches (Tumble's SOI ends at 63,000), so
+  every other world's light and look is exactly as before (`test/yonder.test.js`). A world out
+  there, or a closer-in change to it, must keep that true.
 - **Kid-first UX.** Everything must work without reading: icons, big buttons, Pip speaks.
   Failure is funny and cheap (rewind). Spoken lines are short and cheerful.
 - **Phones first.** Watch draw calls and triangle counts (instancing, shared materials,
@@ -622,6 +630,12 @@ tools/voice/.venv/bin/python tools/voice/record.py --voice jess   # records only
 - The Orbit helper's "going round" burn pushes sideways against gravity; on the comet (gravity
   under 1 m/s²) it ran away and flung the rocket out, so on a comet `catchComet()` does that
   part too.
+- **A far target can be a knife-edge** (#62). One of Yonder's windows planned a path that just
+  grazed Ringo's pull: the real burn missed and burning on to 1.25× the push only made the miss
+  worse and ran into Ringo, and the corrections couldn't find a way back. The burn now stops
+  once, past the planned push, the prediction gets worse (corrections on the way fix a near
+  miss), and with a stretched orbit the planner tries the next two windows if nothing is found
+  near the first.
 - **Pushes aren't instant.** `planCorrection()` plans an impulsive push, but the rocket first
   turns and then burns for a second or two. From a low orbit (Misty) a push the plan said just
   cleared the ground crashed into it, so it skips any push whose way out passes lower than

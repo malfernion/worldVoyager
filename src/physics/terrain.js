@@ -734,14 +734,14 @@ function makeYonder() {
       const n = fbm(x * 4, y * 4, z * 4, 3);
       const l = Math.abs(lat(x, y, z));
       // Creamy nitrogen ice, a little grey-blue in places, and faint peach tints.
-      let c = mix(rgb(0xf4efe6), rgb(0xdfe3ea), smooth(-0.25, 0.3, n));
-      c = mix(c, rgb(0xefd2b4), smooth(0.1, 0.45, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.55 * (1 - smooth(0.4, 0.8, l)));
+      let c = mix(rgb(0xf7eee0), rgb(0xe2e4e8), smooth(-0.25, 0.3, n));
+      c = mix(c, rgb(0xf0cfae), smooth(0.05, 0.4, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.65 * (1 - smooth(0.4, 0.8, l)));
       // Bluish frost towards the poles.
       c = mix(c, rgb(0xe6eefa), smooth(0.55, 0.85, l) * 0.8);
       // The dark lands: a peach edge, then deep reddish brown.
       const th = tholin(x, y, z);
       c = mix(c, rgb(0xd49a72), smooth(0.05, 0.4, th) * 0.9);
-      c = mix(c, mix(rgb(0x8f4a31), rgb(0x6a3122), n + 0.5), smooth(0.3, 0.8, th));
+      c = mix(c, mix(rgb(0x9a4629), rgb(0x6e2e1c), n + 0.5), smooth(0.3, 0.8, th));
       // Frost settles in the dark lands' hollows and crater floors.
       c = mix(c, rgb(0xc98e6e), smooth(0.5, 1, th) * smooth(-0.3, -1.6, h) * 0.6);
       return c;

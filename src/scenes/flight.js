@@ -1687,6 +1687,8 @@ export class FlightScene {
     sv.mesh.scale.setScalar(map ? 1 : f.core);
     sv.glows[0].scale.setScalar(base.glows[0] * (map ? 1 : f.glowA));
     sv.glows[1].scale.setScalar(base.glows[1] * (map ? 1 : f.glowB));
+    sv.glint.visible = star > 0.01;
+    sv.glint.material.opacity = star;
   }
 
   placeRocket(rw) {

@@ -140,6 +140,10 @@
   "text": "Back in Tumble's space."
  },
  {
+  "key": "back in yonders space",
+  "text": "Back in Yonder's space."
+ },
+ {
   "key": "back to the rocket",
   "text": "Back to the rocket!"
  },
@@ -460,6 +464,10 @@
   "text": "Hello, Toasty!"
  },
  {
+  "key": "hello yonder",
+  "text": "Hello Yonder!"
+ },
+ {
   "key": "hmm i cant find a path to ducky right now",
   "text": "Hmm, I can't find a path to Ducky right now."
  },
@@ -502,6 +510,10 @@
  {
   "key": "hmm i cant find a path to tumble right now",
   "text": "Hmm, I can't find a path to Tumble right now."
+ },
+ {
+  "key": "hmm i cant find a path to yonder right now",
+  "text": "Hmm, I can't find a path to Yonder right now."
  },
  {
   "key": "hold go",
@@ -656,6 +668,10 @@
   "text": "It took three years!"
  },
  {
+  "key": "its light is dim and cold out here",
+  "text": "Its light is dim and cold out here."
+ },
+ {
   "key": "kaboom",
   "text": "Kaboom!"
  },
@@ -752,6 +768,10 @@
   "text": "Let's fly to Tumble!"
  },
  {
+  "key": "lets fly to yonder",
+  "text": "Let's fly to Yonder!"
+ },
+ {
   "key": "lets go around",
   "text": "Let's go around!"
  },
@@ -794,6 +814,10 @@
  {
   "key": "lets go for a drive on sizzle",
   "text": "Let's go for a drive on Sizzle!"
+ },
+ {
+  "key": "lets go for a drive on yonder",
+  "text": "Let's go for a drive on Yonder!"
  },
  {
   "key": "lets go home to the campfire",
@@ -874,6 +898,14 @@
  {
   "key": "lets land on the ground",
   "text": "Let's land on the ground!"
+ },
+ {
+  "key": "lets land on yonder",
+  "text": "Let's land on Yonder."
+ },
+ {
+  "key": "lets land on yonder together",
+  "text": "Let's land on Yonder together!"
  },
  {
   "key": "lets steer around the lava",
@@ -1160,6 +1192,10 @@
   "text": "Pip needs a cabin!"
  },
  {
+  "key": "pluto is so far away that sunlight takes more than five hours to get there",
+  "text": "Pluto is so far away that sunlight takes more than five hours to get there!"
+ },
+ {
   "key": "point backwards to the arrow and hold go to slow down or well zoom right past",
   "text": "Point backwards to the arrow and hold GO to slow down, or we'll zoom right past!"
  },
@@ -1440,6 +1476,10 @@
   "text": "That's Tumble!"
  },
  {
+  "key": "thats yonder",
+  "text": "That's Yonder!"
+ },
+ {
   "key": "the clock makes time go fast until we get there",
   "text": "The clock makes time go fast until we get there!"
  },
@@ -1668,6 +1708,10 @@
   "text": "We made it to Tumble!"
  },
  {
+  "key": "we made it to yonder",
+  "text": "We made it to Yonder!"
+ },
+ {
   "key": "we missed the moment",
   "text": "We missed the moment."
  },
@@ -1720,6 +1764,10 @@
   "text": "Welcome to Tumble!"
  },
  {
+  "key": "welcome to yonder",
+  "text": "Welcome to Yonder!"
+ },
+ {
   "key": "were already going around ducky",
   "text": "We're already going around Ducky!"
  },
@@ -1764,6 +1812,10 @@
   "text": "We're already going around Tumble!"
  },
  {
+  "key": "were already going around yonder",
+  "text": "We're already going around Yonder!"
+ },
+ {
   "key": "were at ducky",
   "text": "We're at Ducky!"
  },
@@ -1806,6 +1858,10 @@
  {
   "key": "were at tumble",
   "text": "We're at Tumble!"
+ },
+ {
+  "key": "were at yonder",
+  "text": "We're at Yonder!"
  },
  {
   "key": "were flying around ember now",
@@ -1860,6 +1916,10 @@
   "text": "We're going around Tumble!"
  },
  {
+  "key": "were going around yonder",
+  "text": "We're going around Yonder!"
+ },
+ {
   "key": "were here",
   "text": "We're here!"
  },
@@ -1908,6 +1968,10 @@
   "text": "We're in orbit around Tumble!"
  },
  {
+  "key": "were in orbit around yonder",
+  "text": "We're in orbit around Yonder!"
+ },
+ {
   "key": "were on our way to ducky",
   "text": "We're on our way to Ducky!"
  },
@@ -1950,6 +2014,14 @@
  {
   "key": "were on our way to tumble",
   "text": "We're on our way to Tumble!"
+ },
+ {
+  "key": "were on our way to yonder",
+  "text": "We're on our way to Yonder!"
+ },
+ {
+  "key": "were so far from home that ember looks like a tiny star",
+  "text": "We're so far from home that Ember looks like a tiny star."
  },
  {
   "key": "what a giant crater",
@@ -2002,6 +2074,18 @@
  {
   "key": "yikes too hot",
   "text": "Yikes, too hot!"
+ },
+ {
+  "key": "yonder",
+  "text": "Yonder!"
+ },
+ {
+  "key": "yonder is a little icy world just like pluto",
+  "text": "Yonder is a little icy world, just like Pluto."
+ },
+ {
+  "key": "yonder is behind us",
+  "text": "Yonder is behind us."
  },
  {
   "key": "you are in orbit",
@@ -2064,6 +2148,10 @@
   "text": "You flew to Tumble all by yourself!"
  },
  {
+  "key": "you flew to yonder all by yourself",
+  "text": "You flew to Yonder all by yourself!"
+ },
+ {
   "key": "you found an old telescope",
   "text": "You found an old telescope!"
  },
@@ -2106,6 +2194,10 @@
  {
   "key": "you landed on sizzle",
   "text": "You landed on Sizzle!"
+ },
+ {
+  "key": "you landed on yonder",
+  "text": "You landed on Yonder!"
  },
  {
   "key": "you made it to space",

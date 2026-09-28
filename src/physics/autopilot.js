@@ -866,6 +866,7 @@ export class Autopilot {
     let dvGuess;
     let maxSegments = 2;
     const lead = Math.min(8, T * 0.1);
+    const later = []; // later windows to try if the first finds nothing (to or from a stretched orbit)
 
     if (hop.kind === 'down') {
       const r1 = el0.a, r2 = dest.distAt(now);
@@ -883,12 +884,22 @@ export class Autopilot {
       // To or from the comet: its stretched orbit needs a window search of its own.
       // Look ahead long enough for the two to line up again (a bit more than the synodic period).
       const synodic = 1 / Math.abs(1 / cur.orbitalPeriod - 1 / dest.orbitalPeriod);
-      const w = stretchedWindow(cur, dest, now, Math.max(cur.orbitalPeriod, dest.orbitalPeriod, synodic * 1.2));
+      const horizon = Math.max(cur.orbitalPeriod, dest.orbitalPeriod, synodic * 1.2);
+      const w = stretchedWindow(cur, dest, now, horizon);
       if (!w) return null;
       dvGuess = escapeBurn(cur, w.vInf, rPark) - vPark;
       window0 = w.tb;
       span = T;
       maxSegments = 3;
+      // A far target (Yonder, #62) can have a window whose path is a knife-edge (grazing Ringo's
+      // pull on the way): if nothing near it works, try the next couple of windows too.
+      let after = w.tb;
+      for (let k = 0; k < 2; k++) {
+        const nw = stretchedWindow(cur, dest, after + synodic * 0.3, horizon);
+        if (!nw) break;
+        later.push({ tb: nw.tb, dv: escapeBurn(cur, nw.vInf, rPark) - vPark });
+        after = nw.tb;
+      }
     } else if (hop.kind === 'sibling') {
       const P = cur.parent;
       const r1 = cur.orbitRadius, r2 = dest.orbitRadius;
@@ -931,11 +942,13 @@ export class Autopilot {
     let work = 0; // yield every so often so the game keeps animating while we think
     const nT = 36, nV = 10;
     // First a focused search around the expected window; if that misses, look wider.
-    for (const [from, width, dvLo, dvSpan] of [[tStart, span, 0.85, 0.45], [now + lead, Math.max(span, T) * 1.5, 0.6, 1.2]]) {
+    const passes = [[tStart, span, 0.85, 0.45, dvGuess], [now + lead, Math.max(span, T) * 1.5, 0.6, 1.2, dvGuess]];
+    for (const w of later) passes.push([Math.max(now + lead, w.tb - span / 2), span, 0.85, 0.45, w.dv]);
+    for (const [from, width, dvLo, dvSpan, dvAt] of passes) {
       for (let i = 0; i < nT; i++) {
         const tb = from + (width * i) / nT;
         for (let j = 0; j < nV; j++) {
-          const dv = dvGuess * (dvLo + (dvSpan * j) / (nV - 1));
+          const dv = dvAt * (dvLo + (dvSpan * j) / (nV - 1));
           const score = evalCandidate(tb, dv);
           if (score < best.score) best = { score, tb, dv };
         }
@@ -993,6 +1006,7 @@ export class Autopilot {
     const dv0 = f.dvUsed;
     const hopBody = plan.hop.body;
     let checked = 0;
+    let bestBurn = Infinity;
     while (true) {
       const ok = this.aim(this.prograde() + dir, 0.2);
       this.setThrottle(ok ? 1 : 0);
@@ -1010,13 +1024,22 @@ export class Autopilot {
           const a = f.state.angle;
           const ahead = { ...f.state, vx: f.state.vx + Math.cos(a) * extra, vy: f.state.vy + Math.sin(a) * extra };
           const pred = predict(ahead, { target: hopBody, maxSegments: 3, maxTime: 40000 });
-          if (arrivalScore(pred, hopBody, f.state.t) < 1000 || used > dvAbs * 1.25) break;
+          const score = arrivalScore(pred, hopBody, f.state.t);
+          // (Past the planned push and getting worse: stop, as below.)
+          if (score < 1000 || used > dvAbs * 1.25 || (used > dvAbs && score > bestBurn)) break;
+          bestBurn = Math.min(bestBurn, score);
         }
       } else if (used >= dvAbs * 0.97) {
-        // Close the loop: stop as soon as the prediction reaches our goal.
+        // Close the loop: stop as soon as the prediction reaches our goal. A far target (Yonder,
+        // #62) can be a knife-edge: the planned path just grazed Ringo's pull, the real
+        // (not instant) burn missed, and burning on only made the miss worse and ran into Ringo.
+        // So past the planned push, stop once it's getting worse: the corrections on the way fix
+        // a near miss.
         if (checked++ % 3 === 0) {
           const pred = predict(f.state, { target: hopBody, maxSegments: 3, maxTime: 40000 });
-          if (arrivalScore(pred, hopBody, f.state.t) < 1000 || used > dvAbs * 1.25) break;
+          const score = arrivalScore(pred, hopBody, f.state.t);
+          if (score < 1000 || used > dvAbs * 1.25 || (used > dvAbs && score > bestBurn)) break;
+          bestBurn = Math.min(bestBurn, score);
         }
       }
       yield;

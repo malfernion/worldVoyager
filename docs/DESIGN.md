@@ -42,6 +42,7 @@ borrow the vibe, not the content: all names, worlds and music are original.
 | Tumble | Uranus (and Neptune) | an ice giant tipped on its side, rolling round the Sun |
 | Flip | Triton | a moon that goes round backwards; icy geysers |
 | Ducky | comet 67P (where Philae landed) | a rubber-duck comet whose tail always points away from the Sun |
+| Yonder | Pluto | a little icy world so far out that sunlight takes more than five hours to get there |
 
 ## Design pillars
 
@@ -343,7 +344,7 @@ and banner go away, and Pip no longer says "Next: …" or reads a goal on the pa
 - *Why end:* a long checklist (it used to go on through every world) turned the open solar
   system into chores, and a child who wanted Ringo was told to go to Dusty. After Pebble they
   know every step of a trip (launch, orbit, fly there, land, come back), so the rest is theirs.
-- *The later worlds* (Dusty, Nibble, Ringo, Sizzle, Frosty, Misty, Tumble, Flip, Ducky) keep their
+- *The later worlds* (Dusty, Nibble, Ringo, Sizzle, Frosty, Misty, Tumble, Flip, Ducky, Yonder) keep their
   visit and landing stickers, with the same ids, so they're still there to collect; they just
   aren't goals. Discoveries (#15) and friends (#16) are unchanged.
 - *One source of truth:* `Progress.starterDone` (the last goal, `STARTER_END`, is done).
@@ -379,7 +380,7 @@ After landing on solid ground, 🚙 Drive rolls it down a ramp.
   mesh, tyre grip (less on icy Frosty), driving along the seabed through Homestead's seas (slower and floaty; see Liquids), and bumping around the
   parked rocket. Low-gravity moons get "sticky tyres" near the ground so crests don't fling you.
 - **Trees and rocks are things to bump into** (#6). Homestead's ~900 trees and the moons'
-  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Misty 90 (small ice cobbles), Flip 60, one
+  boulders (`src/world/rocks.js`: Pebble 50, Nibble 24, Dusty 110, Sizzle 70, Frosty 80, Misty 90 (small ice cobbles), Flip 60, Yonder 70 (pale blocks of water ice, a few stained red), one
   InstancedMesh + ink outline per world, so 2 draw calls each, in each world's colours; Ducky 36) are
   circle colliders: trunk (or most of a bush's / rock's width) plus the buggy's `reach` from
   `BUGGIES`. Rocks keep a narrower strip in front of the flight plane clear than trees do
@@ -916,7 +917,7 @@ ground stays the visible mesh), and nothing adds draw calls or textures
   `nightK` / `rimK`, the relief's strength `ao`, how rare and bright its speckles are) or in
   `GAS_LOOK` (storms, drift, rim, night), with its bands in `GAS_BANDS`. A gas giant's ring
   shadows follow from its `rings` (faint rings cast none on the planet).
-  - *Worlds of many colours* (`tint`: Homestead, Nibble, Sizzle, Frosty, Flip, Ducky, Misty)
+  - *Worlds of many colours* (`tint`: Homestead, Nibble, Sizzle, Frosty, Flip, Ducky, Misty, Yonder)
     use rock / dust / speckle / streak as multipliers of the ground's own colour, so grass stays
     green, beaches sandy, snow white. Dusty and Pebble use the colours themselves.
   - *Where it mustn't go:* a per-vertex weight (`rich`, baked with the relief) fades relief,
@@ -1413,6 +1414,53 @@ hexagon (#55), which are drawn over the streaks.
   outs for pixels nowhere near a streak); no draw calls, uniforms only.
 - **Not done:** on pale Tumble the streaks are subtle; the detached layer is faint at the
   distances the flight views usually show.
+
+## Yonder, far out (#62)
+
+The owner asked for a Pluto-like world noticeably further out than everything else, for a sense
+of scale, built in stages (#62). Stage 1 is the world, its orbit and feeling the distance; the
+heart plain, mountains and glaciers, the blue haze, its big twin moon Hither and slingshots
+come later.
+
+- **The orbit** (`bodies.js`): a stretched Kepler ellipse round Ember like Ducky's (`ecc`,
+  `periArg`), close in 80,000, far out 140,000, 110,000 on average: twice Tumble's. Like Pluto
+  it comes in near Tumble's orbit, but its closest is still 24,000 from it, far outside both
+  spheres of influence (a test steps 50 laps). One lap is about 22,900 game seconds (6.4 h);
+  at t = 0 it's about 89,000 out, low on the left of the system map, on its way in. Trips
+  there from Homestead take 2,700 to 16,000 game seconds depending on the window (a 🤖 trip
+  speeds time up to ×1000, so seconds to a quarter of a minute of real time).
+- **The world**: radius 170 (a bit bigger than Frosty), gravity 2.4, SOI 3,000 (inside its
+  Laplace sphere even at its closest). `makeYonder()` in `terrain.js`: smooth creamy nitrogen-ice
+  plains with faint peach tints, bluish frost towards the poles, and a belt of dark reddish-brown
+  tholin lands round its middle (like Cthulhu on Pluto) broken into big patches by wide-edged
+  noise, with a peach edge. The belt follows `YONDER_AXIS` (`SPIN_AXES.yonder`), tipped like
+  Pluto's so the pale pole faces the camera. The dark lands are the old ground: hillier, with a
+  few soft craters; the plains are young and smooth. At most about 4 m high or 3 m deep, so it's
+  gentle to land on and drive. Airless for the rocket's exhaust (its thin air and blue haze come
+  later). Its own `ROCKY_LOOK` (cool rim, bluish-grey slopes) and `DETAIL` 44.
+- **Dwarf, not planet** (`dwarf: true`): the map's default view of the system (`SYSTEM_VIEW`)
+  stays the planets', the one a new player knows, with Yonder a far dot at its edge on a wide
+  screen; the map zooms out to its whole orbit (`SYSTEM_EXTENT` 145,000).
+- **Feeling the distance** (`FAR_LIGHT`, `farLight()` in `planets.js`,
+  `FlightScene.updateFarLight()`): past 66,000 from Ember, fully by 76,000, the sunlight is dim
+  (0.62 of the usual at Yonder's closest, 0.5 at its farthest) and a cooler white, and the sky's
+  fill light is halved; in the flight and drive views Ember shrinks to a small white-hot disc with
+  a four-pointed glint a steady size on screen (a sprite, hidden until then): a very bright star.
+  It follows the rocket or buggy (on the map, the world it frames; the map draws Ember as usual).
+  Nothing else ever gets that far out (Tumble's SOI, the furthest, ends at 63,000), so every
+  other world's light and look is exactly as before (tested). Pip's first-visit sticker line
+  notices it: "We're so far from home that Ember looks like a tiny star."
+- **Getting there**: 🤖 Take me there and 🧭 Show me how use the comet's window search for
+  stretched orbits (`stretchedWindow()`). The first windows tried showed that a far target can
+  be a knife-edge (a path just grazing Ringo's pull): the real, not instant, burn missed and
+  burning on made it worse. So a burn stops once, past the planned push, the prediction gets
+  worse (the corrections on the way fix a near miss), and if no path is found near a stretched
+  orbit's window, the planner tries the next two windows. There's no fuel, so any rocket that
+  can fly can get there; a rocket that barely lifts off (tested) goes there and on to Pebble.
+- **Cost**: Yonder's globe (about 40,000 triangles, one draw call plus ink) and rocks only draw
+  when it's on screen; its orbit line is one more line (+1 draw call, 4,320 triangles in every
+  view); Ember's glint is one sprite, only drawn far out. Nothing per frame but a few
+  multiplies (the light is only touched when it changes).
 
 ## Ideas for later
 
