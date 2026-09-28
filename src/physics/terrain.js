@@ -538,11 +538,11 @@ export const YONDER_AXIS = (() => {
 })();
 
 // Hither (#62 stage 3), Yonder's big moon, like Charon: the pole its ground's pattern is laid
-// round, with its dark red cap (Mordor Macula) there. Leaning 40 degrees towards the lower left
+// round, with its dark red cap (Mordor Macula) there. Leaning 26 degrees towards the lower left
 // (at t = 0; it turns with Hither) from straight at the cameras, so the cap shows off-centre from
 // the map and from orbit. (Hither really spins about z, tidally locked: bodies.js `locked`.)
 export const HITHER_AXIS = (() => {
-  const a = 3.77, tilt = 0.7;
+  const a = 3.77, tilt = 0.45;
   return { x: Math.sin(tilt) * Math.cos(a), y: Math.sin(tilt) * Math.sin(a), z: Math.cos(tilt) };
 })();
 
@@ -1052,11 +1052,11 @@ export const HITHER_BELT = (() => {
 // The canyons (`b`: radians north of the belt's line, towards the cap; `w` half-width; `deep` m;
 // `from`/`to`: along the belt, radians, where it runs (a whole lap: none)).
 export const HITHER_CANYONS = [
-  { b: -0.02, w: 0.2, deep: 5, wob: 0.05 },
-  { b: 0.3, w: 0.13, deep: 3.5, wob: 0.04, from: -0.6, to: 2.2 },
+  { b: -0.02, w: 0.22, deep: 6, wob: 0.04 },
+  { b: 0.34, w: 0.13, deep: 3.5, wob: 0.03, from: -0.6, to: 2.2 },
 ];
 // The cap: its middle (a little off the pattern's pole) and angular radius.
-export const HITHER_CAP = { ...HITHER_AXIS, r: 0.5 };
+export const HITHER_CAP = { ...HITHER_AXIS, r: 0.55 };
 // Kubrick Mons, a mountain standing in a moat on the plains (seen side, well off the plane).
 export const HITHER_MOUNT = dirOf(0.75, 0.62);
 const HITHER_PITS = randomDirs(307, 16);
@@ -1136,9 +1136,9 @@ function makeHither() {
     height(x, y, z) {
       const pl = plains(x, y, z);
       // Rugged in the north (hills and knobbly ground), smooth on the plains.
-      let h = fbm(x * 1.8, y * 1.8, z * 1.8, 3) * 2 * (1 - 0.6 * pl) + hills(x, y, z) * 2.2 * (1 - pl) + fbm(x * 5, y * 5, z * 5, 2) * 0.5 * (1 - 0.7 * pl) - 0.8 * pl;
+      let h = fbm(x * 1.8, y * 1.8, z * 1.8, 3) * 1.6 * (1 - 0.6 * pl) + hills(x, y, z) * 1.2 * (1 - pl) + fbm(x * 5, y * 5, z * 5, 2) * 0.4 * (1 - 0.7 * pl) - 0.8 * pl;
       h += craters(pits, x, y, z, 1);
-      h += shoulder(x, y, z) * 1.2;
+      h += shoulder(x, y, z) * 0.6;
       h -= canyon(x, y, z) * 5;
       h += mount(x, y, z);
       return h;
@@ -1146,12 +1146,12 @@ function makeHither() {
     color(x, y, z, h) {
       const n = fbm(x * 4, y * 4, z * 4, 3);
       // Grey water ice, a little blue in places, warmer grey on the plains.
-      let c = mix(rgb(0xc2c0bd), rgb(0xa9aaad), smooth(-0.25, 0.3, n));
-      c = mix(c, rgb(0xbac3cc), smooth(0.1, 0.45, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.5);
-      c = mix(c, rgb(0xc6bfb5), plains(x, y, z) * 0.6);
+      let c = mix(rgb(0xa9a7a4), rgb(0x94959a), smooth(-0.25, 0.3, n));
+      c = mix(c, rgb(0xa4adb8), smooth(0.1, 0.45, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.5);
+      c = mix(c, rgb(0xb7b0a6), plains(x, y, z) * 0.6);
       // Canyons: darker grey floors, the walls darker still (the slope shading adds to that).
       const cy = canyon(x, y, z);
-      c = mix(c, mix(rgb(0x8c8886), rgb(0x6e6a69), n + 0.5), smooth(0.15, 0.7, cy));
+      c = mix(c, mix(rgb(0x7a7674), rgb(0x5e5a5a), n + 0.5), smooth(0.1, 0.6, cy));
       // Fresh craters: bright ice round their rims.
       for (const p of fresh) {
         const d = Math.acos(Math.min(1, x * p.x + y * p.y + z * p.z)) / p.radius;
@@ -1159,8 +1159,8 @@ function makeHither() {
       }
       // The cap: deep reddish brown in the middle, fading out through rust to the grey.
       const k = cap(x, y, z);
-      c = mix(c, rgb(0x9a6a58), smooth(0, 0.35, k) * 0.8);
-      c = mix(c, mix(rgb(0x6b3527), rgb(0x55291f), n + 0.5), smooth(0.3, 0.85, k));
+      c = mix(c, rgb(0x8a5646), smooth(0, 0.35, k) * 0.85);
+      c = mix(c, mix(rgb(0x5a2418), rgb(0x44190f), n + 0.5), smooth(0.3, 0.85, k));
       // The mountain: pale ice.
       const mt = mount(x, y, z);
       if (mt > 1) c = mix(c, rgb(0xd9dbde), smooth(1, 6, mt));
