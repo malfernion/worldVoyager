@@ -176,9 +176,10 @@ Ember that the sunlight is dim and cold, and from its ground Ember is just a ver
 Getting there is the big voyage: 🤖 Take me there speeds up time for you.
 
 **Hither** is Yonder's big twin moon, like Charon round Pluto: half its size, grey ice with a
-dark red cap and a belt of giant canyons across its middle. The two always face each other as
+dark red cap, two giant chasms that branch like rivers, and a huge craggy mountain standing in
+a moat. The two always face each other as
 they go round, like two dancers holding hands, so both turn slowly as Hither goes round (a day
-there is about 25 minutes). Hop across from Yonder, land and drive down into a canyon!
+there is about 25 minutes). Hop across from Yonder, land and drive down into the big chasm!
 
 **Discoveries:** little secrets hide around the solar system, each one a real bit of space
 science: an old observatory on a hill near home, footprints and a flag and a shiny laser mirror

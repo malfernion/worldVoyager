@@ -1538,16 +1538,42 @@ tidally locked, always facing each other ("like two dancers holding hands").
     like the real Pluto's as it spins). "Find the heart" turns `HEART_SPOT` with Yonder
     (`heartInView()`), and still finds it from the map at any time (tested).
 - **The look** (`makeHither()` in terrain.js, `ROCKY_LOOK.hither`, `SPIN_AXES.hither` =
-  `HITHER_AXIS`, `DETAIL` 36, 50 rocks): grey water ice, bluish in places, warmer on the plains;
+  `HITHER_AXIS`, `DETAIL` 48, 50 rocks): grey water ice, bluish in places, warmer on the plains;
   a dark reddish-brown cap (Mordor Macula, `HITHER_CAP`) with a diffuse, ragged edge round the
-  pattern's pole, leaning 26 degrees off the cameras' view so it shows off-centre; a belt of
-  great canyons (Serenity and Mandjet Chasma, `HITHER_CANYONS`) along a great circle
-  (`HITHER_BELT`, nearly in the flight plane, so from the cameras it runs across the middle of the
-  disc) between the rugged, cratered north and the smooth southern plains, where Kubrick Mons
-  stands in its moat (`HITHER_MOUNT`); soft craters, a few fresh with bright rims. The canyons fade
-  out before the flight plane (none within 12 m of it, slopes under 25 degrees there, tested), so
-  landings are gentle all round and a canyon's floor leads out onto the landing strip. Its light
-  is Yonder's: Ember's far light covers Hither all the way round Yonder's orbit (tested).
+  pattern's pole, leaning 26 degrees off the cameras' view so it shows off-centre; the rugged,
+  cratered north and the smooth southern plains either side of a great circle (`HITHER_BELT`,
+  nearly in the flight plane, so from the cameras the line runs across the middle of the disc).
+  Its light is Yonder's: Ember's far light covers Hither all the way round Yonder's orbit (tested).
+- **The landscape pass** (the owner's feedback on stage 3: "a single socket mountain with a
+  depressed ring around it that looked a little naff… perhaps if it were broader"; "real chasms
+  better but not like our version of Mars where they are everywhere… One or two branching like a
+  river would work better"; crisper craters, less blotchy):
+  - *Two chasms* (`HITHER_CHASMS`, like Serenity and Mandjet Chasma), each a trunk and a few
+    branches that leave it narrower and shallower and taper to nothing, like a river's
+    tributaries. Each path is a few points (seen-side x, y, floor half-width, depth), smoothed
+    (Catmull-Rom) into short straight bits; the ground is a flat floor between steep cliffs
+    (`WALL` 3.2 m wide, over 55 degrees, tested), their edge stepping in and out in blocks (a sharpened
+    noise), with a pale lip along the rims and dark floors, so from space they're crisp dark
+    branching lines. The big one follows the north / plains line between the cap and Kubrick,
+    and its mouth ramps gently down from the flight plane's edge (depth 0 there, about 18 m up the
+    seen side), so a buggy rolled out of the rocket can drive straight in, down its whole length
+    and out the far end (tested with all three buggies). Everything steep keeps off the flight
+    plane: no chasm within 11 m of it (they're faded out below z = 0.2 and cut off below 0.13), slopes
+    under 25 degrees there (tested), and under 6% of the ground is chasm (tested).
+  - *Kubrick Mons* (`HITHER_MOUNT`, `KUBRICK`): a broad massif (about 50 m across, 12 m high) in
+    the style of Yonder's ice mountains: foothills, a broad body, a craggy double summit and
+    shoulders on its flanks, each a rounded block with steep sides and a flat, tilted, lumpy top,
+    blended with a smooth maximum (no creases). Round it a wide, gentle moat (18 m wide, 2.8 m
+    deep, slopes under 32 degrees, its ring wandering a little so it isn't a target), ending 12 m
+    or more from the flight plane.
+  - *Crisp craters*: more of them (sizes like a real crater count: many small, few big), none
+    overlapping, a flat floor, steep walls and a sharp narrow rim (still smooth all the way, #56),
+    darker floors and pale rims; a few fresh ones with bright rayed ejecta. None where they'd
+    steepen the landing strip, on Kubrick or in the chasms. The broad rolling relief of the north
+    is lower, so the toon shading's bands no longer blotch the disc.
+  - *Cost*: the mesh bake is about 125 ms (was 90 ms at `DETAIL` 36): each vertex looks at the
+    chasms' bits only inside their bounding caps and works everything out once for height and
+    colour (`siteOf()`). About 48,000 triangles (was 27,000), still one draw call plus ink.
 - **The double world** (`find-dancers`, `pairSeen()` / `PAIR_VIEW`, `FlightScene.pairInView()`):
   found by seeing Yonder and Hither together, in the flight view or on the map: both middles on
   screen clear of the buttons, each at least 5 px in radius, and far enough apart to be two worlds
@@ -1556,11 +1582,12 @@ tidally locked, always facing each other ("like two dancers holding hands").
   tells Charon's red cap (gas that floated over from Pluto).
 - **Getting there**: nothing new was needed in the planner: 🤖 Take me there and 🧭 Show me how go
   from anywhere to Hither and back, and hop between the two (the stress sweep includes Hither).
-- **Cost**: Hither's globe (about 27,000 triangles at `DETAIL` 36, one draw call plus ink, and two
+- **Cost**: Hither's globe (about 48,000 triangles at `DETAIL` 48, one draw call plus ink, and two
   for its rocks) only when on screen; its orbit line is one more line. Per frame: one rotation
   for each of the two worlds' groups, and a few multiplies in the drive view; nothing allocated.
-- **Not done / weak spots:** the canyons read better from space than from the ground (from the
-  buggy they're a shallow dip in grey ice); Yonder hangs in Hither's sky (always in the same spot,
+- **Not done / weak spots:** a cracked-ice pattern like Yonder's is still to come; driving straight
+  at a chasm's cliff the buggy climbs it and leaps off the top (arcade traction, low gravity: a
+  long hop, harmless); Yonder hangs in Hither's sky (always in the same spot,
   as from Charon), but the drive camera looks along the ground, so you mostly see it from space.
 
 ## Ideas for later
