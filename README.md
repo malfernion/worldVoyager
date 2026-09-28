@@ -171,6 +171,8 @@ get close Pip steers you in. Drive over its fizzy gas jets and they'll bounce yo
 orbit: pale plains of frozen nitrogen and dark reddish lands round its middle. On the side you
 see there's a giant heart of pale ice, like Pluto's: in its left half the ice slowly churns in
 cells like a lava lamp, glaciers flow into it, and tall ice mountains stand along its edge.
+Its icy plains are cracked into big frosty polygons, the dark lands are pitted with craters, and
+east of the heart the ground is ridged like snakeskin.
 A thin blue haze glows round Yonder's edge, brightest with Ember behind it. Can you find the heart? It's so far from
 Ember that the sunlight is dim and cold, and from its ground Ember is just a very bright star.
 Getting there is the big voyage: 🤖 Take me there speeds up time for you.

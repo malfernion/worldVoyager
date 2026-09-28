@@ -1436,7 +1436,7 @@ come later.
   noise, with a peach edge. The belt follows `YONDER_AXIS` (`SPIN_AXES.yonder`), tipped like
   Pluto's so the pale pole faces the camera. The dark lands are the old ground: hillier, with a
   few soft craters; the plains are young and smooth. At most about 4 m high or 3 m deep, so it's
-  gentle to land on and drive. Airless for the rocket's exhaust (its thin air and blue haze come
+  gentle to land on and drive (their patterns came later: cracks, craters, bladed terrain, below). Airless for the rocket's exhaust (its thin air and blue haze come
   later). Its own `ROCKY_LOOK` (cool rim, bluish-grey slopes) and `DETAIL` 44.
 - **Dwarf, not planet** (`dwarf: true`): the map's default view of the system (`SYSTEM_VIEW`)
   stays the planets', the one a new player knows, with Yonder a far dot at its edge on a wide
@@ -1499,6 +1499,46 @@ come later.
   stays airless for the rocket's exhaust (#60). It's a shell of its own, one draw call.
 - **Cost:** the mesh detail went to 56 (the mountains' steep sides need it); the cells and flow
   lines are shader lines on Yonder only; the haze is one draw call. Other worlds are unchanged.
+
+### The rest of Yonder's ground (#62)
+
+The owner loved the heart's cracked-ice cells and the ice cliffs, but found the rest of Yonder
+plain, and asked for the rest to be patterned too. So, like Pluto's regions in New Horizons'
+pictures, in the same crisp cartoon style (`YONDER_GROUND` in richLook.js, `land()` in
+terrain.js):
+
+- **Cracked frost plains**: the pale plains are cracked into big flat polygons, about 30 m
+  across: related to the heart's cells but their own (bigger, flat, no churn or domes, bluish
+  crack lines, some fainter than others). Close up (landed, driving) a finer net of cracks shows
+  inside them; from further off it fades, so it can't be mistaken for the heart's cells.
+- **Bladed terrain** (Tartarus Dorsa, `YONDER_BLADES`): a raised oval north-east of the heart of
+  long, wavy parallel ridges broken into staggered lens-shaped scales: snakeskin. The flank facing
+  the sun is lit and the other shaded; frosty crests, reddish-brown troughs. The mesh has low
+  ridges under them (0.9 m, every other drawn blade: its vertices are too far apart for more),
+  so the buggy rocks over them; the oval stays 30 m clear of the flight plane.
+- **Pitted dark lands** (Cthulhu): the dark reddish belt gets cartoon craters of three sizes
+  (dark floors, a shadow on the sun's side, frosty rims), darker streaks, and big mottled
+  patches (in the vertex colours), on top of its old soft craters.
+- **Seams**: the heart has its own planar frame, but a frame for the whole world would have seams
+  or poles somewhere. So the cracks and craters are 3D cells of the ground's own (object-space)
+  position, which have none: the cut through a 3D cell pattern looks like polygons on the ground.
+  A crack's distance is measured along the ground (the edge's plane is cut at a slant), and edges
+  lying almost flat along the ground are left out (they would smear into wide bands). The blades
+  only need a frame over their oval: across and along baked per vertex from the heart's frame.
+- **The heart is untouched**: the weights are 0 on the heart, its dark rim and faded patches,
+  its glaciers and the mountains, so its colours, height and shader output there are exactly as
+  before (checked against the old code, and tested).
+- **Readable at every distance, no shimmer**: every edge is antialiased with `fwidth` and at
+  least a pixel and a half wide (fainter as it widens), and each pattern fades out once it's only
+  a few pixels across, like the heart's cells.
+- **Cost:** shader lines on Yonder only (every other world's ground shader is byte-for-byte as
+  before), no draw call, no texture, 5 more floats per vertex of Yonder's mesh (about 0.6 MB).
+  Per pixel: the cracks look in 8 cells (their seeds stray little enough; tested against 27),
+  about as much as the heart's cells; the fine net doubles that close up only; a crater size is
+  one cell lookup (each crater fits in its cell); the blades a few dozen operations.
+- **Not done:** the plains' cracks and the dark lands' craters are faint on the whole globe in
+  the default map (they show zoomed in, in orbit and on the ground); the dark lands' streaks are
+  subtle.
 
 ## Ideas for later
 
