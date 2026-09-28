@@ -236,8 +236,8 @@ export function cellAt(q, time, hash, look = HEART_LOOK) {
  *   heart's troughs), `color` (times the ground's); some cracks are fainter than others (`faint`:
  *   the faintest's strength), and close up a finer net of cracks (`fine`: its cell, m, and how
  *   strong) shows inside the big ones.
- * - `blade`: the bladed terrain (Tartarus Dorsa): ridges `gap` m apart (terrain.js
- *   `YONDER_BLADES`), each flank lit or shaded by the sun (`flank`), frosty crests (`crest`,
+ * - `blade`: the bladed terrain (Tartarus Dorsa): `split` drawn ridges to each of the mesh's
+ *   low ridges (terrain.js `YONDER_BLADES`: the mesh is too coarse for blades that close), each flank lit or shaded by the sun (`flank`), frosty crests (`crest`,
  *   the colour mixed in) and dark troughs (`trough`, times the ground's), broken into snakeskin
  *   scales about `scale` m long.
  * - `pit`: the dark lands (Cthulhu) are pitted with craters of three sizes (`cells`, m: one
@@ -248,7 +248,7 @@ export function cellAt(q, time, hash, look = HEART_LOOK) {
  */
 export const YONDER_GROUND = {
   crack: { cell: 30, width: 0.032, color: [0.64, 0.68, 0.83], faint: 0.4, fine: [7, 0.5] },
-  blade: { flank: 0.35, crest: [1, 0.95, 0.93], trough: [0.62, 0.5, 0.5], scale: 16 },
+  blade: { split: 2, flank: 0.35, crest: [1, 0.95, 0.93], trough: [0.62, 0.5, 0.5], scale: 14 },
   pit: { cells: [36, 15, 6], rate: [0.5, 0.55, 0.6], floor: [0.78, 0.7, 0.68], shadow: 0.6, rim: [1, 0.86, 0.76], streak: [14, 70, 0.78] },
 };
 
@@ -452,7 +452,7 @@ export function richRocky(mat, body, sunDir) {
       rlCrackFine: { value: c.fine[0] },
       rlCrackStray: { value: CRACK_STRAY },
       rlCrackC: { value: new THREE.Vector3(...c.color) },
-      rlBlade: { value: new THREE.Vector3(YONDER_BLADES.gap, b.scale, b.flank) },
+      rlBlade: { value: new THREE.Vector3(YONDER_BLADES.gap / b.split, b.scale, b.flank) },
       rlBladeCrest: { value: new THREE.Vector3(...b.crest) },
       rlBladeTrough: { value: new THREE.Vector3(...b.trough) },
       rlPitCell: { value: new THREE.Vector3(...p.cells) },
@@ -621,7 +621,7 @@ const GROUND_PARS = /* glsl */ `
   uniform float rlCrackFine; // the fine net's cell (m)
   uniform float rlCrackStray; // how far a cell's seed may be from its middle (the whole range, cells)
   uniform vec3 rlCrackC;
-  uniform vec3 rlBlade; // gap (m), scales (m), how much lighter / darker the flanks facing / away from the sun
+  uniform vec3 rlBlade; // the drawn blades' gap (m), scales (m), how much lighter / darker the flanks facing / away from the sun
   uniform vec3 rlBladeCrest;
   uniform vec3 rlBladeTrough;
   uniform vec3 rlPitCell;
@@ -718,7 +718,7 @@ const GROUND_MAIN = /* glsl */ `
     // space: least squares on the pixel's steps), frosty crests, dark troughs; each ridge broken
     // along its length (rlBladeAlong) into scales, staggered from its neighbours': snakeskin.
     if (rlGround.z > 0.01) {
-      float f = rlGround.w / rlBlade.x;
+      float f = rlGround.w / rlBlade.x + 0.5; // (a crest on each of the mesh's)
       float pf = fwidth(f);
       float seen = 1.0 - smoothstep(0.15, 0.35, pf);
       if (seen > 0.0) {
@@ -739,7 +739,10 @@ const GROUND_MAIN = /* glsl */ `
         vec3 rh = rlHash3(vec3(floor(f), 3.1, 7.7));
         float ta = rlBladeAlong / (rlBlade.y * (0.75 + 0.6 * rh.y)) + rh.x;
         float seg = fract(ta);
-        float dash = clamp(min(seg - 0.16, 1.0 - seg) / max(fwidth(ta), 1e-4) + 0.5, 0.0, 1.0);
+        // Each scale a long lens: full width in its middle, narrowing to its two ends.
+        float q = clamp((seg - 0.12) / 0.88, 0.0, 1.0) * 2.0 - 1.0;
+        float wide = 0.5 * sqrt(max(1.0 - q * q, 0.0));
+        float dash = clamp((wide - dc) / max(pf, 1e-4) + 0.5, 0.0, 1.0);
         float k = rlGround.z * seen;
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlBladeTrough, trough * k);
         k *= dash;
