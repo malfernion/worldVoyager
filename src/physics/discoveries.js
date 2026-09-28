@@ -11,8 +11,9 @@
 //   devil  the buggy drives through one of Dusty's wandering dust devils
 //   gap    the rocket crosses Ringo's ring plane between the clouds and the rings
 //   flare  the rocket is close to Ember while it flares
-//   see    Tumble's hexagon is in view, big enough to make out (flight view or map)
-import { dirOf, OBSERVATORY, NIBBLE_CRATER, FROSTY_GLOWS, SIZZLE_VENTS, FLIP_GEYSERS, SPIN_AXES, facingPole } from './terrain.js';
+//   see    Tumble's hexagon or Yonder's heart is in view, big enough to make out (flight view or map)
+//   heart  the buggy drives onto Yonder's heart (it can be seen too, like the hexagon)
+import { dirOf, OBSERVATORY, NIBBLE_CRATER, FROSTY_GLOWS, SIZZLE_VENTS, FLIP_GEYSERS, SPIN_AXES, facingPole, YONDER_HEART, heartAt, heartDir, heartDist } from './terrain.js';
 
 const biggest = (list) => list.reduce((a, b) => (b.size > a.size ? b : a));
 const unit = (x, y, z) => {
@@ -48,6 +49,21 @@ export const FLARE = { period: 150, last: 50, reach: 6 };
 export const HEX_POLE = facingPole(SPIN_AXES.tumble);
 export const HEXAGON_VIEW = { x: 0.75, top: 0.75, bottom: -0.5, facing: 0.2, px: 16 };
 
+// Yonder's heart (#62 stage 2, terrain.js YONDER_HEART) is found the same way: seen on the map
+// or from space, its middle (`HEART_SPOT`) on screen clear of the buttons, facing us (`facing`,
+// a little more than the hexagon: it's big and lies flat on the ground), big enough to make out
+// as a heart (`px`: half its height in pixels; `HEART_SIZE` is that in the world's radii), and
+// in daylight (`lit`: the sun's height over its middle, as a cosine; at night it's too dark to
+// see). The flight view mostly looks along the ground near the rocket, and the map shows Yonder
+// small until it's zoomed in, so driving onto it finds it too (`HEART_IN`: that far inside its
+// edge, in heart units, past its wobbly outline); the ✨ compass points to its edge nearest the flight plane
+// (`HEART_NEAR`, about 55 m from it, in its left lobe).
+export const HEART_SPOT = YONDER_HEART.c;
+export const HEART_SIZE = Math.sin(YONDER_HEART.mid * YONDER_HEART.size);
+export const HEART_VIEW = { x: 0.8, top: 0.8, bottom: -0.55, facing: 0.35, px: 40, lit: 0 };
+export const HEART_IN = 0.04;
+export const HEART_NEAR = heartDir(-0.5, 0.85);
+
 export const DISCOVERIES = [
   { id: 'find-observatory', world: 'homestead', find: 'near', spots: [OBSERVATORY], reach: 9 },
   { id: 'find-footprints', world: 'pebble', find: 'near', spots: [dirOf(4.0, -0.35)], reach: 7 },
@@ -65,6 +81,7 @@ export const DISCOVERIES = [
   { id: 'find-hexagon', world: 'tumble', find: 'see' },
   { id: 'find-streak', world: 'flip', find: 'near', spots: FLIP_STREAKS, reach: 8 },
   { id: 'find-philae', world: 'ducky', find: 'near', spots: [dirOf(1.8, -0.5)], reach: 6 },
+  { id: 'find-heart', world: 'yonder', find: 'heart', spots: [HEART_NEAR] },
 ];
 
 export const DISCOVERY_BY_ID = Object.fromEntries(DISCOVERIES.map((d) => [d.id, d]));
@@ -114,6 +131,7 @@ export function devilAt(i, time, out = { x: 0, y: 0, z: 0 }) {
 }
 
 const tmpDir = { x: 0, y: 0, z: 0 };
+const tmpH = { u: 0, v: 0 };
 const tmpP = [0, 0, 0];
 
 const vecLen = (a) => Math.hypot(a[0], a[1], a[2]);
@@ -163,6 +181,14 @@ export function finds(d, body, who) {
       // On the ground in there (flying over it, like the Hopper's orbit, doesn't count).
       const r = Math.hypot(p[0], p[1], p[2]);
       return d.spots.some((s) => angleTo(p, s) < d.angle && r - vecLen(groundPoint(body, unitOf(p), 0, tmpP)) < 4);
+    }
+    case 'heart': {
+      // On the ground, on the heart (flying over it doesn't count).
+      const r = Math.hypot(p[0], p[1], p[2]);
+      const u = unitOf(p);
+      if (r - vecLen(groundPoint(body, u, 0, tmpP)) > 4) return false;
+      const h = heartAt(u.x, u.y, u.z, tmpH);
+      return heartDist(h.u, h.v) < -HEART_IN;
     }
     case 'devil': {
       if (who.landing) return false;
@@ -275,6 +301,14 @@ export function flareSeen(state) {
  * behind the camera, facing, px } (see HEXAGON_VIEW).
  */
 export function hexagonSeen(view) {
-  const v = HEXAGON_VIEW;
+  return inSight(view, HEXAGON_VIEW);
+}
+
+/** Can we see Yonder's heart? view: as hexagonSeen's, and `lit`: the sun's height over its middle (a cosine). */
+export function heartSeen(view) {
+  return inSight(view, HEART_VIEW) && view.lit > HEART_VIEW.lit;
+}
+
+function inSight(view, v) {
   return !view.behind && Math.abs(view.x) < v.x && view.y < v.top && view.y > v.bottom && view.facing > v.facing && view.px > v.px;
 }

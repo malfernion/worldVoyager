@@ -165,6 +165,12 @@ export const STICKERS = {
     say: 'A little lander, hiding in the shade! A real lander called Philae landed on a comet. It bounced twice and stopped in a shady spot. Then its solar panels could not get enough sunlight.',
     hint: 'Something bounced on Ducky and hid in the shade. Can you find it?',
   },
+  // Yonder's heart (#62 stage 2), like Pluto's: found by seeing it from space (discoveries.js).
+  'find-heart': {
+    icon: '💗', name: 'Heart Spotter', world: 'yonder',
+    say: 'Look, a giant heart made of ice! Pluto has one too. It\'s named Tombaugh Regio, after Clyde Tombaugh, who discovered Pluto. The ice in its left side slowly churns, like a lava lamp!',
+    hint: 'Yonder has a giant secret shape on it. Can you spot it from space?',
+  },
 
   // Pip's friends, the space band (#16): where they are, what they play and how loud they are is
   // src/physics/friends.js. `say` is Pip's hello (and again when tapped in the sticker book);

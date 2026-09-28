@@ -13,7 +13,7 @@ import { SPIN_AXES, SIZZLE_VENTS, DUSTY_VOLCANO, FLIP_GEYSERS, DUCKY_JETS, OBSER
 import { discoveriesOn } from '../physics/discoveries.js';
 import { friendsOn } from '../physics/friends.js';
 import { mulberry32 } from '../physics/noise.js';
-import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer, GAS_LOOK } from './richLook.js';
+import { bakeRelief, richRocky, gasMaterial, ringShadow, starShimmer, GAS_LOOK, HAZE_LAYERS } from './richLook.js';
 import { createClouds, cloudShadows, noiseTexture } from './clouds.js';
 import { createEmbers } from './embers.js';
 import { createMist } from './mist.js';
@@ -24,8 +24,8 @@ import { createShowers } from './rain.js';
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
 // their small craters have enough vertices across to look round: about 2.4, 1.3 and 1.8 m apart;
-// Yonder's, #62, about 3.9 m, like Frosty's, for its dark lands' soft craters.)
-const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24, yonder: 44 };
+// Yonder's, #62, about 3 m, for its dark lands' soft craters and, stage 2, its heart's mountains' steep sides.)
+const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24, yonder: 56 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
@@ -37,6 +37,11 @@ function terrainGeometry(body) {
   const heights = new Float32Array(pos.count);
   const dirs = new Float32Array(pos.count * 3);
   const t = body.terrainFn;
+  // Marks the ground shader draws on (#62 stage 2, Yonder's heart: `marks()` in terrain.js):
+  // where its convection cells and glaciers are, baked per vertex.
+  const marks = t.marks ? new Float32Array(pos.count * 4) : null;
+  const flow = t.marks ? new Float32Array(pos.count) : null;
+  const mk = [0, 0, 0, 0, 0];
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const l = Math.hypot(x, y, z);
@@ -52,6 +57,15 @@ function terrainGeometry(body) {
     colors[i * 3] = c[0];
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
+    if (marks) {
+      t.marks(x, y, z, mk);
+      for (let k = 0; k < 4; k++) marks[i * 4 + k] = mk[k];
+      flow[i] = mk[4];
+    }
+  }
+  if (marks) {
+    geo.setAttribute('heartMark', new THREE.BufferAttribute(marks, 4));
+    geo.setAttribute('heartFlow', new THREE.BufferAttribute(flow, 1));
   }
   // Hollows darker, ridges lighter (#51; only colour, the shape is untouched).
   bakeRelief(body, geo, heights, dirs, colors);
@@ -202,6 +216,85 @@ export function atmosphere(radius, color, strength = 1.2, fill = 0, bands = null
   });
   const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 40), mat);
   m.userData.atmosphere = true;
+  return m;
+}
+
+/**
+ * Pluto's thin blue haze in layers (#62 stage 2, `HAZE_LAYERS` in richLook.js, its sums
+ * `blueHazeAt()`): a shell round a world that draws only a thin blue ring at its edge, a soft
+ * glow hugging the ground and a few thin layers above it, brightest looking towards the sun past
+ * the world. Only the look (no air for the exhaust). The line of sight's closest approach to the
+ * world's middle, worked out exactly per pixel in view space (so the map's bigger worlds and any
+ * camera distance are right), sets how far out it is and which way the sun is from there. Seen
+ * only from outside (front faces; the camera is inside it down on the ground). One draw call,
+ * additive, no depth write. `sunDir`: the world's view-space sun direction (shared, kept fresh).
+ */
+export function hazeLayers(radius, look, sunDir) {
+  const n = look.layers.length;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      color: { value: new THREE.Color(look.color) },
+      sunDir: { value: sunDir },
+      hug: { value: new THREE.Vector2(...look.hug) },
+      layers: { value: look.layers.map((l) => new THREE.Vector3(...l)) },
+      light: { value: new THREE.Vector3(look.front, look.back, look.backPow) },
+      near: { value: new THREE.Vector2(...look.near) },
+    },
+    vertexShader: /* glsl */ `
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      varying vec3 vP;
+      varying vec3 vC;
+      varying float vR;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vP = mv.xyz;
+        vC = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vR = length((modelViewMatrix * vec4(${radius.toFixed(3)}, 0.0, 0.0, 0.0)).xyz);
+        gl_Position = projectionMatrix * mv;
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
+      uniform vec3 color;
+      uniform vec3 sunDir;
+      uniform vec2 hug;
+      uniform vec3 layers[${n}];
+      uniform vec3 light;
+      uniform vec2 near;
+      varying vec3 vP;
+      varying vec3 vC;
+      varying float vR;
+      void main() {
+        #include <logdepthbuf_fragment>
+        vec3 v = normalize(vP);
+        // The line of sight's closest point to the world's middle (world radii out, and which way).
+        vec3 off = v * dot(vC, v) - vC;
+        float s = length(off) / vR;
+        float px = fwidth(s);
+        float a = hug.y * smoothstep(0.985, 1.0, s) * (1.0 - smoothstep(1.0, 1.0 + hug.x, s));
+        for (int i = 0; i < ${n}; i++) {
+          vec3 l = layers[i];
+          float w = max(l.y, 1.5 * px);
+          a += (1.0 - smoothstep(0.0, 1.0, abs(s - l.x) / w)) * (l.y / w) * l.z;
+        }
+        // Sunlit up there (a little past the line between day and night), and scattered forwards.
+        float lit = 0.08 + 0.92 * smoothstep(-0.25, 0.35, dot(off / max(length(off), 1e-6), sunDir));
+        float g = max(0.0, dot(v, sunDir));
+        a *= lit * (light.x + light.y * pow(g, light.z));
+        // Gone as the camera comes down near the ground (the buggy's high views looked through
+        // its layers side-on, as big arcs across the sky).
+        a *= smoothstep(near.x, near.y, length(vC) / vR);
+        gl_FragColor = vec4(color * a, 1.0);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const m = new THREE.Mesh(new THREE.SphereGeometry(radius * look.shell, 64, 40), mat);
+  m.userData.atmosphere = true; // (hidden in the workshop, like the glowing shells)
   return m;
 }
 
@@ -424,6 +517,8 @@ function rocks(body, group) {
     if (camps.some((v) => up.x * v.x + up.y * v.y + up.z * v.z > campCos)) continue;
     // Out of lava pools and lakes, and off their banks (#45, #46).
     if (body.shoreDist(up.x, up.y, up.z) < 6) continue;
+    // Off smooth ice and mountainsides (#62 stage 2: Yonder's heart).
+    if (body.terrainFn.bare?.(up.x, up.y, up.z)) continue;
     const h = body.terrainFn.height(up.x, up.y, up.z);
     const size = def.size[0] + rand() * (def.size[1] - def.size[0]);
     spots.push({ position: up.clone().multiplyScalar(body.radius + h - 0.1), up, size });
@@ -647,6 +742,12 @@ export function createBodyVisual(body) {
   if (ambient) {
     group.add(...ambient.meshes);
     out.updates.push(ambient.update);
+  }
+
+  // Pluto's blue haze in thin layers (#62 stage 2: Yonder's), only the look.
+  if (HAZE_LAYERS[body.id]) {
+    out.hazeLayers = hazeLayers(body.radius, HAZE_LAYERS[body.id], out.sunDir);
+    group.add(out.hazeLayers);
   }
 
   if (body.atmosphere) {

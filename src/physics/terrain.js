@@ -706,18 +706,219 @@ function makeDucky() {
 // "tholin" lands round its middle (Pluto's Cthulhu is that colour: sunlight baking the ice's
 // methane into a sticky red goo), broken into big patches, with a peach edge between the two,
 // and bluish frost towards the poles. The dark lands are older, so they're hillier and have a few
-// soft craters; the ice plains are young and smooth. (The heart plain, mountains and glaciers
-// come later, #62 stage 2.) Gentle all over: it's for driving on.
+// soft craters; the ice plains are young and smooth. Gentle all over: it's for driving on.
+// And its heart (#62 stage 2, YONDER_HEART), like Pluto's Tombaugh Regio, with its mountains and
+// glaciers.
 const YONDER_PITS = randomDirs(211, 18);
+
+// The heart's outline (heart units): two round lobes (middle x, y and radius; mirrored) and the
+// sides running from its point at (0, 0) to touch them.
+const HEART_LOBE = [0.3, 0.72, 0.36];
+// Up each side: its unit direction (s1, s0 as x, y) and where it touches the lobe.
+const [HEART_SIDE, HEART_TAN] = (() => {
+  const [cx, cy, r] = HEART_LOBE;
+  const c = Math.hypot(cx, cy);
+  const a = Math.atan2(cy, cx) - Math.asin(r / c);
+  const t = Math.sqrt(c * c - r * r);
+  return [[Math.sin(a), Math.cos(a)], [Math.cos(a) * t, Math.sin(a) * t]];
+})();
+
+/**
+ * Signed distance to a cartoon heart, in heart units: its point at (0, 0), two round lobes
+ * meeting in a notch at (0, 0.92), 1.08 tall and 1.32 wide; negative inside. (Exact outside,
+ * near enough inside, for soft masks.)
+ */
+export function heartDist(x, y) {
+  const [lx, ly, lr] = HEART_LOBE;
+  x = Math.abs(x);
+  const circle = Math.hypot(x - lx, y - ly) - lr;
+  // The body: from the point up the two sides to the lobes' middles.
+  const side = x * HEART_SIDE[0] - y * HEART_SIDE[1];
+  const top = y - ly;
+  const inner = (x - HEART_TAN[0]) * HEART_SIDE[1] + (y - HEART_TAN[1]) * HEART_SIDE[0];
+  return Math.min(circle, Math.max(side, top, inner));
+}
+
+/**
+ * Yonder's heart (#62 stage 2), like Pluto's Tombaugh Regio: a big pale plain of nitrogen ice
+ * shaped like a heart, on the side the cameras see (+z), upright on the map. `c` its middle (a
+ * unit direction), `up` and `right` its frame along the ground there (`up`: the map's up, world
+ * +y, turned `turn` radians), `size` radians of ground per heart unit, `mid` the heart units
+ * from its point up to `c`. Its left lobe (like Sputnik Planitia) is a smooth basin `deep`
+ * metres down with slowly churning convection cells (the ground shader, richLook.js
+ * `HEART_LOOK`), and reaches down over the flight plane (landable); its right lobe is mottled
+ * frost on higher ground (`east` m up); glaciers flow from it down into the basin. Placed so
+ * the whole heart shows from the map and from orbit, with its upper-left lobe just crossing the
+ * flight plane (a test checks both).
+ */
+export const YONDER_HEART = (() => {
+  const { phi, elev, turn, size } = globalThis.__HEART ?? { phi: 2.55, elev: 0.88, turn: 0, size: 0.95 };
+  const c = dirOf(phi, Math.sin(elev));
+  let up = [-c.y * c.x, 1 - c.y * c.y, -c.y * c.z];
+  const ul = Math.hypot(...up);
+  up = up.map((v) => v / ul);
+  let right = [up[1] * c.z - up[2] * c.y, up[2] * c.x - up[0] * c.z, up[0] * c.y - up[1] * c.x];
+  const k = Math.cos(turn), s = Math.sin(turn);
+  [up, right] = [up.map((v, i) => v * k - right[i] * s), right.map((v, i) => v * k + up[i] * s)];
+  return { c, up: { x: up[0], y: up[1], z: up[2] }, right: { x: right[0], y: right[1], z: right[2] }, size, mid: 0.54, deep: 1.8, east: 0.6 };
+})();
+
+/** Where direction (x, y, z) is in the heart's frame, in heart units (its point at (0, 0)); into `out`. */
+export function heartAt(x, y, z, out = { u: 0, v: 0 }) {
+  const H = YONDER_HEART;
+  const cc = x * H.c.x + y * H.c.y + z * H.c.z;
+  const a = x * H.right.x + y * H.right.y + z * H.right.z;
+  const b = x * H.up.x + y * H.up.y + z * H.up.z;
+  // Along the ground from the middle (azimuthal equidistant: true distances from it).
+  const t = Math.hypot(a, b);
+  const k = t > 1e-12 ? Math.atan2(t, cc) / t / H.size : 1 / H.size;
+  out.u = a * k;
+  out.v = b * k + H.mid;
+  return out;
+}
+
+/** The unit direction at (u, v) in the heart's frame (heartAt's inverse). */
+export function heartDir(u, v) {
+  const H = YONDER_HEART;
+  const a = u * H.size, b = (v - H.mid) * H.size;
+  const ang = Math.hypot(a, b);
+  const k = ang > 1e-12 ? Math.sin(ang) / ang : 1;
+  const c = Math.cos(ang);
+  return {
+    x: H.c.x * c + (H.right.x * a + H.up.x * b) * k,
+    y: H.c.y * c + (H.right.y * a + H.up.y * b) * k,
+    z: H.c.z * c + (H.right.z * a + H.up.z * b) * k,
+  };
+}
+
+// The line between the heart's two lobes: west of it (u below this) is the basin. From the
+// notch at the top down to the right side, like Sputnik Planitia's eastern shore.
+const heartShore = (v) => 0.6 * Math.max(0, 0.9 - v) - 0.02;
+
+// Glaciers (#62 stage 2): tongues of nitrogen ice flowing from the right lobe's uplands west
+// down into the basin, square to its shore, like the ones on Pluto's heart. Where each crosses
+// the shore (`v`, heart units), how far back into the uplands it starts and out onto the basin
+// it spreads (`back`, `out`), and how wide it is (`w`; its snout spreads a little wider).
+export const YONDER_GLACIERS = [
+  { v: 0.28, back: 0.2, out: 0.11, w: 0.05 },
+  { v: 0.5, back: 0.22, out: 0.13, w: 0.06 },
+  { v: 0.72, back: 0.16, out: 0.1, w: 0.045 },
+].map((g) => {
+  // Down the flow: square to the shore line (du/dv = -0.6), pointing west.
+  const f = [-1, -0.6].map((c) => c / Math.hypot(1, 0.6));
+  const s = [heartShore(g.v), g.v];
+  return { ...g, a: [s[0] - f[0] * g.back, s[1] - f[1] * g.back], f, len: g.back + g.out };
+});
+
+// Water-ice mountains (#62 stage 2) standing along the basin's west side, like Pluto's Tenzing
+// and Hillary Montes: tall, blocky, pale. Each is a rounded block (`r` [long, short] metres
+// half-widths, turned `turn`), `h` metres tall, with a flat, tilted top (`tilt`: metres of fall
+// across it), at `t` of the way up the heart's left side (from its point to the lobe) and `out`
+// heart units outside it. Kept well clear of the flight plane (the rocket's landing strip and
+// where the buggy rolls out; a test checks).
+const YONDER_PEAKS = [
+  { t: 0.25, out: 0.07, r: [20, 13], h: 11, turn: 0.3, tilt: 2 },
+  { t: 0.45, out: 0.1, r: [17, 15], h: 14, turn: -0.4, tilt: -3 },
+  { t: 0.62, out: 0.07, r: [22, 13], h: 12, turn: 0.9, tilt: 2.5 },
+  { t: 0.8, out: 0.11, r: [16, 12], h: 10, turn: -0.7, tilt: -2 },
+  { t: 0.95, out: 0.08, r: [15, 11], h: 8, turn: 0.2, tilt: 2 },
+];
 
 function makeYonder() {
   const { fbm, noise } = makeNoise(223);
   const ax = YONDER_AXIS;
+  const H = YONDER_HEART;
+  const R = 170; // Yonder's radius (bodies.js), for the mountains' sizes in metres
   const lat = (x, y, z) => x * ax.x + y * ax.y + z * ax.z;
-  // How much of the dark lands is here (0..1). Wide edges in noise units (#59: Perlin noise is steep).
+  // The mountains' blocks: a frame along the ground at each.
+  const peaks = YONDER_PEAKS.map((p) => {
+    const [sx, sy] = HEART_SIDE, [tx, ty] = HEART_TAN;
+    // Out from the heart's left side (square to it, pointing away from the middle).
+    const d = heartDir(-(tx * p.t) - sy * p.out, ty * p.t - sx * p.out);
+    let e = [-d.y, d.x, 0];
+    const el = Math.hypot(e[0], e[1]);
+    e = e.map((v) => v / el);
+    const n = [d.y * e[2] - d.z * e[1], d.z * e[0] - d.x * e[2], d.x * e[1] - d.y * e[0]];
+    const k = Math.cos(p.turn), s = Math.sin(p.turn);
+    const a = e.map((v, i) => (v * k + n[i] * s) / (p.r[0] / R));
+    const b = n.map((v, i) => (n[i] * k - e[i] * s) / (p.r[1] / R));
+    return { ...p, ...d, a, b, cos: Math.cos((Math.max(p.r[0], p.r[1]) * 1.1) / R) };
+  });
+  const hp = { u: 0, v: 0 };
+  // Everything about the heart at a point, worked out once (the mesh asks height then colour at
+  // each vertex; the buggy asks height a few times a step): `near` 0..1 close to it, `in`
+  // inside, `basin` the left lobe's plain, `east` the right lobe, `sd` the (wobbled) distance to
+  // its edge in heart units, `glacier` 0..1 on a glacier and `flow` metres across it from its
+  // middle line, `peak` 0..1 up a mountain (`peakH` its height, m).
+  const heart = { x: NaN, y: 0, z: 0, near: 0, in: 0, basin: 0, east: 0, sd: 1, glacier: 0, flow: 0, glacierH: 0, peak: 0, peakH: 0, west: 0, u: 0, v: 0 };
+  const heartOf = (x, y, z) => {
+    if (x === heart.x && y === heart.y && z === heart.z) return heart;
+    heart.x = x; heart.y = y; heart.z = z;
+    heart.near = 0; heart.in = 0; heart.basin = 0; heart.east = 0; heart.sd = 1; heart.glacier = 0; heart.peak = 0; heart.peakH = 0; heart.west = 0;
+    if (x * H.c.x + y * H.c.y + z * H.c.z < 0.05) return heart;
+    heartAt(x, y, z, hp);
+    heart.u = hp.u;
+    heart.v = hp.v;
+    const sd = heartDist(hp.u, hp.v) + 0.016 * noise(x * 9 + 13, y * 9, z * 9) + 0.008 * noise(x * 23, y * 23 + 5, z * 23);
+    heart.sd = sd;
+    // (The heart's west: the dark lands and the mountains.)
+    heart.west = smooth(-0.05, -0.35, hp.u) * (1 - smooth(0.6, 1.05, hp.v));
+    heart.near = 1 - smooth(0.1, 0.6, sd);
+    if (heart.near <= 0 && heart.west <= 0) return heart;
+    heart.in = 1 - smooth(-0.015, 0.01, sd);
+    // The left lobe and the point: west of the shore line (wobbled). A gentle bank.
+    const shore = heartShore(hp.v) + 0.03 * noise(x * 6 + 3, y * 6 + 1, z * 6);
+    heart.basin = (1 - smooth(-0.05, 0.005, sd)) * (1 - smooth(shore - 0.035, shore + 0.035, hp.u));
+    heart.east = heart.in * (1 - heart.basin);
+    // Glaciers: how far along (s, 0..1) and across (in widths) each tongue.
+    for (const g of YONDER_GLACIERS) {
+      const du = hp.u - g.a[0], dv = hp.v - g.a[1];
+      const along = du * g.f[0] + dv * g.f[1];
+      if (along < -0.05 || along > g.len + 0.08) continue;
+      const s = along / g.len;
+      // Narrow up in its valley, spreading out onto the plain, wobbling so it isn't ruler-straight.
+      const w = g.w * (0.45 + 0.9 * smooth(0.1, 0.95, s)) * (1 + 0.2 * noise(x * 9, y * 9, z * 9 + 2));
+      const bend = 0.25 * g.w * noise(along * 14 + g.v * 9, g.v * 3, 1.7);
+      const across = (du * g.f[1] - dv * g.f[0] - bend) / w;
+      // Its source fades in; its snout is a rounded lobe.
+      const tip = g.len + 0.03 * (1 - across * across);
+      const ends = smooth(-0.04, 0.06, along) * (1 - smooth(tip - 0.035, tip + 0.02, along));
+      const k = (1 - smooth(0.35, 1.1, Math.abs(across))) * ends * heart.in;
+      if (k > heart.glacier) {
+        heart.glacier = k;
+        heart.flow = across * w * H.size * R; // metres across, for the flow lines
+        // Its surface: sliding smoothly from the uplands down to a little above the basin.
+        // (Down the shore's bank, over a longer, gentler slope than the bank beside it.)
+        heart.glacierH = H.east + (-H.deep + 0.25 - H.east) * smooth(g.back - 0.09, g.back + 0.05, along);
+      }
+    }
+    // Mountains: blocks with steep round sides and flat tilted tops.
+    for (const p of peaks) {
+      if (x * p.x + y * p.y + z * p.z < p.cos) continue;
+      const a = x * p.a[0] + y * p.a[1] + z * p.a[2], b = x * p.b[0] + y * p.b[1] + z * p.b[2];
+      const q = Math.sqrt(Math.sqrt(a * a * a * a + b * b * b * b));
+      const k = 1 - smooth(0.45, 1, q);
+      if (k <= 0) continue;
+      const top = p.h + p.tilt * a * 0.5;
+      const hh = top * k;
+      if (hh > heart.peakH) {
+        heart.peakH = hh;
+        heart.peak = k;
+      }
+    }
+    return heart;
+  };
+  // How much of the dark lands is here (0..1). Wide edges in noise units (#59: Perlin noise is
+  // steep). Next to the heart, like Cthulhu beside Pluto's, a dark land to its west; none on it.
   const tholin = (x, y, z) => {
     const belt = 1 - smooth(0.25, 0.65, Math.abs(lat(x, y, z) + 0.12 * noise(x * 2 + 3, y * 2, z * 2)));
-    return belt * smooth(-0.2, 0.2, noise(x * 1.4 + 7, y * 1.4, z * 1.4) + 0.06);
+    let th = belt * smooth(-0.2, 0.2, noise(x * 1.4 + 7, y * 1.4, z * 1.4) + 0.06);
+    const hr = heartOf(x, y, z);
+    if (hr.west > 0 || hr.near > 0) {
+      th = th + (1 - th) * hr.west * smooth(0.06, 0.2, hr.sd + 0.05 * noise(x * 3 + 1, y * 3, z * 3 + 4));
+      th *= smooth(0.02, 0.1, hr.sd);
+    }
+    return th;
   };
   // Craters only in the dark lands (they're the old ground), 17 to 30 m across the rim.
   const pits = YONDER_PITS.filter((c) => tholin(c.x, c.y, c.z) > 0.6).map((c) => ({ ...c, radius: 0.1 + c.size * 0.08, deep: 1.6 + c.depth * 1.6 }));
@@ -725,10 +926,40 @@ function makeYonder() {
   const hills = (x, y, z) => smooth(0.05, 0.55, noise(x * 3.2 + 11, y * 3.2, z * 3.2));
   return {
     pits,
+    peaks,
     tholin,
+    heart: heartOf,
+    /** How much of the richer look's relief and fine detail goes here (0..1): little on the heart's ice. */
+    richAt(x, y, z) {
+      const hr = heartOf(x, y, z);
+      return 1 - Math.max(0.85 * hr.basin, 0.85 * hr.glacier, 0.5 * hr.east);
+    },
+    /** No boulders here: the heart's smooth basin, its glaciers and the mountains' slopes. */
+    bare(x, y, z) {
+      const hr = heartOf(x, y, z);
+      return hr.basin > 0.05 || hr.glacier > 0.05 || hr.peak > 0.02;
+    },
+    /** What the ground shader needs baked per vertex (#62 stage 2): the basin's cells, the glaciers' flow lines. */
+    marks(x, y, z, out) {
+      const hr = heartOf(x, y, z);
+      out[0] = hr.near > 0 ? hr.u * H.size * R : 0;
+      out[1] = hr.near > 0 ? hr.v * H.size * R : 0;
+      out[2] = hr.basin * (1 - hr.glacier);
+      out[3] = hr.glacier;
+      out[4] = hr.glacier > 0 ? hr.flow : 0;
+      return out;
+    },
     height(x, y, z) {
       const th = tholin(x, y, z);
-      return fbm(x * 1.6, y * 1.6, z * 1.6, 3) * 2 + hills(x, y, z) * (1.2 + 2.2 * th) + fbm(x * 5, y * 5, z * 5, 2) * (0.25 + 0.5 * th) + craters(pits, x, y, z, 1);
+      let h = fbm(x * 1.6, y * 1.6, z * 1.6, 3) * 2 + hills(x, y, z) * (1.2 + 2.2 * th) + fbm(x * 5, y * 5, z * 5, 2) * (0.25 + 0.5 * th) + craters(pits, x, y, z, 1);
+      const hr = heartOf(x, y, z);
+      if (hr.near > 0) {
+        h += (H.east + 0.4 * fbm(x * 4 + 2, y * 4, z * 4, 2) - h) * hr.east;
+        h += (-H.deep + 0.06 * fbm(x * 6, y * 6 + 3, z * 6, 2) - h) * hr.basin;
+        h += (hr.glacierH - h) * hr.glacier;
+      }
+      if (hr.peakH > 0) h += hr.peakH;
+      return h;
     },
     color(x, y, z, h) {
       const n = fbm(x * 4, y * 4, z * 4, 3);
@@ -738,12 +969,33 @@ function makeYonder() {
       c = mix(c, rgb(0xf0cfae), smooth(0.05, 0.4, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.65 * (1 - smooth(0.4, 0.8, l)));
       // Bluish frost towards the poles.
       c = mix(c, rgb(0xe6eefa), smooth(0.55, 0.85, l) * 0.8);
+      const hr = heartOf(x, y, z);
+      // Round the heart: warmer, darker tan ground, so the pale heart stands out.
+      // (Much darker than it looks: Ember's light over-exposes pale ground a lot, and the heart
+      // must stay far brighter than its surroundings to read from space.)
+      if (hr.near > 0) {
+        const k = hr.near * (1 - hr.in);
+        c = mix(c, mix(rgb(0x7a4a30), rgb(0x5e3722), smooth(-0.3, 0.3, n)), k * (0.8 + 0.2 * noise(x * 5 + 9, y * 5, z * 5)));
+        // A darker, redder band right round its edge, so its outline is crisp.
+        c = mix(c, rgb(0x46241a), (1 - smooth(0.01, 0.07, hr.sd)) * (1 - hr.in) * 0.75);
+      }
       // The dark lands: a peach edge, then deep reddish brown.
       const th = tholin(x, y, z);
       c = mix(c, rgb(0xd49a72), smooth(0.05, 0.4, th) * 0.9);
       c = mix(c, mix(rgb(0x9a4629), rgb(0x6e2e1c), n + 0.5), smooth(0.3, 0.8, th));
       // Frost settles in the dark lands' hollows and crater floors.
       c = mix(c, rgb(0xc98e6e), smooth(0.5, 1, th) * smooth(-0.3, -1.6, h) * 0.6);
+      if (hr.near > 0) {
+        // The right lobe: mottled frost, bright and bluish-white patches and a few peach ones.
+        const m = fbm(x * 7 + 4, y * 7, z * 7, 3);
+        const east = mix(mix(rgb(0xfcfbf7), rgb(0xebf0f7), smooth(-0.12, 0.18, m)), rgb(0xf4e4d2), smooth(0.25, 0.5, noise(x * 12, y * 12 + 7, z * 12)) * 0.45);
+        c = mix(c, east, hr.east);
+        // The left lobe: smooth, the brightest ice on Yonder; the glaciers a touch bluer.
+        c = mix(c, mix(rgb(0xfdfcf8), rgb(0xf1f4f8), n + 0.5), hr.basin);
+        c = mix(c, rgb(0xeef4fb), hr.glacier * 0.8);
+      }
+      // The mountains: pale blocks of water ice, bluish grey low down.
+      if (hr.peak > 0) c = mix(c, mix(rgb(0x8d7468), rgb(0xf0f3f6), smooth(0.15, 0.75, hr.peak)), smooth(0, 0.2, hr.peak));
       return c;
     },
   };

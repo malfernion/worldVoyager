@@ -186,6 +186,45 @@ export function sparkleCell(px, look = SPARKLE, dpr = 1) {
 }
 
 /**
+ * Yonder's heart (#62 stage 2, `YONDER_HEART` in terrain.js): in its left lobe's smooth plain,
+ * convection cells like Sputnik Planitia's, where the nitrogen ice slowly churns like a lava lamp
+ * (warmer ice rises in each cell's middle, and sinks again at its edges); and flow lines along
+ * its glaciers. Only in Yonder's ground shader (`#define RL_HEART`), from marks baked per vertex
+ * (terrain.js `marks()`): no mesh, no draw call, no texture. `cell` (m): how wide a cell is;
+ * `drift`: how far each cell's middle wanders (a share of a cell), round a loop taking `churn`
+ * seconds (or a half or a third of it: the clock wraps every `churn` s, seamlessly); `trough`:
+ * how wide the dark troughs between the cells are (a share of a cell; never under a pixel and a
+ * half, `fwidth`, so they never shimmer) and their colour (times the ice's), `dome`: how much
+ * brighter the cells' middles are; `flow` (m): how far apart the glaciers' flow lines are, and
+ * `flowColor` theirs (times the ice's).
+ */
+export const HEART_LOOK = {
+  cell: 13, drift: 0.28, churn: 600, trough: 0.06, troughColor: [0.7, 0.72, 0.8], dome: 0.07, flow: 1.6, flowColor: [0.8, 0.86, 0.96],
+};
+
+/**
+ * The cells at `q` (heart plane, in cells) at `time` (s): { edge } how far from the nearest trough's
+ * middle (a share of a cell, near enough: F2 - F1), `d1` from its own middle. The shader's sums
+ * (the hash aside: `hash(i, j)` gives two numbers 0..1 per cell).
+ */
+export function cellAt(q, time, hash, look = HEART_LOOK) {
+  const ix = Math.floor(q[0]), iy = Math.floor(q[1]);
+  let d1 = 9, d2 = 9;
+  const t = time % look.churn;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const [hx, hy] = hash(ix + i, iy + j);
+      const w = (2 * Math.PI) / look.churn;
+      const ox = i + 0.5 + look.drift * Math.sin(t * w * (1 + Math.floor(hy * 3)) + 6.2831853 * hx) - (q[0] - ix);
+      const oy = j + 0.5 + look.drift * Math.cos(t * w * (1 + Math.floor(hx * 3)) + 6.2831853 * hy) - (q[1] - iy);
+      const d = ox * ox + oy * oy;
+      if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+    }
+  }
+  return { edge: Math.sqrt(d2) - Math.sqrt(d1), d1: Math.sqrt(d1) };
+}
+
+/**
  * Each rocky world's extra colours: `rock` for steep faces, `dust` for flat ground, `speck` and
  * `streak` for the fine detail, `rim` the sunlit edge, `night` the night side's fill (added, so
  * small), `ao` the baked relief's strength and `speckle` [how rare (0..1, higher: fewer), how bright]
@@ -236,6 +275,7 @@ export const ROCKY_LOOK = {
   yonder: {
     tint: true, rock: [0.78, 0.8, 0.9], dust: [1.03, 1.02, 1.02], speck: [1.1, 1.1, 1.12], streak: [0.9, 0.88, 0.92],
     rim: 0xdce8ff, rimK: 0.45, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.5, light: 0.26 }, speckle: [0.84, 0.35],
+    heart: HEART_LOOK, // (#62 stage 2) its heart's churning cells and its glaciers' flow lines
   },
   // Under its thick haze: a faint rim and night fill (the haze glows over them anyway).
   misty: {
@@ -258,6 +298,7 @@ export function bakeRelief(body, geo, heights, dirs, colors) {
   const rich = new Float32Array(n).fill(1);
   const level = body.liquid?.level;
   const keep = look.keep ?? [];
+  const richAt = body.terrainFn?.richAt;
   for (let i = 0; i < n; i++) {
     let w = 1;
     if (level !== undefined) w = smooth01(level - 1, level + 1.5, heights[i]);
@@ -268,6 +309,8 @@ export function bakeRelief(body, geo, heights, dirs, colors) {
         if (a < r * 1.6) w = Math.min(w, smooth01(r, r * 1.6, a));
       }
     }
+    // (Smooth ice left smooth: Yonder's heart, #62 stage 2.)
+    if (richAt) w = Math.min(w, richAt(x, y, z));
     rich[i] = w;
   }
   const shade = reliefShade(heights, geo.index.array, look.ao);
@@ -319,11 +362,24 @@ export function richRocky(mat, body, sunDir) {
     // Its glints' own twinkle runs on the clock (planets.js calls this with the other updates).
     mat.userData.richUpdate = (time) => { uniforms.rlTime.value = time % 1000; };
   }
-  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface], ['RL_SPARKLE', !!sp]]);
+  const hl = look.heart;
+  if (hl) {
+    Object.assign(uniforms, {
+      rlTime: { value: 0 },
+      rlCell: { value: new THREE.Vector4(hl.cell, hl.drift, (2 * Math.PI) / hl.churn, hl.trough) },
+      rlTrough: { value: new THREE.Vector3(...hl.troughColor) },
+      rlDome: { value: hl.dome },
+      rlFlowGap: { value: hl.flow },
+      rlFlowC: { value: new THREE.Vector3(...hl.flowColor) },
+    });
+    // The cells churn on the real clock, wrapping where every loop comes round (no jump).
+    mat.userData.richUpdate = (time) => { uniforms.rlTime.value = time % hl.churn; };
+  }
+  const defs = defines([['RL_TINT', !!look.tint], ['RL_RIM_SURFACE', !!look.rimSurface], ['RL_SPARKLE', !!sp], ['RL_HEART', !!hl]]);
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\nvarying float rlLevel;\n'
-      + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}\nrlRich = rich;\nrlLevel = abs(dot(normalize(normal), normalize(position)));`);
+    shader.vertexShader = defs + VERT_PARS + 'attribute float rich;\nvarying float rlRich;\nvarying float rlLevel;\n' + (hl ? HEART_VERT_PARS : '')
+      + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_MAIN}\nrlRich = rich;\nrlLevel = abs(dot(normalize(normal), normalize(position)));${hl ? HEART_VERT : ''}`);
     shader.fragmentShader = defs + FRAG_PARS + /* glsl */ `
       varying float rlRich;
       varying float rlLevel;
@@ -335,8 +391,8 @@ export function richRocky(mat, body, sunDir) {
       uniform float rlSpeckK;
       uniform vec3 rlDarken;
       uniform float rlAmbientK;
-    ` + (sp ? SPARKLE_PARS : '') + shader.fragmentShader
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}`)
+    ` + (sp ? SPARKLE_PARS : '') + (hl ? HEART_PARS : '') + shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}${hl ? HEART_MAIN : ''}`)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= rlAmbientK;')
       .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${sp ? SPARKLE_MAIN + '\n' : ''}#include <opaque_fragment>`);
   };
@@ -377,6 +433,76 @@ const ROCKY_COLOR = /* glsl */ `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockC, (1.0 - smoothstep(0.17, 0.19, fn)) * 0.3 * speckK);
     // Mixing in the extra colours greys things a little: win the colour back (bright for kids).
     diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.333))), diffuseColor.rgb, 1.15), 0.0);
+  }
+`;
+
+// Yonder's heart (#62 stage 2, only with RL_HEART; HEART_LOOK, `cellAt()` is its sums): in the
+// basin, cells round middles that slowly wander (a lava lamp's churn), each a little domed
+// (brighter in the middle), with dark troughs between; along the glaciers, flow lines. Both
+// antialiased with fwidth, at least a pixel and a half wide (fainter as they widen), and faded
+// out once a cell or a line gap is only a few pixels across. (The smooth ice gets little of the
+// speckles and streaks: its `rich` is low, terrain.js `richAt()`.)
+const HEART_VERT_PARS = /* glsl */ `
+  attribute vec4 heartMark;
+  attribute float heartFlow;
+  varying vec4 rlMark;
+  varying float rlFlow;
+`;
+const HEART_VERT = /* glsl */ `
+  rlMark = heartMark;
+  rlFlow = heartFlow;
+`;
+const HEART_PARS = /* glsl */ `
+  uniform float rlTime;
+  uniform vec4 rlCell; // cell (m), drift, the churn's speed (rad/s), trough
+  uniform vec3 rlTrough;
+  uniform float rlDome;
+  uniform float rlFlowGap;
+  uniform vec3 rlFlowC;
+  varying vec4 rlMark;
+  varying float rlFlow;
+`;
+const HEART_MAIN = /* glsl */ `
+  {
+    if (rlMark.z > 0.01) {
+      vec2 q = rlMark.xy / rlCell.x;
+      float pc = length(fwidth(q)); // cells per pixel
+      float seen = 1.0 - smoothstep(0.12, 0.3, pc);
+      if (seen > 0.0) {
+        vec2 i0 = floor(q), f0 = q - i0;
+        float d1 = 9.0, d2 = 9.0;
+        for (int j = -1; j <= 1; j++) {
+          for (int i = -1; i <= 1; i++) {
+            vec2 g = vec2(float(i), float(j));
+            vec3 hc = vec3(i0 + g, 3.7);
+            vec2 h = vec2(rlHash(hc), rlHash(hc + 19.1));
+            vec2 o = g + 0.5 + rlCell.y * vec2(
+              sin(rlTime * rlCell.z * (1.0 + floor(h.y * 3.0)) + 6.2831853 * h.x),
+              cos(rlTime * rlCell.z * (1.0 + floor(h.x * 3.0)) + 6.2831853 * h.y)) - f0;
+            float d = dot(o, o);
+            if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
+          }
+        }
+        d1 = sqrt(d1);
+        float edge = sqrt(d2) - d1;
+        float w = max(rlCell.w, 1.5 * pc);
+        float trough = (1.0 - smoothstep(0.35 * w, w, edge)) * (rlCell.w / w);
+        float k = rlMark.z * seen;
+        diffuseColor.rgb *= 1.0 + rlDome * (1.0 - smoothstep(0.0, 0.7, d1)) * k;
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlTrough, trough * k);
+      }
+    }
+    if (rlMark.w > 0.01) {
+      float f = rlFlow / rlFlowGap;
+      float pf = fwidth(f);
+      float seen = 1.0 - smoothstep(0.15, 0.35, pf);
+      // Broken up along the flow a little, so they read as streaks rather than ruled lines.
+      float streak = smoothstep(0.3, 0.55, rlNoise(vec3(rlFlow * 0.7, rlObj.x * 0.15 + rlObj.y * 0.15, rlObj.z * 0.15)));
+      float dd = abs(f - floor(f + 0.5));
+      float w = max(0.12, 1.5 * pf);
+      float line = (1.0 - smoothstep(0.4 * w, w, dd)) * (0.12 / w);
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * rlFlowC, line * streak * seen * rlMark.w);
+    }
   }
 `;
 
@@ -550,12 +676,50 @@ export function limbHazeAt(haze, s, px = 0) {
   return { hug, layer };
 }
 
+/**
+ * Pluto's thin blue haze, in layers (#62 stage 2: Yonder's; New Horizons' backlit picture): a thin
+ * blue ring round the world's edge, only seen from space. Yonder has no air for the rocket's
+ * exhaust (#60, `airOf()`): this is only the look, a shell of its own (planets.js
+ * `hazeLayers()`), not an `atmosphere`. All in the world's radii, counted by how close a line of
+ * sight passes to its middle (`s`: 1 at the ground). `shell`: the shell's radius; `hug`: a soft
+ * glow hugging the ground, gone `hug[0]` out, as bright as `hug[1]`; `layers`: thin detached
+ * layers above it, [middle, half-width, brightness], each widened to a pixel and a half with
+ * `fwidth` (and dimmed as much) so it never shimmers. Lit where the sun reaches it
+ * (`hazeDay()`), `front` bright from the front and side, and up to `front + back` looking
+ * towards the sun past the world (backlit: the haze scatters light forwards, `backPow` how
+ * tightly). It fades out as the camera comes down within `near` [gone, full] radii of the middle
+ * (down there its layers would be seen side-on, as big arcs across the sky). `blueHazeAt()` is
+ * the shader's sums: change both together.
+ */
+export const HAZE_LAYERS = {
+  yonder: {
+    shell: 1.13, color: 0x5d9cff, hug: [0.018, 0.55],
+    layers: [[1.024, 0.0022, 0.9], [1.042, 0.002, 0.7], [1.062, 0.0018, 0.5], [1.085, 0.0016, 0.32]],
+    front: 0.35, back: 1.6, backPow: 3, near: [1.15, 1.4],
+  },
+};
+
+/**
+ * The haze's brightness `s` world radii out (`px`: radii one pixel covers there), before the sun,
+ * and how much the sun's direction brings out (`g`: the cosine between the line of sight and
+ * the way to the sun; 1 looking straight at it past the world).
+ */
+export function blueHazeAt(look, s, px = 0, g = 0) {
+  const [hw, hk] = look.hug;
+  let a = hk * smooth(0.985, 1, s) * (1 - smooth(1, 1 + hw, s));
+  for (const [at, w0, k] of look.layers) {
+    const w = Math.max(w0, 1.5 * px);
+    a += (1 - smooth(0, 1, Math.abs(s - at) / w)) * (w0 / w) * k;
+  }
+  return a * (look.front + look.back * Math.max(0, g) ** look.backPow);
+}
+
 const smooth = (a, b, x) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
 
-/** Which way a band's jet runs at latitude `lat` (the shader's `jet`: its sign is the drift's). */
+/** Which way at latitude `lat` (the shader's `jet`: its sign is the drift's). */
 export function jetAt(lat) {
   return Math.sin(lat * 9) * 0.6 + Math.sin(lat * 23 + 1.3) * 0.4;
 }

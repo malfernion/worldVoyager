@@ -18,7 +18,7 @@ import { createSky } from '../world/sky.js';
 import { SKY_LOOK, farLight, FAR_LIGHT } from '../world/planets.js';
 import { rainVolume } from '../world/rain.js';
 import { DriveMode } from './drive.js';
-import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, HEX_POLE, sunDirection } from '../physics/discoveries.js';
+import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
 import { HEXAGON } from '../world/richLook.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
@@ -1548,7 +1548,7 @@ export class FlightScene {
   /**
    * Discoveries found while flying (#15): diving through the gap between Ringo and its rings
    * (counted a few seconds later, if we didn't crash), Ember's solar flares up close, and
-   * seeing Tumble's hexagon (#55).
+   * seeing Tumble's hexagon (#55) or Yonder's heart (#62 stage 2).
    */
   checkDiscoveries() {
     const s = this.flight.state;
@@ -1567,6 +1567,7 @@ export class FlightScene {
     last.y = s.y;
     if (!p.has('find-flare') && flareSeen(s)) this.found('find-flare');
     if (!p.has('find-hexagon') && this.hexagonInView()) this.found('find-hexagon');
+    if (!p.has('find-heart') && this.heartInView()) this.found('find-heart');
   }
 
   /**
@@ -1575,20 +1576,38 @@ export class FlightScene {
    */
   hexagonInView() {
     const v = this.tumbleVisual ??= this.visuals.find((x) => x.body.id === 'tumble');
+    return !!v && hexagonSeen(this.sightOf(v, HEX_POLE, HEXAGON.size));
+  }
+
+  /** Is Yonder's heart (#62 stage 2) in view, big enough to make out and in daylight? */
+  heartInView() {
+    const v = this.yonderVisual ??= this.visuals.find((x) => x.body.id === 'yonder');
     if (!v) return false;
+    const view = this.sightOf(v, HEART_SPOT, HEART_SIZE);
+    const sun = sunDirection(v.body, this.flight.state.t, this.sightSun ??= { x: 1, y: 0, z: 0 });
+    view.lit = HEART_SPOT.x * sun.x + HEART_SPOT.y * sun.y;
+    return heartSeen(view);
+  }
+
+  /**
+   * How a spot on a world's ground (`dir`, a unit direction; `size`: how big, in the world's
+   * radii) looks from the camera: its middle on screen, behind us or not, how squarely it faces
+   * us, its size in pixels (a shared object, no allocation).
+   */
+  sightOf(v, dir, size) {
     const cam = this.camera;
-    const hv = this.hexView ??= { x: 0, y: 0, behind: false, facing: 0, px: 0, p: new THREE.Vector3(), to: new THREE.Vector3() };
+    const hv = this.hexView ??= { x: 0, y: 0, behind: false, facing: 0, px: 0, lit: 0, p: new THREE.Vector3(), to: new THREE.Vector3() };
     const r = v.body.radius * v.group.scale.x;
-    hv.p.set(HEX_POLE.x, HEX_POLE.y, HEX_POLE.z).multiplyScalar(r).add(v.group.position);
+    hv.p.set(dir.x, dir.y, dir.z).multiplyScalar(r).add(v.group.position);
     hv.to.copy(cam.position).sub(hv.p);
     const dist = hv.to.length();
-    hv.facing = (hv.to.x * HEX_POLE.x + hv.to.y * HEX_POLE.y + hv.to.z * HEX_POLE.z) / dist;
-    hv.px = (r * HEXAGON.size * window.innerHeight) / (2 * dist * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
+    hv.facing = (hv.to.x * dir.x + hv.to.y * dir.y + hv.to.z * dir.z) / dist;
+    hv.px = (r * size * window.innerHeight) / (2 * dist * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
     hv.p.project(cam);
     hv.x = hv.p.x;
     hv.y = hv.p.y;
     hv.behind = hv.p.z > 1;
-    return hexagonSeen(hv);
+    return hv;
   }
 
   updateMood() {
