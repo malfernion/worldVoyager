@@ -32,7 +32,7 @@ function trace(cur, opts, closestRef) {
   let leftBehind = cur.cameFrom || null;
   const check = (t, p) => {
     const r = Math.hypot(p.x, p.y);
-    if (canImpact && r < body.maxSurface && r <= body.surfaceAt(Math.atan2(p.y, p.x))) return { type: 'impact' };
+    if (canImpact && r < body.maxSurface && r <= body.surfaceUnder(Math.atan2(p.y, p.x), cur.t + t)) return { type: 'impact' };
     if (canExit && r > body.soi) return { type: 'exit' };
     for (const c of kids) {
       c.relPos(cur.t + t, tmpB);

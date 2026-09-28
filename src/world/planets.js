@@ -24,8 +24,9 @@ import { createShowers } from './rain.js';
 // (Sizzle's is finer than its size needs, for its lava pools' round shores, #45; Misty's, #46,
 // for its lakes' shores and its dunes' crests; the cratered Pebble, Nibble and Ducky's, #56, so
 // their small craters have enough vertices across to look round: about 2.4, 1.3 and 1.8 m apart;
-// Yonder's, #62, about 3 m, for its dark lands' soft craters and, stage 2, its heart's mountains' steep sides.)
-const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24, yonder: 56 };
+// Yonder's, #62, about 3 m, for its dark lands' soft craters and, stage 2, its heart's mountains' steep sides;
+// Hither's, #62 stage 3, about 2.9 m too, for its canyons' walls.)
+const DETAIL = { homestead: 64, pebble: 36, dusty: 48, nibble: 24, sizzle: 48, frosty: 36, misty: 56, flip: 32, ducky: 24, yonder: 56, hither: 36 };
 
 function terrainGeometry(body) {
   let geo = new THREE.IcosahedronGeometry(1, DETAIL[body.id] ?? 24);
@@ -491,6 +492,8 @@ const ROCKS = {
   ducky: { count: 36, size: [0.8, 2], palette: [0x4c525c, 0x5d6470, 0x3a3f48, 0xc8d4de] },
   // Yonder's (#62): blocks of water ice (pale, a little blue) and a few stained reddish brown.
   yonder: { count: 70, size: [0.9, 2.4], palette: [0xe9ecf0, 0xd3dbe6, 0xf2e6d8, 0x9a5a40] },
+  // Hither's (#62 stage 3): grey blocks of water ice, a few reddish from the cap.
+  hither: { count: 50, size: [0.8, 2], palette: [0xb7b6b4, 0x9d9c9c, 0xd2d4d6, 0x7a5448] },
 };
 
 // Spots where rocks stay clear, because plumes and puffs rise there.

@@ -14,6 +14,7 @@ import { DISCOVERY_IDS, FRIEND_IDS } from '../progress.js';
 const LEAVES = [0x5d8c3a, 0x7aa84a, 0x3f6b2e, 0xd08a3a];
 
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
 // The garage door faces +z in the rocket's frame (towards the flight camera).
 const DOOR_DIR = [0, 0, 1];
@@ -42,6 +43,15 @@ export class DriveMode {
     this.dustPool = new DustPool();
     this.dustMesh = null;
     this.dust = null;
+    // How far a spinning world has turned (#62 stage 3), as a rotation about z.
+    this.turn = 0;
+    this.spinQ = new THREE.Quaternion();
+  }
+
+  /** A point or direction in the world's own frame turned into the scene's (#62 stage 3: a spinning world). */
+  toFlight(p) {
+    const a = this.turn ?? 0, c = Math.cos(a), s = Math.sin(a);
+    return [c * p[0] - s * p[1], s * p[0] + c * p[1], p[2]];
   }
 
   canDeploy() {
@@ -208,7 +218,8 @@ export class DriveMode {
     for (let i = 0; i < 30; i++) {
       const a = Math.random() * Math.PI * 2, e = Math.random() * 2 - 1;
       const dir = [Math.cos(a) * Math.sqrt(1 - e * e), Math.sin(a) * Math.sqrt(1 - e * e), e];
-      this.fs.particles.spawn('spark', b.body, b.p[0], b.p[1], b.p[2], dir[0] * 5, dir[1] * 5, dir[2] * 5, { size: 1.2, grow: -0.4, life: 1, drag: 2 });
+      const p = this.toFlight(b.p); // (the flight scene's sparks aren't in the world's frame)
+      this.fs.particles.spawn('spark', b.body, p[0], p[1], p[2], dir[0] * 5, dir[1] * 5, dir[2] * 5, { size: 1.2, grow: -0.4, life: 1, drag: 2 });
     }
   }
 
@@ -274,8 +285,14 @@ export class DriveMode {
     }
     this.dustPool.step(dt);
 
+    // Everything here is in the world's own frame; a spinning world (#62 stage 3: Hither and
+    // Yonder) has turned by `turn` from the frame the scene is drawn in (its mesh too).
+    const turn = s.body.spinAt(s.t);
+    this.turn = turn;
+    (this.spinQ ??= new THREE.Quaternion()).setFromAxisAngle(Z_AXIS, turn);
     const w = s.body.worldPos(s.t, {});
-    this.world = { x: w.x + pos[0], y: w.y + pos[1], z: pos[2] };
+    const c = Math.cos(turn), sn = Math.sin(turn);
+    this.world = { x: w.x + c * pos[0] - sn * pos[1], y: w.y + sn * pos[0] + c * pos[1], z: pos[2] };
     this.pos = pos;
     this.scale = scale;
     this.lastDt = dt;
@@ -296,7 +313,7 @@ export class DriveMode {
     const fwd = V(b.f);
     fwd.sub(this.visUp.clone().multiplyScalar(fwd.dot(this.visUp))).normalize();
     const right = new THREE.Vector3().crossVectors(this.visUp, fwd).normalize();
-    g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, this.visUp, fwd));
+    g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, this.visUp, fwd)).premultiply(this.spinQ);
 
     const steer = (input.left ? 1 : 0) - (input.right ? 1 : 0);
     this.steerVis += (steer * 0.45 - this.steerVis) * (1 - Math.exp(-dt * 10));
@@ -356,8 +373,8 @@ export class DriveMode {
       const n = Math.min(10, 3 + Math.round(speed));
       for (let i = 0; i < n; i++) {
         const j = () => (Math.random() - 0.5) * o.h * 0.5;
-        const pos = vec.add(vec.add(o.p, vec.mul(up, o.h * (0.6 + Math.random() * 0.3))), [j(), j(), j()]);
-        const vel = vec.add(vec.mul(up, -0.8 - Math.random()), [j() * 0.4, j() * 0.4, j() * 0.4]);
+        const pos = this.toFlight(vec.add(vec.add(o.p, vec.mul(up, o.h * (0.6 + Math.random() * 0.3))), [j(), j(), j()]));
+        const vel = this.toFlight(vec.add(vec.mul(up, -0.8 - Math.random()), [j() * 0.4, j() * 0.4, j() * 0.4]));
         fs.particles.spawn('confetti', b.body, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], {
           size: 0.35, grow: 0, life: 2.2, drag: 1.5, gravity: 1.5, color: LEAVES[i % LEAVES.length],
         });
@@ -562,7 +579,12 @@ export class DriveMode {
     if (this.dive > 0.01 && dive < Infinity && r > dive) offset.add(V(vec.mul(vec.norm(local), (dive - r) * this.dive)));
     const r2 = vec.len(vec.add(vec.add(b.p, lift), [offset.x, offset.y, offset.z]));
     if (r2 < minR) offset.add(V(vec.mul(vec.norm(local), minR - r2)));
-    camera.up.copy(this.camUp);
+    // All of that is in the world's own frame: turned into the scene's (a spinning world's, #62 stage 3).
+    const upW = this.camUp.clone().applyQuaternion(this.spinQ);
+    offset.applyQuaternion(this.spinQ);
+    f.applyQuaternion(this.spinQ);
+    target.copy(buggyPos).addScaledVector(upW, 1.2);
+    camera.up.copy(upW);
     camera.position.copy(target).add(offset);
     if (this.shake > 0.01) {
       const t = this.fs.time;

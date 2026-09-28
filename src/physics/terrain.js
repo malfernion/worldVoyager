@@ -537,8 +537,21 @@ export const YONDER_AXIS = (() => {
   return { x: v.x / l, y: v.y / l, z: v.z / l };
 })();
 
-/** Spin axis of each gas giant (bands, rings and the slow spin of the mesh), and Yonder's (its ground's pattern). */
-export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS, yonder: YONDER_AXIS };
+// Hither (#62 stage 3), Yonder's big moon, like Charon: the pole its ground's pattern is laid
+// round, with its dark red cap (Mordor Macula) there. Leaning 40 degrees towards the lower left
+// (at t = 0; it turns with Hither) from straight at the cameras, so the cap shows off-centre from
+// the map and from orbit. (Hither really spins about z, tidally locked: bodies.js `locked`.)
+export const HITHER_AXIS = (() => {
+  const a = 3.77, tilt = 0.7;
+  return { x: Math.sin(tilt) * Math.cos(a), y: Math.sin(tilt) * Math.sin(a), z: Math.cos(tilt) };
+})();
+
+/**
+ * Spin axis of each gas giant (bands, rings and the slow spin of the mesh), and the axes Yonder's
+ * and Hither's ground patterns are laid round (#62: those two really spin about z, facing each
+ * other: bodies.js `locked`).
+ */
+export const SPIN_AXES = { ringo: RINGO_AXIS, tumble: TUMBLE_AXIS, yonder: YONDER_AXIS, hither: HITHER_AXIS };
 
 /**
  * The pole of a spin axis that the game's cameras see (#55: Tumble's hexagon). They all look at
@@ -1024,6 +1037,138 @@ function makeYonder() {
   };
 }
 
+// Hither (#62 stage 3), like Charon: grey water ice, a dark reddish cap on its pole (Mordor
+// Macula: gas that leaks away from Pluto, frozen onto Charon's cold pole and baked red by
+// sunlight) and a belt of great canyons across its middle (Serenity and Mandjet Chasma) between
+// the rugged, cratered north and the smooth southern plains (Vulcan Planitia), where a mountain
+// stands in a moat (Kubrick Mons). The belt is a great circle round `HITHER_BELT` (nearly in the
+// flight plane, so from the cameras it runs across the middle of the disc, just past the pole);
+// its canyons fade out before the flight plane, so the landing strip is gentle all round and
+// a canyon's floor leads out onto it. Craters: soft, a few fresh bright ones.
+export const HITHER_BELT = (() => {
+  const a = 3.77, tilt = 1.4;
+  return { x: Math.sin(tilt) * Math.cos(a), y: Math.sin(tilt) * Math.sin(a), z: Math.cos(tilt) };
+})();
+// The canyons (`b`: radians north of the belt's line, towards the cap; `w` half-width; `deep` m;
+// `from`/`to`: along the belt, radians, where it runs (a whole lap: none)).
+export const HITHER_CANYONS = [
+  { b: -0.02, w: 0.2, deep: 5, wob: 0.05 },
+  { b: 0.3, w: 0.13, deep: 3.5, wob: 0.04, from: -0.6, to: 2.2 },
+];
+// The cap: its middle (a little off the pattern's pole) and angular radius.
+export const HITHER_CAP = { ...HITHER_AXIS, r: 0.5 };
+// Kubrick Mons, a mountain standing in a moat on the plains (seen side, well off the plane).
+export const HITHER_MOUNT = dirOf(0.75, 0.62);
+const HITHER_PITS = randomDirs(307, 16);
+
+function makeHither() {
+  const { fbm, noise } = makeNoise(311);
+  const B = HITHER_BELT, C = HITHER_CAP, M = HITHER_MOUNT;
+  // Along the belt: an in-plane frame (e1 towards the pole of the flight plane's side).
+  const e1 = (() => {
+    const v = [-B.y, B.x, 0];
+    const l = Math.hypot(v[0], v[1]);
+    return { x: v[0] / l, y: v[1] / l, z: 0 };
+  })();
+  const e2 = { x: B.y * e1.z - B.z * e1.y, y: B.z * e1.x - B.x * e1.z, z: B.x * e1.y - B.y * e1.x };
+  const R = 85; // Hither's radius (bodies.js), for sizes in metres
+  // How far north of the belt's line (radians), and how far along it.
+  const north = (x, y, z) => Math.asin(Math.max(-1, Math.min(1, x * B.x + y * B.y + z * B.z)));
+  const along = (x, y, z) => Math.atan2(x * e2.x + y * e2.y + z * e2.z, x * e1.x + y * e1.y + z * e1.z);
+  // The canyons (0..1 deep here, the deepest wins), fading out before the flight plane.
+  const canyon = (x, y, z) => {
+    const plane = smooth(0.14, 0.32, Math.abs(z));
+    if (plane <= 0) return 0;
+    const b = north(x, y, z), a = along(x, y, z);
+    let k = 0;
+    for (const c of HITHER_CANYONS) {
+      let ends = 1;
+      if (c.from !== undefined) {
+        let t = a - c.from;
+        t -= Math.floor(t / (2 * Math.PI)) * 2 * Math.PI;
+        const len = c.to - c.from;
+        if (t > len + 0.3) continue;
+        ends = smooth(0, 0.3, t) * (1 - smooth(len - 0.3, len, t));
+      }
+      const mid = c.b + c.wob * noise(x * 2.5 + 7, y * 2.5, z * 2.5);
+      const w = c.w * (0.85 + 0.3 * smooth(-0.4, 0.4, noise(x * 3 + 2, y * 3 + 9, z * 3)));
+      const d = Math.abs(b - mid) / w;
+      // A flat floor and sloping walls; its depth varies along it.
+      const deep = (1 - smooth(0.3, 1, d)) * (0.75 + 0.25 * noise(x * 4, y * 4 + 5, z * 4 + 1)) * c.deep / 5;
+      k = Math.max(k, deep * ends * plane);
+    }
+    return k;
+  };
+  // The rims along the canyons (the ground lifted and cracked beside them): 0..1.
+  const shoulder = (x, y, z) => {
+    const b = north(x, y, z);
+    const c = HITHER_CANYONS[0];
+    const d = Math.abs(b - c.b) / c.w;
+    return smooth(0.6, 1.1, d) * (1 - smooth(1.2, 2.2, d)) * smooth(0.14, 0.32, Math.abs(z));
+  };
+  // The dark cap: 0..1, a ragged, diffuse edge.
+  const cap = (x, y, z) => {
+    const a = Math.acos(Math.min(1, x * C.x + y * C.y + z * C.z));
+    const edge = C.r * (1 + 0.22 * noise(x * 5 + 3, y * 5, z * 5 + 8) + 0.1 * noise(x * 11, y * 11 + 4, z * 11));
+    return 1 - smooth(edge * 0.55, edge, a);
+  };
+  // The southern plains (smooth, a little lower): south of the belt.
+  const plains = (x, y, z) => 1 - smooth(-0.5, -0.22, north(x, y, z) + 0.06 * noise(x * 3 + 1, y * 3, z * 3));
+  // Kubrick Mons in its moat: the mountain's height and the moat's depth (m).
+  const mount = (x, y, z) => {
+    const a = Math.acos(Math.min(1, x * M.x + y * M.y + z * M.z)) * R;
+    if (a > 30) return 0;
+    const peak = 9 * (1 - smooth(0, 11, a)) * (1 + 0.15 * noise(x * 20, y * 20, z * 20));
+    const moat = -2.2 * (1 - smooth(4, 7, Math.abs(a - 15)));
+    return peak + moat;
+  };
+  // Soft craters, fewer on the young plains; a few fresh ones with bright rims.
+  const pits = HITHER_PITS
+    .filter((p) => plains(p.x, p.y, p.z) < 0.5 || p.size > 0.7)
+    .map((p, i) => ({ ...p, radius: 0.08 + p.size * 0.1, deep: 1.2 + p.depth * 1.8, fresh: i % 4 === 0 }));
+  const fresh = pits.filter((p) => p.fresh);
+  const hills = (x, y, z) => smooth(0.05, 0.55, noise(x * 3.4 + 5, y * 3.4, z * 3.4));
+  return {
+    pits,
+    canyon,
+    cap,
+    plains,
+    height(x, y, z) {
+      const pl = plains(x, y, z);
+      // Rugged in the north (hills and knobbly ground), smooth on the plains.
+      let h = fbm(x * 1.8, y * 1.8, z * 1.8, 3) * 2 * (1 - 0.6 * pl) + hills(x, y, z) * 2.2 * (1 - pl) + fbm(x * 5, y * 5, z * 5, 2) * 0.5 * (1 - 0.7 * pl) - 0.8 * pl;
+      h += craters(pits, x, y, z, 1);
+      h += shoulder(x, y, z) * 1.2;
+      h -= canyon(x, y, z) * 5;
+      h += mount(x, y, z);
+      return h;
+    },
+    color(x, y, z, h) {
+      const n = fbm(x * 4, y * 4, z * 4, 3);
+      // Grey water ice, a little blue in places, warmer grey on the plains.
+      let c = mix(rgb(0xc2c0bd), rgb(0xa9aaad), smooth(-0.25, 0.3, n));
+      c = mix(c, rgb(0xbac3cc), smooth(0.1, 0.45, noise(x * 2.3 + 5, y * 2.3, z * 2.3)) * 0.5);
+      c = mix(c, rgb(0xc6bfb5), plains(x, y, z) * 0.6);
+      // Canyons: darker grey floors, the walls darker still (the slope shading adds to that).
+      const cy = canyon(x, y, z);
+      c = mix(c, mix(rgb(0x8c8886), rgb(0x6e6a69), n + 0.5), smooth(0.15, 0.7, cy));
+      // Fresh craters: bright ice round their rims.
+      for (const p of fresh) {
+        const d = Math.acos(Math.min(1, x * p.x + y * p.y + z * p.z)) / p.radius;
+        if (d < 2.4) c = mix(c, rgb(0xeceff2), (1 - smooth(0.7, 2.4, d)) * smooth(0.3, 0.9, d) * 0.8);
+      }
+      // The cap: deep reddish brown in the middle, fading out through rust to the grey.
+      const k = cap(x, y, z);
+      c = mix(c, rgb(0x9a6a58), smooth(0, 0.35, k) * 0.8);
+      c = mix(c, mix(rgb(0x6b3527), rgb(0x55291f), n + 0.5), smooth(0.3, 0.85, k));
+      // The mountain: pale ice.
+      const mt = mount(x, y, z);
+      if (mt > 1) c = mix(c, rgb(0xd9dbde), smooth(1, 6, mt));
+      return c;
+    },
+  };
+}
+
 function makeFlat(hex) {
   return { height: () => 0, color: () => rgb(hex) };
 }
@@ -1042,6 +1187,7 @@ export function makeTerrain(kind) {
     case 'flip': return makeFlip();
     case 'ducky': return makeDucky();
     case 'yonder': return makeYonder();
+    case 'hither': return makeHither();
     default: return makeFlat(0xffd27a);
   }
 }

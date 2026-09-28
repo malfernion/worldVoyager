@@ -277,6 +277,12 @@ export const ROCKY_LOOK = {
     rim: 0xdce8ff, rimK: 0.45, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.5, light: 0.26 }, speckle: [0.84, 0.35],
     heart: HEART_LOOK, // (#62 stage 2) its heart's churning cells and its glaciers' flow lines
   },
+  // Hither (#62 stage 3), Yonder's moon, like Charon: grey ice in the same dim, cold light;
+  // bluish-grey canyon walls and slopes, bright specks of fresh ice.
+  hither: {
+    tint: true, rock: [0.74, 0.76, 0.84], dust: [1.03, 1.03, 1.03], speck: [1.14, 1.14, 1.16], streak: [0.88, 0.88, 0.9],
+    rim: 0xdce8ff, rimK: 0.45, night: 0x2a408a, nightK: 0.3, ao: { dark: 0.55, light: 0.28 }, speckle: [0.82, 0.4],
+  },
   // Under its thick haze: a faint rim and night fill (the haze glows over them anyway).
   misty: {
     tint: true, rock: [0.78, 0.72, 0.66], dust: [1.05, 1.03, 0.96], speck: [1.12, 1.1, 1.04], streak: [0.88, 0.84, 0.8],

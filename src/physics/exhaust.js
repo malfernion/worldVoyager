@@ -125,6 +125,7 @@ export class ExhaustPool {
     this.count = 0;
     this.body = null;
     this.wind = 0;
+    this.turn = 0; // how far a spinning world's ground has turned (#62 stage 3, Body.spinAt): the particles are in the flight's frame
   }
 
   /** Which world the particles are in (clears them when that changes). */
@@ -163,7 +164,7 @@ export class ExhaustPool {
     const p = this.pos, v = this.vel, c = this.col;
     // Never start inside the ground (the nozzles are close to it on the pad).
     const rr = Math.hypot(x, y) || 1;
-    const floor = this.body.surfaceAt(Math.atan2(y, x)) + 0.3;
+    const floor = this.body.surfaceAt(Math.atan2(y, x) - this.turn) + 0.3;
     if (rr < floor) { x *= floor / rr; y *= floor / rr; }
     p[i * 3] = x; p[i * 3 + 1] = y; p[i * 3 + 2] = z;
     v[i * 3] = vx; v[i * 3 + 1] = vy; v[i * 3 + 2] = vz;
@@ -218,7 +219,7 @@ export class ExhaustPool {
       const rr = Math.hypot(x, y);
       // (A big puff's middle stays a third of its size up: it hugs the ground, and the shader
       // thins out what's below the ground.)
-      const ground = body.surfaceAt(Math.atan2(y, x));
+      const ground = body.surfaceAt(Math.atan2(y, x) - this.turn);
       const floor = ground + 0.3 + 0.35 * this.sizeOf(i);
       if (rr < floor) {
         x *= floor / rr; y *= floor / rr;
@@ -294,6 +295,7 @@ export class RocketExhaust {
   update(dt, s, throttle, alt, warp = 1) {
     const pool = this.pool;
     pool.setWorld(s.body);
+    pool.turn = s.body.spinAt(s.t ?? 0);
     pool.step(dt);
     const last = this.last;
     if (dt <= 0) return;
@@ -382,8 +384,9 @@ export class RocketExhaust {
     const up = Math.atan2(s.y, s.x);
     const ux = Math.cos(up), uy = Math.sin(up);
     const tx = -uy, ty = ux;
-    const gr = body.surfaceAt(up);
-    const col = dustColor(body, ux, uy, 0, this.dustCol);
+    const turn = body.spinAt(s.t ?? 0);
+    const gr = body.surfaceAt(up - turn);
+    const col = dustColor(body, Math.cos(up - turn), Math.sin(up - turn), 0, this.dustCol);
     const smoke = airOf(body)?.smoke;
     const alpha = smokeAlpha(air);
     const pw = this.power;
@@ -476,6 +479,7 @@ export class RocketExhaust {
     const body = s.body;
     if (!body.solid) return;
     this.pool.setWorld(body);
+    this.pool.turn = body.spinAt(s.t ?? 0);
     const air = airAt(body, 0);
     const blast = Math.min(1, 0.5 + speed * 0.15);
     // What the plume does on the ground for a second or so, all at once.
