@@ -42,11 +42,11 @@ export const MIST_LOOK = {
     size: [1.8, 3.2],
     grow: 2.4,
     rise: [0.4, 1.6],
-    drift: [2, 5],
+    drift: [2.5, 6],
     period: [9, 16],
     life: [0.75, 0.95],
     flat: 0.4,
-    day: 0.15,
+    day: 0.1,
     far: [180, 360],
     lit: 0xf4f9ff,
     shade: 0xa9bfd6,
@@ -331,7 +331,7 @@ export function createMist(body, sunDir) {
     shadeColor: { value: new THREE.Color(look.shade) },
     nightColor: { value: new THREE.Color(look.night) },
     glowColor: { value: new THREE.Color(look.glow) },
-    opacity: { value: 0.34 },
+    opacity: { value: 0.4 },
   };
   const mat = new THREE.ShaderMaterial({
     uniforms,

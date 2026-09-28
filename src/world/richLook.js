@@ -171,16 +171,16 @@ function defines(list) {
  * of them glint from any view); `sharp`: how exactly one must face the sun (0..1, higher: fewer);
  * `k`: how bright; `color` (raw 0..1, may be over 1).
  */
-export const SPARKLE = { cell: 0.3, px: [0.25, 1.4], tilt: 2.2, sharp: 0.82, k: 1.2, color: [1, 1, 1] };
+export const SPARKLE = { cell: 0.3, px: [0.25, 1.4], tilt: 2.2, sharp: 0.8, k: 1.2, color: [1, 1, 1] };
 
 /**
  * The glint grid for a pixel covering `px` metres (pure; the shader does the same sums): the
  * finer cell `cell` (m), the next one up (twice it) and how much of that one to blend in, so a
- * spot always has about 26 (CSS) pixels' worth of cell (room for its little star), whatever the distance, and never pops.
+ * spot always has about 20 (CSS) pixels' worth of cell (room for its little star), whatever the distance, and never pops.
  * `k`: how much of the sparkle is left at this distance (0..1).
  */
 export function sparkleCell(px, look = SPARKLE, dpr = 1) {
-  const L = Math.max(0, Math.log2((px * 26 * dpr) / look.cell));
+  const L = Math.max(0, Math.log2((px * 20 * dpr) / look.cell));
   const f = Math.floor(L);
   return { cell: look.cell * 2 ** f, blend: L - f, k: 1 - smooth01(look.px[0], look.px[1], px) };
 }
@@ -330,11 +330,10 @@ export function richRocky(mat, body, sunDir) {
       uniform float rlSpeckK;
       uniform vec3 rlDarken;
       uniform float rlAmbientK;
-      ${sp ? SPARKLE_PARS : ''}
-    ` + shader.fragmentShader
+    ` + (sp ? SPARKLE_PARS : '') + shader.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>\n${ROCKY_COLOR}`)
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= rlAmbientK;')
-      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${sp ? SPARKLE_MAIN : ''}\n#include <opaque_fragment>`);
+      .replace('#include <opaque_fragment>', `${RIM_NIGHT}\n${sp ? SPARKLE_MAIN + '\n' : ''}#include <opaque_fragment>`);
   };
   mat.customProgramCacheKey = () => `rich-rocky:${defs}`;
   return mat;
@@ -402,7 +401,7 @@ const SPARKLE_PARS = /* glsl */ `
     float off = length(o - sp.x * jx - sp.y * jy) / sqrt(max(a, c));
     sp /= rlSparkDpr;
     // The ground passes near only some of the spots (within a couple of pixels).
-    float on = 1.0 - smoothstep(1.0, 2.0, off / rlSparkDpr);
+    float on = 1.0 - smoothstep(1.5, 3.0, off / rlSparkDpr);
     if (on <= 0.0) return vec3(0.0);
     vec3 lean = vec3(rlHash(id + 7.7), rlHash(id + 3.13), rlHash(id + 11.37)) - 0.5;
     lean += 0.12 * sin(rlTime * (0.7 + 1.6 * h) + h * 40.0);
@@ -427,7 +426,7 @@ const SPARKLE_MAIN = /* glsl */ `
     float k = lit * ice * (1.0 - smoothstep(rlSparkle.z, rlSparkle.w, px));
     if (k > 0.001) {
       vec3 H = normalize(rlSun + normalize(vViewPosition));
-      float L = max(0.0, log2(px * 26.0 * rlSparkDpr / rlSparkle.x));
+      float L = max(0.0, log2(px * 20.0 * rlSparkDpr / rlSparkle.x));
       float fl = floor(L), bl = L - fl;
       float cell = rlSparkle.x * exp2(fl);
       vec3 g1 = rlGlint(rlObj, cell, jx, jy, H, normal) * vec3(1.0 - bl, 1.0 - bl, 1.0);
