@@ -2,12 +2,13 @@
 // influence (inside Yonder's, clear of everything); the two tidally locked, facing each other
 // forever (both spin about z once a lap), and what that means for the ground under a landed
 // rocket and a buggy; Yonder's heart still on the side the cameras see (and still found); the
-// Charon look (a dark red cap, a canyon belt, craters); landing and driving; trips there and
+// Charon look (a dark red cap, craters); its landscape (#62, the owner's pass: two branching
+// chasms, Kubrick Mons's broad massif in its moat, crisp craters); landing and driving; trips there and
 // back; the double world's discovery (seeing both together); Ember's far light out there too.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createSystem } from '../src/physics/bodies.js';
-import { makeTerrain, SPIN_AXES, YONDER_HEART, HITHER_CAP, HITHER_BELT, HITHER_MOUNT, heartDir, heartDist } from '../src/physics/terrain.js';
+import { makeTerrain, SPIN_AXES, YONDER_HEART, HITHER_CAP, HITHER_BELT, HITHER_MOUNT, HITHER_CHASMS, KUBRICK, heartDir, heartDist } from '../src/physics/terrain.js';
 import { DISCOVERIES, PAIR_VIEW, pairSeen, sunDirection } from '../src/physics/discoveries.js';
 import { parkingRadius, inStableOrbit } from '../src/physics/autopilot.js';
 import { airOf } from '../src/physics/exhaust.js';
@@ -250,7 +251,7 @@ describe('Hither, the world (#62 stage 3)', () => {
     for (let i = 0; i < 360; i++) expect(hither.landableAt((i / 360) * Math.PI * 2)).toBe(true);
   });
 
-  it('keeps the ground by the flight plane gentle: the canyons fade out before it', () => {
+  it('keeps the ground by the flight plane gentle: the chasms, craters and Kubrick keep clear of it', () => {
     const R = hither.radius, e = 1 / R;
     let worst = 0;
     for (let i = 0; i < 720; i++) {
@@ -266,7 +267,7 @@ describe('Hither, the world (#62 stage 3)', () => {
     expect(worst).toBeLessThan(25);
   });
 
-  it('looks like Charon: a dark red cap on the seen side, grey ice, a canyon belt across the middle, craters', () => {
+  it('looks like Charon: a dark red cap on the seen side, grey ice, craters, a mountain on the plains', () => {
     // The cap faces the cameras (off-centre), dark and reddish; the rest grey.
     expect(HITHER_CAP.z).toBeGreaterThan(0.8);
     const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -283,22 +284,117 @@ describe('Hither, the world (#62 stage 3)', () => {
     }
     expect(grey / n).toBeGreaterThan(0.9);
     expect(lum(cap)).toBeLessThan(0.5 * lum(ter.color(0, 0, -1, ter.height(0, 0, -1))));
-    // The belt: deep canyons across the side the cameras see (near its middle), none in the cap.
-    let deep = 0;
-    for (let a = 0; a < Math.PI * 2; a += 0.05) {
-      // Round the belt's line: square to HITHER_BELT.
-      const B = HITHER_BELT, e1 = vec.norm([-B.y, B.x, 0]), e2 = vec.cross([B.x, B.y, B.z], e1);
-      const d = vec.add(vec.mul(e1, Math.cos(a)), vec.mul(e2, Math.sin(a)));
-      if (d[2] > 0.5 && ter.canyon(d[0], d[1], d[2]) > 0.6) deep++;
-      expect(ter.cap(d[0], d[1], d[2])).toBeLessThan(0.05);
-    }
-    expect(deep).toBeGreaterThan(10);
-    expect(Math.abs(HITHER_BELT.z)).toBeLessThan(0.3); // nearly in the plane: the belt crosses the view
-    expect(ter.pits.length).toBeGreaterThanOrEqual(8);
-    // Kubrick Mons: a mountain on the plains, standing out of its moat, well off the plane.
-    expect(ter.height(HITHER_MOUNT.x, HITHER_MOUNT.y, HITHER_MOUNT.z)).toBeGreaterThan(6);
+    expect(Math.abs(HITHER_BELT.z)).toBeLessThan(0.3); // the north / plains line crosses the view
+    // Kubrick Mons: on the plains, well off the plane.
     expect(Math.asin(HITHER_MOUNT.z) * hither.radius).toBeGreaterThan(30);
     expect(ter.plains(HITHER_MOUNT.x, HITHER_MOUNT.y, HITHER_MOUNT.z)).toBeGreaterThan(0.9);
+  });
+
+  // Hither's own frame at a projected point (x, y) on the seen side.
+  const seen = (x, y) => vec.norm([x, y, Math.sqrt(Math.max(0, 1 - x * x - y * y))]);
+  // A point `m` metres from `d` towards `t` (a unit tangent there).
+  const walk = (d, t, m) => vec.norm(vec.add(d, vec.mul(t, Math.tan(m / hither.radius))));
+  const slopeAt = (d) => {
+    const e = 0.5 / hither.radius, t1 = vec.norm(vec.cross(d, [0, 0, 1])), t2 = vec.cross(d, t1);
+    const h = (p) => ter.height(...p);
+    const sa = (h(walk(d, t1, 0.5)) - h(walk(d, t1, -0.5))), sb = (h(walk(d, t2, 0.5)) - h(walk(d, t2, -0.5)));
+    return Math.atan(Math.hypot(sa, sb) / (2 * e * hither.radius)) * 180 / Math.PI;
+  };
+
+  it('has one or two chasms, each a trunk that branches like a river, all on the side the cameras see', () => {
+    expect(HITHER_CHASMS.length).toBeGreaterThanOrEqual(1);
+    expect(HITHER_CHASMS.length).toBeLessThanOrEqual(2);
+    let branches = 0;
+    for (const ch of HITHER_CHASMS) {
+      const [trunk, ...rest] = ch.paths;
+      expect(rest.length, ch.name).toBeGreaterThanOrEqual(1);
+      branches += rest.length;
+      for (const b of rest) {
+        // Each branch leaves the trunk, narrower and shallower, and tapers to nothing at its tip.
+        const [x, y, w, deep] = b[0];
+        const on = trunk.find((p) => p[0] === x && p[1] === y);
+        expect(on, `${ch.name} branch at ${x}, ${y}`).toBeTruthy();
+        expect(w).toBeLessThan(on[2]);
+        expect(deep).toBeLessThan(on[3]);
+        expect(b[b.length - 1][3]).toBe(0);
+        for (let i = 1; i < b.length; i++) expect(b[i][3]).toBeLessThanOrEqual(b[i - 1][3]);
+      }
+      // All of it on the seen side, off the flight plane, and a real chasm along its trunk.
+      for (const p of ch.paths.flat()) expect(seen(p[0], p[1])[2], ch.name).toBeGreaterThan(0.2);
+      let deep = 0;
+      for (const p of trunk) if (ter.canyon(...seen(p[0], p[1])) > 0.7) deep++;
+      expect(deep, ch.name).toBeGreaterThanOrEqual(3);
+    }
+    // The big one branches most, like a river's tributaries, and its mouth opens onto the plane.
+    expect(branches).toBeGreaterThanOrEqual(4);
+    expect(HITHER_CHASMS[0].paths.length - 1).toBeGreaterThanOrEqual(3);
+    expect(HITHER_CHASMS[0].paths[0][0][3]).toBe(0);
+    // Not everywhere, though (Hither isn't Mars): most of the ground is no chasm at all.
+    let inChasm = 0;
+    for (let i = 0; i < 4000; i++) {
+      const z = ((i * 0.618034) % 1) * 2 - 1, a = i * 2.39996, k = Math.sqrt(1 - z * z);
+      if (ter.canyon(k * Math.cos(a), k * Math.sin(a), z) > 0.05) inChasm++;
+    }
+    expect(inChasm / 4000).toBeLessThan(0.06);
+  });
+
+  it('the chasms have flat floors, steep cliffs and dark floors that read from space', () => {
+    // Across the big trunk half-way along.
+    const trunk = HITHER_CHASMS[0].paths[0];
+    const [a, b] = [trunk[4], trunk[5]];
+    const mid = seen((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    const along = vec.norm(vec.sub(seen(b[0], b[1]), seen(a[0], a[1])));
+    const across = vec.norm(vec.cross(mid, along));
+    const profile = [];
+    for (let m = -16; m <= 16; m += 0.5) profile.push(ter.height(...walk(mid, across, m)));
+    const floor = profile.slice(24, 41); // the middle 8 m
+    expect(Math.max(...floor) - Math.min(...floor)).toBeLessThan(1);
+    expect(Math.max(...profile) - Math.min(...floor)).toBeGreaterThan(6);
+    let steep = 0;
+    for (let i = 1; i < profile.length; i++) steep = Math.max(steep, Math.atan(Math.abs(profile[i] - profile[i - 1]) / 0.5) * 180 / Math.PI);
+    expect(steep).toBeGreaterThan(55);
+    const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    const at = (p) => lum(ter.color(...p, ter.height(...p)));
+    expect(at(mid)).toBeLessThan(0.75 * at(walk(mid, across, 16)));
+  });
+
+  it('Kubrick Mons is a broad massif, not a spike, standing in a wide, gentle moat', () => {
+    const M = [HITHER_MOUNT.x, HITHER_MOUNT.y, HITHER_MOUNT.z];
+    const east = vec.norm([-M[1], M[0], 0]), north = vec.cross(M, east);
+    const ring = (m, fn) => {
+      for (let i = 0; i < 36; i++) {
+        const t = vec.add(vec.mul(east, Math.cos(i * Math.PI / 18)), vec.mul(north, Math.sin(i * Math.PI / 18)));
+        fn(walk(M, t, m));
+      }
+    };
+    expect(ter.height(...M)).toBeGreaterThan(10);
+    // Broad: still well up 12 m out all round, and foothills to 20 m.
+    ring(12, (p) => expect(ter.mount(...p)).toBeGreaterThan(3));
+    ring(20, (p) => expect(ter.mount(...p)).toBeGreaterThan(0.5));
+    // Several summits and shoulders, not one cone: blocks of different heights.
+    expect(KUBRICK.blocks.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(KUBRICK.blocks.map((b) => b.h)).size).toBeGreaterThanOrEqual(4);
+    // The moat: all the way round, lower than the plains beyond it, wide and gentle.
+    const [mid, half] = KUBRICK.moat;
+    ring(mid, (p) => expect(ter.mount(...p)).toBeLessThan(-1.5));
+    expect(half).toBeGreaterThanOrEqual(8);
+    let worst = 0;
+    for (let m = mid - half * 0.7; m <= mid + half; m += 2) ring(m, (p) => { worst = Math.max(worst, slopeAt(p)); });
+    expect(worst).toBeLessThan(32);
+    // Well off the flight plane.
+    expect((Math.asin(HITHER_MOUNT.z) * hither.radius) - (mid + half)).toBeGreaterThan(12);
+  });
+
+  it('has crisp craters: deep bowls with sharp rims, on the side the cameras see too', () => {
+    expect(ter.pits.length).toBeGreaterThanOrEqual(20);
+    expect(ter.pits.filter((p) => p.z > 0.2).length).toBeGreaterThanOrEqual(8);
+    expect(ter.pits.some((p) => p.fresh && p.z > 0.2)).toBe(true);
+    for (const p of ter.pits) {
+      const c = [p.x, p.y, p.z], t = vec.norm(vec.cross(c, [0.3, 0.5, 0.8]));
+      const r = p.radius * hither.radius;
+      const rim = ter.height(...walk(c, t, r)), floor = ter.height(...c);
+      expect(rim - floor, `crater of ${r.toFixed(1)} m`).toBeGreaterThan(0.3 * r);
+    }
   });
 
   it('has its stickers (not goals), a Charon fact, its own icons, a spin axis and the richer look', () => {
@@ -321,24 +417,38 @@ describe('Hither, the world (#62 stage 3)', () => {
     }
   });
 
-  it('a buggy drives a long way across it, down into the big canyon and out, never flying off for long', () => {
+  it('a buggy drives from the flight plane down the big chasm\'s gentle mouth, all along it and out the far end', () => {
     for (const kind of ['rover', 'truck', 'hopper']) {
       const b = new Buggy(hither, BUGGIES[kind]);
-      // From the flight plane where the belt crosses it, heading up the seen side.
-      const B = HITHER_BELT, cross = vec.norm([-B.y, B.x, 0]);
-      b.spawn(cross, [0, 0, 1]);
-      let travelled = 0, last = b.up, air = 0, maxAir = 0, inCanyon = 0;
-      for (let i = 0; i < 60 * 60; i++) {
-        b.step(1 / 60, { throttle: 1, steer: i % 600 < 150 ? 0.4 : 0 });
+      // From the flight plane just below the chasm's mouth, heading up the seen side, straight on.
+      const [mx, my] = HITHER_CHASMS[0].paths[0][0];
+      b.spawn(vec.norm([mx, my, 0]), [0, 0, 1]);
+      let travelled = 0, last = b.up, air = 0, maxAir = 0, inChasm = 0, floor = -1, out = false, high = 0;
+      for (let i = 0; i < 60 * 40; i++) {
+        b.step(1 / 60, { throttle: 1, steer: 0 });
         travelled += Math.acos(Math.min(1, vec.dot(b.up, last))) * hither.radius;
         last = b.up;
-        if (ter.canyon(...b.up) > 0.5) inCanyon++;
+        const k = ter.canyon(...b.up);
+        if (k > 0.5) inChasm++;
+        if (k > 0.9 && floor < 0) {
+          floor = i / 60;
+          // Down the ramp onto the floor with the wheels on the ground (no drop over a cliff).
+          expect(maxAir / 60, kind).toBeLessThan(1.5);
+        }
+        if (floor > 0 && k < 0.02) out = true;
         air = b.grounded === false ? air + 1 : 0;
         maxAir = Math.max(maxAir, air);
+        high = Math.max(high, vec.len(b.p) - hither.radius - ter.height(...b.up));
       }
+      expect(floor, kind).toBeGreaterThan(0);
+      expect(floor, kind).toBeLessThan(15);
+      expect(inChasm / 60, kind).toBeGreaterThan(10);
+      expect(out, kind).toBe(true);
       expect(travelled, kind).toBeGreaterThan(150);
-      expect(inCanyon, kind).toBeGreaterThan(30);
-      expect(maxAir / 60, kind).toBeLessThan(6);
+      // Driving straight on where the chasm bends, it can climb a cliff and leap off the top
+      // (low gravity: a long hop), but it always comes back down, never far up.
+      expect(maxAir / 60, kind).toBeLessThan(10);
+      expect(high, kind).toBeLessThan(20);
     }
   });
 

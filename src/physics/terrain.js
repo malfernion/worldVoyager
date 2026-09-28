@@ -1062,7 +1062,7 @@ export const HITHER_CHASMS = [
     name: 'serenity',
     paths: [
       [[-0.475, 0.855, 5, 0], [-0.43, 0.8, 5, 2.4], [-0.36, 0.68, 5, 5], [-0.22, 0.5, 5, 7], [-0.08, 0.3, 5.5, 7.5], [0.06, 0.1, 5.5, 7.5], [0.2, -0.08, 5, 7], [0.33, -0.28, 4.5, 6.5], [0.42, -0.48, 3.5, 5.5], [0.47, -0.66, 2, 3], [0.49, -0.76, 0.5, 0]],
-      [[-0.36, 0.68, 3.5, 5], [-0.52, 0.6, 3, 4.5], [-0.66, 0.5, 2, 3.5], [-0.76, 0.4, 0.5, 0]],
+      [[-0.36, 0.68, 3.5, 4.5], [-0.52, 0.6, 3, 4], [-0.66, 0.5, 2, 3], [-0.76, 0.4, 0.5, 0]],
       [[-0.08, 0.3, 3.5, 6], [-0.25, 0.2, 3, 5], [-0.36, 0.06, 2, 3.5], [-0.42, -0.02, 0.5, 0]],
       [[0.2, -0.08, 3.5, 6], [0.42, -0.1, 3, 5], [0.6, -0.16, 2, 3.5], [0.7, -0.24, 0.5, 0]],
       [[0.33, -0.28, 3, 5], [0.2, -0.46, 2.5, 4.5], [0.1, -0.64, 1.5, 2.5], [0.06, -0.72, 0.5, 0]],
@@ -1088,7 +1088,7 @@ export const HITHER_MOUNT = dirOf(0.75, 0.62);
 export const KUBRICK = {
   foot: [3, 27], moat: [33, 9, 2.8],
   blocks: [
-    { u: 0, v: 0, r: [18, 15], h: 8, turn: 0.5, tilt: 2, side: 0.55 },
+    { u: 0, v: 0, r: [19, 16], h: 8, turn: 0.5, tilt: 2, side: 0.5 },
     { u: -1, v: 2, r: [9, 7], h: 12.5, turn: 0.3, tilt: 2.5, side: 0.5 },
     { u: 7, v: -4, r: [6.5, 5], h: 11, turn: -0.4, tilt: -2, side: 0.5 },
     { u: -14, v: 6, r: [8, 5.5], h: 6.5, turn: 1.2, tilt: 2, side: 0.55 },
@@ -1252,8 +1252,10 @@ function makeHither() {
   // few fresh ones with bright rays. None where they'd make the flight plane's strip steep, on
   // Kubrick or its moat, or in the chasms.
   const pits = [];
-  for (const [i, p] of HITHER_PITS.entries()) {
+  // (Biggest first; none overlapping another, so every bowl and rim stays crisp.)
+  for (const [i, p] of [...HITHER_PITS.entries()].sort((a, b) => b[1].size - a[1].size)) {
     const radius = 0.055 + p.size ** 3 * 0.11;
+    if (pits.some((q) => Math.acos(Math.min(1, p.x * q.x + p.y * q.y + p.z * q.z)) < (radius + q.radius) * 1.4)) continue;
     if (Math.abs(p.z) - Math.sin(radius * 1.5) < 0.16) continue;
     if (plains(p.x, p.y, p.z) > 0.5 && p.size < 0.7) continue;
     if (Math.acos(Math.min(1, p.x * M.x + p.y * M.y + p.z * M.z)) < radius * 1.5 + (KUBRICK.moat[0] + KUBRICK.moat[1] + 4) / R) continue;
