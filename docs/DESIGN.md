@@ -1464,9 +1464,14 @@ come later.
 
 ### Yonder's heart, mountains, glaciers and blue haze (#62, stage 2)
 
-- **The heart** (`YONDER_HEART`, `heartDist()` in terrain.js): a cartoon heart (two round lobes and
-  a point, a signed-distance shape) laid on the ground in its own frame (`heartAt()` /
-  `heartDir()`, true distances from its middle), placed well in on the side the cameras see and
+- **The heart** (`YONDER_HEART`, `heartDist()` in terrain.js): heart-like, as Pluto's is, not a
+  drawn heart (the owner found a literal heart shape too fake). It starts from a tidy
+  signed-distance heart (two round lobes and a point) in its own frame on the ground
+  (`heartAt()` / `heartDir()`, true distances from its middle), then `heartOf()` roughens it:
+  lopsided (the left lobe a bigger teardrop leaning out and down, the right lobe smaller and a
+  little lower), its outline wobbling at several scales, its west edge fairly sharp where the
+  dark lands and mountains meet it, and the right lobe breaking up into ragged frost fading into
+  the ground (no dark outline there). It's placed well in on the side the cameras see and
   upright on the map (`up` is the map's +y). It doesn't reach the flight plane; the buggy drives
   to it from the landing strip. An earlier try crossed the plane, but near the limb the heart was
   foreshortened and tilted and no longer read as a heart.

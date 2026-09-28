@@ -336,13 +336,13 @@ describe('Yonder\'s heart (#62 stage 2)', () => {
   it('is pale ice, much brighter than the ground round it, with a smooth low basin on the left', () => {
     let inL = 0, inN = 0, outL = 0, outN = 0, basinH = [], eastH = [];
     for (const [u, v, d] of heartGrid(0.02, 0.25)) {
-      const sd = heartDist(u, v);
       const h = ter.height(d.x, d.y, d.z);
       const c = ter.color(d.x, d.y, d.z, h);
       const hr = ter.heart(d.x, d.y, d.z);
+      const sd = hr.sd; // (its real, roughened edge: lopsided and ragged like Pluto's, not the tidy shape)
       if (sd < -0.08) { inL += lum(c); inN++; }
       if (sd > 0.1 && sd < 0.25) { outL += lum(c); outN++; }
-      if (hr.basin > 0.99 && hr.glacier === 0) basinH.push(h);
+      if (hr.basin > 0.99 && hr.glacier === 0 && hr.peak === 0) basinH.push(h); // (the mountains stand at its edge)
       if (hr.east > 0.99 && hr.glacier === 0) eastH.push(h);
       // The cells only in the basin, the flow lines only on glaciers.
       const mk = ter.marks(d.x, d.y, d.z, [0, 0, 0, 0, 0]);
