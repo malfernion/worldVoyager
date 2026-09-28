@@ -695,8 +695,11 @@ export function limbHazeAt(haze, s, px = 0) {
 export const HAZE_LAYERS = {
   yonder: {
     shell: 1.13, color: 0x5aa8ff, hug: [0.022, 0.7],
-    layers: [[1.024, 0.0022, 0.9], [1.042, 0.002, 0.7], [1.062, 0.0018, 0.5], [1.085, 0.0016, 0.32]],
-    front: 0.35, back: 2.2, backPow: 2, near: [1.15, 1.4],
+    // (Two soft, faint layers: four crisp ones read as bold concentric rings from close by. And
+    // only from well out: gone within 2.5 radii, full from 5, so a hop or a low orbit doesn't
+    // look through them side-on.)
+    layers: [[1.03, 0.004, 0.32], [1.06, 0.004, 0.18]],
+    front: 0.35, back: 2.2, backPow: 2, near: [2.5, 5],
   },
 };
 

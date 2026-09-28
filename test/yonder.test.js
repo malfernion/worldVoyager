@@ -575,7 +575,12 @@ describe('Yonder\'s blue haze (#62 stage 2)', () => {
     expect(blueHazeAt(look, 1.005)).toBeGreaterThan(0.1);
     expect(blueHazeAt(look, look.shell)).toBe(0);
     // Separate layers: brighter on each than just between them.
-    expect(look.layers.length).toBeGreaterThanOrEqual(3);
+    expect(look.layers.length).toBeGreaterThanOrEqual(2);
+    // Faint (bold crisp layers read as concentric rings from close by)...
+    for (const l of look.layers) expect(l[2]).toBeLessThan(0.4);
+    // ...and gone from close in: a hop or a low orbit (a couple of radii out) never looks
+    // through them side-on.
+    expect(look.near[0]).toBeGreaterThanOrEqual(2.5);
     for (let i = 1; i < look.layers.length; i++) {
       const [at, w] = look.layers[i];
       const gap = (look.layers[i - 1][0] + at) / 2;
