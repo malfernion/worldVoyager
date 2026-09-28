@@ -3,10 +3,11 @@
 // breathes out: a thin vapour that frosts as it leaves. So the "mist" is soft pale wisps seeping
 // out of each crack, hugging the ground along it and curling slowly away. By night they show
 // (moonlit pale blue, lit cyan from below by the crack's glow); by day only faint wisps.
-// (Tall Enceladus-style plumes were tried: standing up behind a landed rocket they read as its
-// smoke, and from orbit as grey blobs floating off the edge. Left out.)
+// And like Enceladus's "tiger stripes", a few points along the cracks jet up: tall, thin plumes
+// of icy vapour that rise high and fan out as they thin, feathered like the mist, pale blue-white
+// in the dark and bright where they rise into sunlight above the night side.
 //
-// Cheap for phones, the embers' way (embers.js): every wisp of a world is one instanced
+// Cheap for phones, the embers' way (embers.js): every wisp and plume puff of a world is one instanced
 // billboard in ONE draw call (premultiplied, no depth write), each a loop on the real clock
 // worked out in the vertex shader (it re-rolls where it starts every time round), so there's no
 // CPU work per frame beyond a few uniforms, and nothing allocated. `mistAt()` is the same sums
@@ -14,7 +15,8 @@
 //
 // Readability: they fade near the lens and when big on screen (the clouds' NEAR / BIG:
 // `mistFade()`), across the line of sight to the rocket and the buggy (the embers' `sightFade()`,
-// fed from FlightScene.updateClouds()), and far off (gone from orbit).
+// fed from FlightScene.updateClouds()), and far off (the wisps are gone from orbit; the plumes
+// last out to low orbit as faint streaks, and are only a hint from the globe).
 import * as THREE from 'three';
 import { mulberry32 } from '../physics/noise.js';
 import { FROSTY_GLOWS } from '../physics/terrain.js';
@@ -31,6 +33,11 @@ import { NEAR, BIG, noiseTexture } from './clouds.js';
  * (1 at night); `far` (m): camera distances over which they fade out. Colours: `lit` (sunlit),
  * `shade`, `night` (moonlit), `glow` (the crack's light on them, near the ground, at night);
  * `glowUp` (m): how high that light reaches.
+ * Plumes (`plume`): `at` where along each crack they rise (shares of `len`, -1..1: one plume
+ * each), `puffs` per plume, `size` (m, a puff's radius at the vent), `grow` (times, at the top),
+ * `rise` (m, how high), `fan` (m, how far out a puff spreads by the top), `period` (s, a puff's
+ * climb), `stretch` (how drawn out upwards, seen side-on), `day` (how much shows over the day
+ * side), `far` (m), `k` (how dense).
  */
 export const MIST_LOOK = {
   frosty: {
@@ -53,13 +60,28 @@ export const MIST_LOOK = {
     night: 0x9cb8d8,
     glow: 0x74e4ff,
     glowUp: 2.5,
+    plume: {
+      at: [[-0.55, 0.35], [0.4], [-0.3, 0.6], [0.1]], // 6 plumes, crack by crack
+      puffs: 28,
+      size: [0.7, 1.1],
+      grow: 7,
+      rise: [38, 58],
+      fan: [4, 9],
+      period: [6, 9],
+      stretch: 2.4,
+      day: 0.45,
+      far: [420, 900],
+      k: 0.45,
+    },
   },
 };
 
 // Per wisp: centre x, y, z (planet frame: on the crack's middle line, at the ground), spread
 // along (m); the crack's way t (unit), spread across (m); period (s), life (share), phase (s),
-// seed (0..1); size (m), rise (m), drift (m), grow (times).
-export const MIST_STRIDE = 16;
+// seed (0..1); size (m), rise (m), drift (m; a plume's fan), grow (times); kind (0 a wisp, 1 a
+// plume's puff) and three spare.
+export const MIST_STRIDE = 20;
+export const WISP = 0, PLUME = 1;
 
 const smooth = (a, b, x) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -73,11 +95,23 @@ export function mistStrength(cosSun, look) {
 }
 
 /**
+ * How sunlit a point is (0..1), pure: `rel` from the world's middle (m), `sun` a unit direction,
+ * `R` its radius. Only in the planet's shadow is it dark, so a plume rising over the night side
+ * catches the sun above a certain height (brightest near the dawn and dusk lines).
+ */
+export function sunlit(rx, ry, rz, sx, sy, sz, R) {
+  const d = rx * sx + ry * sy + rz * sz;
+  const off = Math.hypot(rx - sx * d, ry - sy * d, rz - sz * d);
+  return Math.max(smooth(-0.05 * R, 0.05 * R, d), smooth(R * 0.98, R * 1.06, off));
+}
+
+/**
  * Where every wisp goes (pure, seeded). `ground(x, y, z)`: the ground's radius (m) under a unit
  * direction; `R`: the world's radius. The wisps are spread evenly along each crack (within `len`
  * either way of its middle), each wandering its own stretch of it and `side` across. The centre
  * sits on the highest ground out to most of the way it drifts (so a wisp never starts in the ice,
  * or drifts into a bank beside the crack).
+ * Plumes (`look.plume`) rise from vents on the crack's middle line, `at` along it.
  * Returns a Float32Array, MIST_STRIDE numbers each.
  */
 export function mistPlan(look, ground, R) {
@@ -107,14 +141,35 @@ export function mistPlan(look, ground, R) {
       const period = between(look.period);
       out.push(u[0] * r, u[1] * r, u[2] * r, spread, g.t.x, g.t.y, g.t.z, look.side,
         period, between(look.life), rand() * period * 7, rand(),
-        between(look.size), between(look.rise), between(look.drift), look.grow);
+        between(look.size), between(look.rise), between(look.drift), look.grow, WISP, 0, 0, 0);
     }
+  }
+  // The plumes: a stream of puffs from a vent on the crack's middle line, each a climb.
+  const pl = look.plume;
+  if (pl) {
+    look.cracks.forEach((g, c) => {
+      for (const at of pl.at[c] ?? []) {
+        const along = at * L;
+        const u = point(g, along, 0);
+        const r = high(g, along, 1, 1);
+        const rise = between(pl.rise), fan = between(pl.fan), size = between(pl.size);
+        // One climb time for the whole plume, its puffs spread evenly through it, so the column
+        // is always full (each climb still fans out its own way).
+        const period = between(pl.period);
+        for (let i = 0; i < pl.puffs; i++) {
+          const phase = ((i + rand() * 0.5) / pl.puffs) * period;
+          out.push(u[0] * r, u[1] * r, u[2] * r, 0.4, g.t.x, g.t.y, g.t.z, 0.4,
+            period, 1, phase, rand(),
+            size * (0.8 + 0.4 * rand()), rise * (0.85 + 0.3 * rand()), fan * (0.6 + 0.8 * rand()), pl.grow, PLUME, 0, 0, 0);
+        }
+      }
+    });
   }
   return Float32Array.from(out);
 }
 
 /**
- * Where wisp `i` of `plan` is at `time` (s, real time), pure; the vertex shader does the same
+ * Where wisp (or plume puff) `i` of `plan` is at `time` (s, real time), pure; the vertex shader does the same
  * sums. `out`: { x, y, z (planet frame), age (0..1 through its life; -1 while resting), alpha
  * (0..1, before the view's fades and the day's), size (m, its radius), lift (m above its centre) }.
  */
@@ -124,6 +179,7 @@ export function mistAt(plan, i, time, out = {}) {
   const tx = plan[k + 4], ty = plan[k + 5], tz = plan[k + 6], across = plan[k + 7];
   const period = plan[k + 8], life = plan[k + 9], phase = plan[k + 10], seed = plan[k + 11];
   const size = plan[k + 12], rise = plan[k + 13], drift = plan[k + 14], grow = plan[k + 15];
+  const plume = plan[k + 16] === PLUME;
   const R = Math.hypot(cx, cy, cz);
   const up = [cx / R, cy / R, cz / R];
   const s = [up[1] * tz - up[2] * ty, up[2] * tx - up[0] * tz, up[0] * ty - up[1] * tx];
@@ -140,15 +196,22 @@ export function mistAt(plan, i, time, out = {}) {
   const curl = h3 * 6.2832 + a * 2.6 * way;
   const cr = 0.35 * drift * a;
   const ease = 1 - (1 - a) * (1 - a);
-  const du = du0 + Math.cos(curl) * cr + (h3 - 0.5) * 0.4 * drift * ease;
-  const dv = dv0 + way * drift * ease + Math.sin(curl) * cr;
-  // Its bottom edge starts about on the ground; it lifts a little, and spreads.
+  let du = du0 + Math.cos(curl) * cr + (h3 - 0.5) * 0.4 * drift * ease;
+  let dv = dv0 + way * drift * ease + Math.sin(curl) * cr;
+  if (plume) {
+    // A plume's puff: shot straight up, slowing as it climbs, fanning out its own way.
+    const ang = h3 * 6.2832, f = drift * a * a;
+    du = du0 + Math.cos(ang) * f;
+    dv = dv0 + Math.sin(ang) * f;
+  }
+  // Its bottom edge starts about on the ground; it lifts a little, and spreads (a plume's climbs).
   const lift = 0.3 * size + rise * ease;
   out.x = cx + tx * du + s[0] * dv + up[0] * lift;
   out.y = cy + ty * du + s[1] * dv + up[1] * lift;
   out.z = cz + tz * du + s[2] * dv + up[2] * lift;
   out.age = age > 1 ? -1 : age;
-  out.alpha = age > 1 ? 0 : smooth(0, 0.2, age) * (1 - smooth(0.55, 1, age));
+  out.alpha = age > 1 ? 0 : plume ? smooth(0, 0.08, age) * (1 - smooth(0.3, 1, age)) : smooth(0, 0.2, age) * (1 - smooth(0.55, 1, age));
+  out.plume = plume;
   out.size = size * (1 + (grow - 1) * a);
   out.lift = lift;
   return out;
@@ -171,7 +234,11 @@ const VERT = /* glsl */ `
   attribute vec4 way; // the crack's way (unit), spread across
   attribute vec4 timing; // period, life, phase, seed
   attribute vec4 shape; // size, rise, drift, grow
+  attribute vec4 kind; // 0 a wisp, 1 a plume's puff; spare
   uniform float time;
+  uniform float radius;
+  uniform vec4 plume; // stretch, day, far
+  uniform vec2 plumeFar;
   uniform float day;
   uniform float flatK;
   uniform float glowUp;
@@ -185,6 +252,8 @@ const VERT = /* glsl */ `
   varying float vDay;
   varying float vGlow;
   varying float vLow;
+  varying float vKind;
+  varying float vLit;
   float hash11(float p) {
     p = fract(p * 0.1031);
     p *= p + 33.33;
@@ -224,24 +293,38 @@ const VERT = /* glsl */ `
     float ease = 1.0 - (1.0 - a) * (1.0 - a);
     float du = du0 + cos(curl) * cr + (h3 - 0.5) * 0.4 * shape.z * ease;
     float dv = dv0 + dir * shape.z * ease + sin(curl) * cr;
+    bool jet = kind.x > 0.5;
+    if (jet) {
+      float ang = h3 * 6.2832, f = shape.z * a * a;
+      du = du0 + cos(ang) * f;
+      dv = dv0 + sin(ang) * f;
+    }
     float lift = 0.3 * shape.x + shape.y * ease;
     vec3 p = centre.xyz + way.xyz * du + side * dv + up * lift;
-    float alpha = age > 1.0 ? 0.0 : smoothstep(0.0, 0.2, age) * (1.0 - smoothstep(0.55, 1.0, age));
+    float alpha = age > 1.0 ? 0.0 : jet ? smoothstep(0.0, 0.08, age) * (1.0 - smoothstep(0.3, 1.0, age))
+      : smoothstep(0.0, 0.2, age) * (1.0 - smoothstep(0.55, 1.0, age));
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     float depth = -mv.z;
     float s = shape.x * (1.0 + (shape.w - 1.0) * a) * scale;
     // Near the lens, big on screen and far off: gone (see mistFade()).
     alpha *= smoothstep(s * ${NEAR[0].toFixed(2)}, s * ${NEAR[1].toFixed(2)}, depth)
       * (1.0 - smoothstep(${BIG[0].toFixed(2)}, ${BIG[1].toFixed(2)}, s * projectionMatrix[1][1] / max(depth, 1e-3)))
-      * (1.0 - smoothstep(far.x, far.y, depth / scale));
+      * (1.0 - smoothstep(jet ? plumeFar.x : far.x, jet ? plumeFar.y : far.y, depth / scale));
     // Day or night where it is (see mistStrength()).
     vec3 upV = normalize((modelViewMatrix * vec4(up, 0.0)).xyz);
     float night = 1.0 - smoothstep(-0.2, 0.25, dot(upV, sunDir));
-    alpha *= day + (1.0 - day) * night;
+    float dk = jet ? plume.y : day;
+    alpha *= dk + (1.0 - dk) * night;
+    // In the sun or in the world's shadow (see sunlit()): high up a plume catches the sun.
+    vec3 rel = mv.xyz - (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float dd = dot(rel, sunDir);
+    float R = radius * scale;
+    vLit = max(smoothstep(-0.05 * R, 0.05 * R, dd), smoothstep(R * 0.98, R * 1.06, length(rel - sunDir * dd)));
+    vKind = kind.x;
     alpha *= sight((modelMatrix * vec4(p, 1.0)).xyz, s);
     vDay = 1.0 - night;
     // The crack's light on it, from below: only near the ground, only at night.
-    vGlow = night * (1.0 - smoothstep(0.0, glowUp, shape.y * ease));
+    vGlow = night * (1.0 - smoothstep(0.0, glowUp, shape.y * ease)) * (jet ? 0.7 : 1.0);
     // Lying flat along the ground (squashed along the screen's "up", as far as that shows).
     vec2 c = position.xy * 2.0;
     vec2 q = c;
@@ -249,7 +332,7 @@ const VERT = /* glsl */ `
     vLow = 0.0;
     if (dl > 0.001) {
       vec2 d2 = upV.xy / dl;
-      q += d2 * dot(q, d2) * (flatK - 1.0) * dl;
+      q += d2 * dot(q, d2) * ((jet ? plume.x : flatK) - 1.0) * dl;
       // How far down the sprite this corner is, seen side-on (its soft bottom fades out, so where
       // it dips into a bank of ice there's no hard edge).
       vLow = -dot(c, d2) * dl;
@@ -259,6 +342,8 @@ const VERT = /* glsl */ `
     float r = timing.w * 6.2832 + dir * a * 1.2;
     vUv = c;
     vNoise = mat2(cos(r), sin(r), -sin(r), cos(r)) * c * 0.36 + vec2(timing.w * 13.0 + h1, timing.w * 29.0 + h3);
+    // A plume's puff: streaky along the way it rises (fine across, long up), drifting upwards.
+    if (jet) vNoise = vec2(c.x * 0.55, c.y * 0.14 - a * 0.35) + vec2(timing.w * 13.0 + h1, timing.w * 29.0);
     vAlpha = alpha;
     gl_Position = projectionMatrix * mv;
     if (alpha < 0.003) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -274,12 +359,15 @@ const FRAG = /* glsl */ `
   uniform vec3 nightColor;
   uniform vec3 glowColor;
   uniform float opacity;
+  uniform float plumeK;
   varying vec2 vUv;
   varying vec2 vNoise;
   varying float vAlpha;
   varying float vDay;
   varying float vGlow;
   varying float vLow;
+  varying float vKind;
+  varying float vLit;
   void main() {
     #include <logdepthbuf_fragment>
     float r2 = dot(vUv, vUv);
@@ -289,11 +377,15 @@ const FRAG = /* glsl */ `
     float rr = min(1.0, r2 * (0.4 + 1.8 * nz));
     float fall = (1.0 - rr) * (1.0 - rr);
     float d = fall * (0.05 + 1.5 * nz * nz) - 0.1;
-    float a = smoothstep(0.0, 0.8, d) * vAlpha * opacity * (1.0 - smoothstep(0.1, 0.8, vLow));
+    bool jet = vKind > 0.5;
+    float a = smoothstep(0.0, 0.8, d) * vAlpha * (jet ? plumeK : opacity * (1.0 - smoothstep(0.1, 0.8, vLow)));
     if (a < 0.003) discard;
     // Flat light: sunlit white by day with a touch of shade in the thin bits, moonlit pale blue
-    // by night, and the crack's cyan glow near the ground.
-    vec3 c = mix(nightColor, mix(shadeColor, litColor, 0.4 + 0.6 * nz), vDay);
+    // by night, and the crack's cyan glow near the ground. A plume is lit by where it really is:
+    // high over the night side it's out of the world's shadow, and shines.
+    float lit = jet ? vLit : vDay;
+    vec3 c = mix(nightColor, mix(shadeColor, litColor, 0.4 + 0.6 * nz), lit);
+    if (jet) c *= 1.0 + 0.5 * vLit * (1.0 - vDay);
     c = mix(c, glowColor, vGlow * 0.4);
     // Mostly light added (it shows on the dark night ice), some cover (and on the bright day ice).
     gl_FragColor = vec4(c * a * (1.0 + 0.3 * vGlow), a * mix(0.45, 0.7, vDay));
@@ -314,16 +406,17 @@ export function createMist(body, sunDir) {
   const ground = (x, y, z) => body.radius + (t ? t.height(x, y, z) : 0);
   const plan = mistPlan(look, ground, body.radius);
   const count = plan.length / MIST_STRIDE;
-  const attrs = ['centre', 'way', 'timing', 'shape'].map(() => new Float32Array(count * 4));
+  const names = ['centre', 'way', 'timing', 'shape', 'kind'];
+  const attrs = names.map(() => new Float32Array(count * 4));
   for (let i = 0; i < count; i++) {
-    for (let j = 0; j < 4; j++) attrs[j].set(plan.subarray(i * MIST_STRIDE + j * 4, i * MIST_STRIDE + j * 4 + 4), i * 4);
+    for (let j = 0; j < 5; j++) attrs[j].set(plan.subarray(i * MIST_STRIDE + j * 4, i * MIST_STRIDE + j * 4 + 4), i * 4);
   }
   const geo = new THREE.InstancedBufferGeometry();
   geo.index = quad.index;
   geo.setAttribute('position', quad.attributes.position);
-  ['centre', 'way', 'timing', 'shape'].forEach((name, j) => geo.setAttribute(name, new THREE.InstancedBufferAttribute(attrs[j], 4)));
+  names.forEach((name, j) => geo.setAttribute(name, new THREE.InstancedBufferAttribute(attrs[j], 4)));
   geo.instanceCount = count;
-  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), body.radius + 20);
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), body.radius + 20 + (look.plume ? look.plume.rise[1] * 1.2 : 0));
   const foci = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   const uniforms = {
     time: { value: 0 },
@@ -334,6 +427,10 @@ export function createMist(body, sunDir) {
     foci: { value: foci },
     nFoci: { value: 0 },
     far: { value: new THREE.Vector2(...look.far) },
+    radius: { value: body.radius },
+    plume: { value: new THREE.Vector4(look.plume?.stretch ?? 1, look.plume?.day ?? 1, 0, 0) },
+    plumeFar: { value: new THREE.Vector2(...(look.plume?.far ?? [1, 2])) },
+    plumeK: { value: look.plume?.k ?? 0 },
     noiseMap: { value: noiseTexture() },
     litColor: { value: new THREE.Color(look.lit) },
     shadeColor: { value: new THREE.Color(look.shade) },

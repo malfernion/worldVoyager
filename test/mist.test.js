@@ -5,7 +5,7 @@
 // Frosty's ground shader has them, and the glint grid keeps its spots a steady size on screen.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { MIST_LOOK, MIST_STRIDE, mistPlan, mistAt, mistStrength, mistFade, createMist } from '../src/world/mist.js';
+import { MIST_LOOK, MIST_STRIDE, PLUME, mistPlan, mistAt, mistStrength, mistFade, sunlit, createMist } from '../src/world/mist.js';
 import { ROCKY_LOOK, SPARKLE, sparkleCell, richRocky } from '../src/world/richLook.js';
 import { FROSTY_GLOWS } from '../src/physics/terrain.js';
 import { createSystem } from '../src/physics/bodies.js';
@@ -17,6 +17,9 @@ const R = frosty.radius;
 const ground = (x, y, z) => R + frosty.terrainFn.height(x, y, z);
 const plan = mistPlan(look, ground, R);
 const count = plan.length / MIST_STRIDE;
+const wisps = FROSTY_GLOWS.length * look.wisps; // (the plumes' puffs come after them)
+const puffs = [];
+for (let i = wisps; i < count; i++) puffs.push(i);
 const unit = (x, y, z) => { const l = Math.hypot(x, y, z); return [x / l, y / l, z / l]; };
 
 // A point's place relative to crack g: metres along it and across it (on the ground).
@@ -33,8 +36,12 @@ const crackOf = (i) => FROSTY_GLOWS[Math.floor(i / look.wisps)];
 describe('mistPlan (#54, Frosty)', () => {
   it('is the same every time, and phone-sized', () => {
     expect(Array.from(mistPlan(look, ground, R))).toEqual(Array.from(plan));
-    expect(count).toBe(FROSTY_GLOWS.length * look.wisps);
-    expect(count).toBeLessThan(300);
+    const plumes = look.plume.at.flat().length;
+    expect(plumes).toBeGreaterThanOrEqual(4);
+    expect(plumes).toBeLessThanOrEqual(8);
+    expect(count).toBe(wisps + plumes * look.plume.puffs);
+    for (let i = 0; i < count; i++) expect(plan[i * MIST_STRIDE + 16] === PLUME).toBe(i >= wisps);
+    expect(count).toBeLessThan(450);
   });
 
   it('spreads each crack\'s wisps all along it, and only along the glowing groove', () => {
@@ -60,7 +67,7 @@ describe('mistPlan (#54, Frosty)', () => {
 describe('mistAt: each wisp\'s loop', () => {
   const out = {};
   it('leaves from the crack every time round, never in the ice', () => {
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < wisps; i++) {
       const k = i * MIST_STRIDE;
       const period = plan[k + 8], phase = plan[k + 10];
       for (let c = 0; c < 30; c++) {
@@ -81,7 +88,7 @@ describe('mistAt: each wisp\'s loop', () => {
   });
 
   it('drifts off the crack, lifts a little and spreads, then rests and starts again', () => {
-    for (let i = 0; i < count; i += 3) {
+    for (let i = 0; i < wisps; i += 3) {
       const k = i * MIST_STRIDE;
       const period = plan[k + 8], life = plan[k + 9], phase = plan[k + 10];
       const t0 = 3 * period - phase + period * 1000;
@@ -110,6 +117,88 @@ describe('mistAt: each wisp\'s loop', () => {
   it('keeps moving (it is ambient, on the real clock)', () => {
     const a = { ...mistAt(plan, 5, 100) }, b = mistAt(plan, 5, 100.5);
     expect(Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)).toBeGreaterThan(0.01);
+  });
+});
+
+// Which crack a plume's vent is on (the nearest middle).
+const crackNear = (p) => {
+  const u = unit(...p);
+  let best = null, bestD = -2;
+  for (const g of FROSTY_GLOWS) { const d = u[0] * g.x + u[1] * g.y + u[2] * g.z; if (d > bestD) { bestD = d; best = g; } }
+  return best;
+};
+
+describe('plumes (#54, Frosty\'s tiger stripes)', () => {
+  const out = {};
+  it('rise from vents on the glowing cracks\' middle lines, a few of them', () => {
+    const vents = new Set();
+    for (const i of puffs) {
+      const k = i * MIST_STRIDE;
+      const p = [plan[k], plan[k + 1], plan[k + 2]];
+      vents.add(p.map((c) => c.toFixed(2)).join());
+      const { along, across } = onCrack(crackNear(p), p);
+      expect(Math.abs(across)).toBeLessThan(0.05);
+      expect(Math.abs(along)).toBeLessThan(0.1 * R); // where the groove is full
+      expect(Math.hypot(...p) - ground(...unit(...p))).toBeGreaterThanOrEqual(0);
+    }
+    expect(vents.size).toBe(look.plume.at.flat().length);
+  });
+
+  it('shoot each puff up high and fan it out as it thins, then start again from the vent', () => {
+    for (const i of puffs) {
+      const k = i * MIST_STRIDE;
+      const period = plan[k + 8], phase = plan[k + 10];
+      const t0 = 5 * period - phase + period * 1000;
+      const vent = [plan[k], plan[k + 1], plan[k + 2]];
+      const start = { ...mistAt(plan, i, t0 + 0.001) };
+      const mid = { ...mistAt(plan, i, t0 + 0.3 * period) };
+      const top = { ...mistAt(plan, i, t0 + 0.999 * period, out) };
+      expect(start.plume).toBe(true);
+      expect(start.lift).toBeLessThan(1);
+      expect(Math.hypot(start.x - vent[0], start.y - vent[1], start.z - vent[2])).toBeLessThan(1.5);
+      expect(top.lift).toBeGreaterThan(look.plume.rise[0] * 0.8);
+      expect(mid.alpha).toBeGreaterThan(0.5);
+      expect(top.alpha).toBeLessThan(0.01);
+      expect(top.size).toBeGreaterThan(start.size * 4);
+      // Tall and thin: it fans out much less than it rises.
+      const sideways = Math.hypot(top.x - vent[0], top.y - vent[1], top.z - vent[2]) ** 2 - (top.lift + 0) ** 2;
+      expect(Math.sqrt(Math.max(0, sideways))).toBeLessThan(top.lift * 0.35);
+      // (the next climb starts at the vent again)
+      const again = mistAt(plan, i, t0 + period + 0.001);
+      expect(again.lift).toBeLessThan(1);
+    }
+  });
+
+  it('keep the column full: at any moment each plume has puffs low, midway and high', () => {
+    for (let v = 0; v < puffs.length; v += look.plume.puffs) {
+      for (const t of [0, 13.7, 101.1]) {
+        const lifts = [];
+        for (let j = 0; j < look.plume.puffs; j++) lifts.push(mistAt(plan, puffs[v + j], t).lift);
+        expect(Math.min(...lifts)).toBeLessThan(8);
+        expect(Math.max(...lifts)).toBeGreaterThan(30);
+        expect(lifts.filter((l) => l > 10 && l < 30).length).toBeGreaterThan(3);
+      }
+    }
+  });
+
+  it('show from the ground, approach and low orbit, and fade to almost nothing at the globe', () => {
+    const focal = 1 / Math.tan((50 / 2) * Math.PI / 180);
+    const far = look.plume.far;
+    expect(mistFade(3, 60, focal, far)).toBe(1);
+    expect(mistFade(3, 250, focal, far)).toBe(1); // low orbit
+    expect(mistFade(3, 380, focal, far)).toBe(1); // approach from further out
+    expect(mistFade(3, 700, focal, far)).toBeLessThan(0.5);
+    expect(mistFade(3, far[1] + 1, focal, far)).toBe(0);
+  });
+
+  it('catch the sun high over the night side, and are dark in the world\'s shadow', () => {
+    const sun = [1, 0, 0];
+    // On the day side: lit. Low over midnight: dark. High over the night side near the dawn line: lit.
+    expect(sunlit(R + 10, 0, 0, ...sun, R)).toBe(1);
+    expect(sunlit(-(R + 10), 0, 0, ...sun, R)).toBe(0);
+    const a = Math.PI / 2 + 0.3; // 0.3 rad past the terminator
+    expect(sunlit(Math.cos(a) * (R + 2), Math.sin(a) * (R + 2), 0, ...sun, R)).toBe(0);
+    expect(sunlit(Math.cos(a) * (R + 50), Math.sin(a) * (R + 50), 0, ...sun, R)).toBe(1);
   });
 });
 

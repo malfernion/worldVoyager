@@ -1261,9 +1261,18 @@ same soft style, one look, no setting.
 - **Day and night.** By night (`mistStrength()`: the sun's height where the wisp is) the mist
   shows in full, moonlit pale blue, tinted the cracks' cyan from below within 2.5 m of the
   ground; in full sun only a tenth of it, sunlit white (faint wisps over the bright ice).
-- **Plumes were tried and dropped.** Enceladus-style columns up to 34 m from the middle of each
-  crack looked like the rocket's smoke when they stood behind a landed rocket, and like grey
-  blobs floating off the edge from orbit.
+- **Plumes** (`MIST_LOOK.frosty.plume`), like Enceladus's "tiger stripe" geysers: six vents on
+  the cracks' middle lines (one or two per crack) each send up a stream of 28 puffs in the same
+  mesh. A puff shoots up from its vent, slowing as it climbs 38 to 58 m, fanning out its own way
+  (4 to 9 m by the top) and growing seven times as it thins away; each plume's puffs share one
+  climb time and are spread evenly through it, so the column is always full. They're drawn
+  stretched upwards (2.4 times, seen side-on) with the noise tile streaked along the way they
+  rise, so they read as thin feathered jets, not blobs, also at the world's edge. Lit by where
+  each puff really is (`sunlit()`: only the planet's shadow is dark), so over the night side a
+  plume is moonlit pale blue low down and shines where it rises into sunlight; faint cyan at
+  its foot at night, 45% by day. They last out to 420 to 900 m (approach and low orbit: faint
+  streaks rising from the surface; the globe: only a hint). (A first try was dropped for looking
+  like the rocket's smoke behind a landed rocket; the owner asked for them anyway.)
 - **Ice sparkles** (`SPARKLE` in `src/world/richLook.js`, only with `#define RL_SPARKLE`, so only
   Frosty's ground shader has them; every other world's is byte-for-byte what it was). One glint
   spot per cell of a grid on the ground, at a random point in it (3D cells, so the ground only
@@ -1277,10 +1286,11 @@ same soft style, one look, no setting.
   chain (`sparkleCell()`), so spots stay about 20 CSS pixels apart at any distance (sized in CSS
   pixels, so as big on a phone's sharp screen), and fade out as a pixel grows past 0.25 to 1.4 m:
   all of them landed and driving, a few faint ones on approach and in low orbit, none on the globe.
-- **Cost** (measured, 844 × 390): draw calls +1 on Frosty (the mist; e.g. 80 → 81 landed, 68 → 69
-  driving), 320 triangles; no per-frame CPU work beyond a few uniforms (the clouds' foci are
-  shared), nothing allocated. Mist overdraw (whole sprite discs, an upper bound): 0.07 of a screen
-  landed, 0.19 to 0.32 driving by a crack, 0.01 in low orbit. The sparkles are two glint lookups
+- **Cost** (measured, 844 × 390): draw calls +1 on Frosty (the mist and plumes are one mesh; e.g.
+  80 → 81 landed, 68 → 69 driving), 656 triangles (328 sprites); no per-frame CPU work beyond a
+  few uniforms (the clouds' foci are shared), nothing allocated. Overdraw of mist and plumes
+  (whole sprite discs, an upper bound): 0.14 to 0.36 of a screen landed, 0.29 to 0.51 driving by
+  a crack (the most parked right on it), 0.18 on approach, 0.05 in low orbit, 0.01 at the globe. The sparkles are two glint lookups
   (a few hashes each) per lit ice pixel of Frosty's ground; no difference showed in frame time in
   SwiftShader (the noise between runs was bigger).
 - **Not done:** the mist doesn't know about the drawn mesh's exact shape, so a wisp can hover a
