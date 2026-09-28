@@ -959,7 +959,7 @@ function makeYonder() {
       const hr = heartOf(x, y, z);
       out[0] = hr.near > 0 ? hr.u * H.size * R : 0;
       out[1] = hr.near > 0 ? hr.v * H.size * R : 0;
-      out[2] = hr.basin * (1 - hr.glacier);
+      out[2] = hr.basin * (1 - hr.glacier) * (1 - smooth(0, 0.03, hr.peak)); // (not on the mountains at its edge)
       out[3] = hr.glacier;
       out[4] = hr.glacier > 0 ? hr.flow : 0;
       return out;
@@ -989,7 +989,9 @@ function makeYonder() {
       // (Much darker than it looks: Ember's light over-exposes pale ground a lot, and the heart
       // must stay far brighter than its surroundings to read from space.)
       if (hr.near > 0) {
-        const k = hr.near * (1 - hr.in) * (1 - 0.55 * hr.eastSide); // (no dark halo round the frosty east)
+        // (Round the frosty east too, broken up, so the heart stands out from the pale plains
+        // there without a drawn outline.)
+        const k = hr.near * (1 - hr.in) * (1 - hr.eastSide * (0.25 + 0.35 * smooth(-0.2, 0.3, noise(x * 9 + 4, y * 9, z * 9 + 7))));
         c = mix(c, mix(rgb(0x7a4a30), rgb(0x5e3722), smooth(-0.3, 0.3, n)), k * (0.8 + 0.2 * noise(x * 5 + 9, y * 5, z * 5)));
         // A darker, redder rim where it meets the dark lands on its west (none round the east).
         c = mix(c, rgb(0x46241a), (1 - smooth(0.01, 0.07, hr.sd)) * (1 - hr.in) * 0.5 * (1 - hr.eastSide));
