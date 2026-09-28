@@ -1097,7 +1097,7 @@ export const KUBRICK = {
     { u: 16, v: -7, r: [7, 5], h: 5.5, turn: 0.9, tilt: 1, side: 0.55 },
   ],
 };
-const HITHER_PITS = randomDirs(307, 40);
+const HITHER_PITS = randomDirs(307, 90);
 
 function makeHither() {
   const { fbm, noise } = makeNoise(311);
@@ -1197,7 +1197,7 @@ function makeHither() {
     // ground lifted a little along the rim. Never near the flight plane.
     const plane = smooth(0.13, 0.2, Math.abs(z));
     if (plane > 0) {
-      const ch = chasmsAt(x, y, z, 2 * smooth(-0.12, 0.12, noise(x * 9 + 3, y * 9, z * 9 + 7)) - 1 + 0.5 * noise(x * 19, y * 19 + 5, z * 19));
+      const ch = chasmsAt(x, y, z, 1.5 * smooth(-0.12, 0.12, noise(x * 12 + 3, y * 12, z * 12 + 7)) - 0.75 + 0.4 * noise(x * 23, y * 23 + 5, z * 23));
       site.chasm = ch.deep * plane;
       site.wall = ch.k * (1 - ch.k) * 4 * plane;
       site.lip = ch.lip * plane;
@@ -1255,7 +1255,7 @@ function makeHither() {
   for (const [i, p] of HITHER_PITS.entries()) {
     const radius = 0.055 + p.size ** 3 * 0.11;
     if (Math.abs(p.z) - Math.sin(radius * 1.5) < 0.16) continue;
-    if (plains(p.x, p.y, p.z) > 0.5 && p.size < 0.6) continue;
+    if (plains(p.x, p.y, p.z) > 0.5 && p.size < 0.7) continue;
     if (Math.acos(Math.min(1, p.x * M.x + p.y * M.y + p.z * M.z)) < radius * 1.5 + (KUBRICK.moat[0] + KUBRICK.moat[1] + 4) / R) continue;
     if (chasmsAt(p.x, p.y, p.z).out < radius * 1.5 * R + 2) continue;
     pits.push({ ...p, radius, deep: radius * R * (0.3 + 0.08 * p.depth), fresh: i % 5 === 0, cos: Math.cos(Math.max(radius * 1.5, i % 5 === 0 ? radius * 3 : 0)) });
@@ -1282,7 +1282,7 @@ function makeHither() {
       const pl = plains(x, y, z);
       const s = siteOf(x, y, z);
       // Rugged in the north (hills and knobbly ground), smooth on the plains.
-      let h = fbm(x * 1.8, y * 1.8, z * 1.8, 3) * 1.6 * (1 - 0.6 * pl) + hills(x, y, z) * 1.2 * (1 - pl) + fbm(x * 5, y * 5, z * 5, 2) * 0.4 * (1 - 0.7 * pl) - 0.8 * pl;
+      let h = fbm(x * 1.8, y * 1.8, z * 1.8, 3) * 1.1 * (1 - 0.6 * pl) + hills(x, y, z) * 0.8 * (1 - pl) + fbm(x * 5, y * 5, z * 5, 2) * 0.35 * (1 - 0.7 * pl) - 0.6 * pl;
       h += s.pit;
       h += s.lip * 0.7 - s.chasm;
       h += s.mount;
@@ -1301,7 +1301,7 @@ function makeHither() {
       c = mix(c, rgb(0xeceff2), s.fresh * 0.85);
       // Chasms: pale ice broken open along the rims, grey-blue cliffs, dark floors.
       c = mix(c, rgb(0xc4c7cc), s.lip * 0.6);
-      c = mix(c, mix(rgb(0x6a6868), rgb(0x585456), n + 0.5), smooth(0.8, 4, s.chasm));
+      c = mix(c, mix(rgb(0x5c5a5c), rgb(0x4c494c), n + 0.5), smooth(0.8, 4, s.chasm));
       c = mix(c, rgb(0x7c8190), s.wall * 0.6);
       // The cap: deep reddish brown in the middle, fading out through rust to the grey.
       const k = cap(x, y, z);
