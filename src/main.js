@@ -10,6 +10,7 @@ import { FlightHud } from './ui/flightHud.js';
 import { PageZoom } from './ui/pageZoom.js';
 import { Narrator } from './ui/narrator.js';
 import { SpeechQueue } from './ui/speechQueue.js';
+import { stickerSpot } from './ui/stickerPop.js';
 import { AudioEngine } from './audio/audio.js';
 import { Progress, STICKERS, DISCOVERY_IDS, BAND_IDS, JOURNEY_DONE, goalShown } from './progress.js';
 import { friendLevels, FRIEND_BY_ID } from './physics/friends.js';
@@ -226,6 +227,7 @@ class App {
     box.style.animation = 'none';
     void box.offsetWidth;
     box.style.animation = '';
+    this.placeSticker(); // (a new line can make the bubble taller: keep the sticker clear of it)
     clearTimeout(this.pipTimer);
     this.pipTimer = null;
     return item.speak ? this.narrator.say(item.text) : false;
@@ -237,6 +239,35 @@ class App {
     const min = item.duration ?? 2500 + item.text.length * 55;
     const box = $('pip');
     this.pipTimer = setTimeout(() => box.classList.add('hidden'), Math.max(1500, min - shown));
+  }
+
+  /**
+   * Put the sticker that's popped up where it doesn't cover Pip's words (#62): beside, under or
+   * over the speech bubble, shrunk to fit a small screen (`stickerSpot()`). The bubble's layout
+   * box, not its drawn one, so its pop-in animation doesn't fool it.
+   */
+  placeSticker() {
+    const el = $('sticker-pop');
+    if (!el || el.classList.contains('hidden')) return;
+    const box = $('pip');
+    let bubble = null;
+    if (!box.classList.contains('hidden') && box.offsetWidth) {
+      // (#pip is centred with translateX(-50%): its layout box starts half its width further left.)
+      const left = box.offsetLeft - box.offsetWidth / 2;
+      bubble = { left, top: box.offsetTop, right: left + box.offsetWidth, bottom: box.offsetTop + box.offsetHeight };
+    }
+    // The free band: under the top bar and above the buttons at the bottom, where they're showing.
+    const view = { w: window.innerWidth, h: window.innerHeight };
+    for (const id of ['helpers', 'steer', 'go-btn', 'drive-tools']) {
+      const r = $(id)?.offsetParent ? $(id).getBoundingClientRect() : null;
+      if (r && r.height) view.bottom = Math.min(view.bottom ?? view.h, r.top - 6);
+    }
+    const bar = document.querySelector('#flight-screen:not(.hidden) .flight-top');
+    if (bar) view.top = Math.max(64, bar.getBoundingClientRect().bottom + 6);
+    const spot = stickerSpot(view, bubble);
+    el.style.left = `${spot.x}px`;
+    el.style.top = `${spot.y}px`;
+    el.style.setProperty('--pop', spot.scale.toFixed(3));
   }
 
   onSticker(id) {
@@ -259,6 +290,9 @@ class App {
       el.style.animation = '';
       clearTimeout(this.stickerTimer);
       this.stickerTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+      // Pip's line (the sticker's own) shows just after this: then place it clear of the bubble.
+      this.placeSticker();
+      Promise.resolve().then(() => this.placeSticker());
     };
     const line = id.startsWith('land-') ? `You landed on ${body.name}! ${body.blurb}` : st.say || st.name;
     // A sticker is worth waiting for: it keeps longer in the queue than other news, and a full
@@ -351,6 +385,7 @@ class App {
     this.renderer.setSize(w, h, false);
     this.flightScene.resize(w, h);
     this.builder.resize(w, h);
+    this.placeSticker();
   }
 
   /**

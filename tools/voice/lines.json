@@ -16,6 +16,10 @@
   "text": "A little lander, hiding in the shade!"
  },
  {
+  "key": "a little lander rests on a big space rock near yonders path",
+  "text": "A little lander rests on a big space rock near Yonder's path."
+ },
+ {
   "key": "a little probe with a parachute",
   "text": "A little probe with a parachute!"
  },
@@ -24,8 +28,16 @@
   "text": "A little robot called Philae landed on it!"
  },
  {
+  "key": "a little space rock bumped us",
+  "text": "A little space rock bumped us!"
+ },
+ {
   "key": "a long dark streak",
   "text": "A long dark streak!"
+ },
+ {
+  "key": "a real lander called mascot landed on a space rock called ryugu in 2018",
+  "text": "A real lander called MASCOT landed on a space rock called Ryugu in 2018."
  },
  {
   "key": "a real lander called philae landed on a comet",
@@ -190,6 +202,10 @@
  {
   "key": "bump",
   "text": "Bump!"
+ },
+ {
+  "key": "but plutos craters come from the few that did",
+  "text": "But Pluto's craters come from the few that did!"
  },
  {
   "key": "can you drive onto one",
@@ -720,6 +736,10 @@
   "text": "It's named Tombaugh Regio, after Clyde Tombaugh, who discovered Pluto."
  },
  {
+  "key": "its so empty that the rocks almost never bump into anything",
+  "text": "It's so empty that the rocks almost never bump into anything."
+ },
+ {
   "key": "kaboom",
   "text": "Kaboom!"
  },
@@ -1030,6 +1050,10 @@
  {
   "key": "look a glow deep in the crack",
   "text": "Look, a glow deep in the crack!"
+ },
+ {
+  "key": "look a little lander on a tumbling space rock",
+  "text": "Look, a little lander on a tumbling space rock!"
  },
  {
   "key": "look a storm with six straight sides like a honeycomb",
@@ -1592,6 +1616,10 @@
   "text": "The Monster Truck!"
  },
  {
+  "key": "the rocks gravity was so weak that mascot got around by hopping",
+  "text": "The rock's gravity was so weak that MASCOT got around by hopping!"
+ },
+ {
   "key": "the rover",
   "text": "The Rover!"
  },
@@ -1634,6 +1662,10 @@
  {
   "key": "this is the best campfire song ever",
   "text": "This is the best campfire song ever!"
+ },
+ {
+  "key": "this is yonders rock belt like the real kuiper belt",
+  "text": "This is Yonder's rock belt, like the real Kuiper belt!"
  },
  {
   "key": "titan has lakes and rain but theyre made of methane not water",

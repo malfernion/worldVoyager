@@ -183,13 +183,21 @@ a moat. The two always face each other as
 they go round, like two dancers holding hands, so both turn slowly as Hither goes round (a day
 there is about 25 minutes). Hop across from Yonder, land and drive down into the big chasm!
 
+**The frontier:** out round Yonder's distance a sparse belt of small icy rocks (grey ice and
+reddish ones, a few bigger, one shaped like a snowman) circles Ember, like the Kuiper belt: a wide,
+thick band, rocks far apart above and below you, each slowly tumbling. It's so empty that you fly
+straight through the gaps, but now and then one of a few rocks on tilted orbits crosses your path
+and gives you a little bonk (never a crash). About every ten minutes a small rock falls onto
+Yonder (now and then Hither) in a bright puff of ice dust: watch from orbit or the map! On the zoomed-out map the belt is a faint broad band of dots. Somewhere out
+there, near Yonder's path, a little lander rests on a big tumbling rock. Can you find it?
+
 **Discoveries:** little secrets hide around the solar system, each one a real bit of space
 science: an old observatory on a hill near home, footprints and a flag and a shiny laser mirror
 on Pebble, a sleepy rover and swirly dust devils on Dusty, Nibble's giant crater, the gap
 between Ringo and its rings, Sizzle's biggest volcano, Frosty's glowing cracks (park by one
 at night), a little probe that floated down on a parachute by one of Misty's lakes, Ember's solar flares (fly close, not too close), Tumble's giant six-sided storm (can you spot it?), Flip's dark geyser streaks, a
-little lander hiding in the shade on Ducky, Yonder's giant heart and Yonder and Hither dancing
-together (can you see them both at once?). While you drive, a ✨ next to the rocket compass
+little lander hiding in the shade on Ducky, Yonder's giant heart, Yonder and Hither dancing
+together (can you see them both at once?) and a little lander on a tumbling space rock near Yonder's path. While you drive, a ✨ next to the rocket compass
 points to the nearest secret still to find on that world, and grows and twinkles as you get
 close. Finding one plays a chime, pops a sticker and Pip tells you the real fact.
 
@@ -218,7 +226,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Misty's haze bands and rain, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), Yonder (#62: its orbit, landing, driving, trips there, the dim far light), Hither (#62 stage 3: its orbit, the two facing each other, landing and driving on turning ground, hops, the double world; its cracked ice), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Misty's haze bands and rain, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), Yonder (#62: its orbit, landing, driving, trips there, the dim far light), Hither (#62 stage 3: its orbit, the two facing each other, landing and driving on turning ground, hops, the double world; its cracked ice), the frontier (#62 stage 4: the rock belt and its tumbling rocks, the lander and finding it, the crossers' nudges and puffs), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

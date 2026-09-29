@@ -180,6 +180,13 @@ export const STICKERS = {
     say: 'Look, Yonder and Hither spin round together! Pluto and its moon Charon always face each other, like two dancers holding hands!',
     hint: 'Yonder and Hither are doing something together. Can you see them both at once?',
   },
+  // The lander on a belt rock (#62 stage 4): found by seeing it up close (discoveries.js). Philae is
+  // Ducky's (find-philae), so this one is MASCOT, which hopped about on Ryugu.
+  'find-lander': {
+    icon: '🪨', name: 'Rock Hopper', world: 'yonder',
+    say: 'Look, a little lander on a tumbling space rock! A real lander called MASCOT landed on a space rock called Ryugu in 2018. The rock\'s gravity was so weak that MASCOT got around by hopping!',
+    hint: 'A little lander rests on a big space rock near Yonder\'s path. Can you find it?',
+  },
 
   // Pip's friends, the space band (#16): where they are, what they play and how loud they are is
   // src/physics/friends.js. `say` is Pip's hello (and again when tapped in the sticker book);

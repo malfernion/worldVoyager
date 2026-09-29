@@ -18,7 +18,9 @@ import { createSky } from '../world/sky.js';
 import { SKY_LOOK, farLight, FAR_LIGHT } from '../world/planets.js';
 import { rainVolume } from '../world/rain.js';
 import { DriveMode } from './drive.js';
-import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, pairSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
+import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, pairSeen, landerSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
+import { createFrontier, BELT_LOOK } from '../world/frontier.js';
+import { BELT, crosserHitsBetween } from '../physics/frontier.js';
 import { HEXAGON } from '../world/richLook.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
@@ -28,6 +30,14 @@ import {
   handoffCarry, handoffCalm, easeCarry, HANDOFF_TURN,
 } from '../ui/zoom.js';
 import { GOALS, STARTER_END } from '../progress.js';
+
+// The falls onto Yonder and Hither (#62 stage 4): the most game time one frame covers (more is a
+// jump, and nothing puffs), and how near the camera a fall must be to puff at all (metres).
+const IMPACT_FRAME = 120;
+const IMPACT_NEAR = 40000;
+
+// The lander's size for seeing it (#62 stage 4): half its height, metres.
+const LANDER_LOOK = { half: BELT_LOOK.lander / 2 };
 
 // A splash's two colours: white and blue for water (#44), pale and dark amber for methane (#46).
 const WATER_SPLASH = [0xeaf7ff, 0x9fd6ee];
@@ -130,6 +140,10 @@ export class FlightScene {
     this.ambient = new THREE.AmbientLight(0x404060, 0.35);
     this.scene.add(this.hemi, this.ambient);
     this.initFarLight();
+    // The frontier (#62 stage 4): the icy-rock belt round Yonder's distance, tumbling, and the
+    // little lander on one of its big rocks. Only the look: placed each frame by updateFrontier().
+    this.frontier = createFrontier(this.system);
+    this.scene.add(this.frontier.belt.group, this.frontier.belt.dots, this.frontier.lander.group);
 
     this.rocketHolder = new THREE.Group();
     this.scene.add(this.rocketHolder);
@@ -774,6 +788,17 @@ export class FlightScene {
         this.keepView(d.from);
         break;
       }
+      case 'bump': {
+        // One of the belt's few crossers nudged us (#62 stage 4): a bonk and a puff of ice dust,
+        // and Pip says what it was, once.
+        app.audio.play('bonk');
+        this.bumpPuff(d);
+        if (app.progress.explained && !app.progress.explained('bump')) {
+          app.progress.markExplained('bump');
+          app.pip('Bonk! A little space rock bumped us!', { speak: true, key: 'bump' });
+        }
+        break;
+      }
       case 'landed': {
         const b = d.body;
         app.audio.play('land');
@@ -1003,10 +1028,12 @@ export class FlightScene {
     const rw = f.worldPos(this.tmp);
     this.placeOrigin(rw);
     this.placeBodies(s.t);
+    this.updateImpacts();
     this.updateFarLight(rw);
     this.placeRocket(rw);
     this.updateEffects(dt);
     this.updateCamera(dt);
+    this.updateFrontier();
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
@@ -1509,6 +1536,7 @@ export class FlightScene {
     this.origin.y = this.drive.world.y;
     this.drive.place(this.input);
     this.placeBodies(s.t);
+    this.updateImpacts(); // (a fall onto the world we're driving on is a puff to watch, nothing more)
     this.updateFarLight(this.drive.world);
     this.placeRocket(f.worldPos(this.tmp));
     this.particles.update(dt, s.t, this.origin);
@@ -1516,6 +1544,7 @@ export class FlightScene {
     this.camera.far = 3e6;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
+    this.updateFrontier(); // (hidden while driving)
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
@@ -1542,6 +1571,7 @@ export class FlightScene {
     if (s.body === home && inStableOrbit(f)) p.earn('orbit');
     if (s.body.kind === 'star' && Math.hypot(s.x, s.y) < s.body.radius * 3) p.earn('sun');
     this.checkDiscoveries();
+    this.checkBelt();
     this.checkBand(this.lastDt ?? 0, s.body === home && s.landed);
   }
 
@@ -1569,6 +1599,125 @@ export class FlightScene {
     if (!p.has('find-hexagon') && this.hexagonInView()) this.found('find-hexagon');
     if (!p.has('find-heart') && this.heartInView()) this.found('find-heart');
     if (!p.has('find-dancers') && this.pairInView()) this.found('find-dancers');
+    if (!p.has('find-lander') && this.landerInView()) this.found('find-lander');
+  }
+
+  /**
+   * The first time we fly out into the belt (#62 stage 4), Pip says what it is: like the real
+   * Kuiper belt, so empty that rocks hardly ever meet anything, but some did.
+   */
+  checkBelt() {
+    const p = this.app.progress;
+    if (!p.explained || p.explained('belt') || this.drive?.active) return;
+    const w = this.flight.worldPos(this.beltTmp ??= {});
+    if (Math.hypot(w.x, w.y) < BELT.inner) return;
+    p.markExplained('belt');
+    this.app.pip('This is Yonder\'s rock belt, like the real Kuiper belt! It\'s so empty that the rocks almost never bump into anything. But Pluto\'s craters come from the few that did!', { speak: true, key: 'belt' });
+  }
+
+  /**
+   * Is the little lander (#62 stage 4) on its tumbling belt rock in view, facing us and close
+   * enough to make out? From where the camera and the lander were last frame (flight view or map);
+   * not while driving; no allocation.
+   */
+  landerInView() {
+    const fr = this.frontier;
+    if (!fr || this.drive?.active || this.crashed || !fr.lander.group.visible) return false;
+    const cam = this.camera;
+    const v = this.landerView ??= { x: 0, y: 0, behind: false, facing: 0, px: 0, p: new THREE.Vector3(), to: new THREE.Vector3() };
+    // Its middle: half its height up from its feet.
+    v.p.copy(fr.lander.up).multiplyScalar(LANDER_LOOK.half).add(fr.lander.group.position);
+    v.to.copy(cam.position).sub(v.p);
+    const dist = v.to.length();
+    v.facing = v.to.dot(fr.lander.up) / Math.max(dist, 1e-6);
+    v.px = (LANDER_LOOK.half * window.innerHeight) / (2 * Math.max(dist, 1) * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
+    v.p.project(cam);
+    v.x = v.p.x;
+    v.y = v.p.y;
+    v.behind = v.p.z > 1;
+    return landerSeen(v);
+  }
+
+  /**
+   * A crosser nudged the rocket (#62 stage 4, the sim's 'bump'): a small puff of grey ice dust
+   * where it touched, on the far side from the way we were pushed.
+   */
+  bumpPuff(d) {
+    const s = this.flight.state;
+    for (let i = 0; i < 16; i++) {
+      const a = Math.atan2(-d.y, -d.x) + (Math.random() - 0.5) * 2.2;
+      const sp = 2 + Math.random() * 4;
+      this.particles.spawn('puff', s.body, s.x - d.x * 3, s.y - d.y * 3, (Math.random() - 0.5) * 3,
+        s.vx + Math.cos(a) * sp, s.vy + Math.sin(a) * sp, (Math.random() - 0.5) * sp, {
+          size: 1.5 + Math.random(), grow: 2.5, life: 1.6 + Math.random(), drag: 0.8, color: i % 3 ? 0xdfe6ee : 0x9aa4b0,
+        });
+    }
+  }
+
+  /**
+   * Rocks reaching Yonder or Hither (#62 stage 4, `crosserHitsBetween()`: the falls, about one
+   * every ten minutes, and the crossers'; pure, from the game clock): a big puff of ice dust where
+   * each one lands, seen from orbit. Only for game time that has just passed in one frame (not after
+   * a rewind or a jump: `IMPACT_FRAME`), and only near the camera (`IMPACT_NEAR`), so warping past
+   * Yonder never fills the particle pool with puffs nobody sees.
+   */
+  updateImpacts() {
+    const t = this.flight.state.t, last = this.lastHitT;
+    this.lastHitT = t;
+    if (last === undefined || !(t > last) || t - last > IMPACT_FRAME) return;
+    crosserHitsBetween(this.system, last, t, this.onImpact ??= (hit) => {
+      const w = hit.body.worldPos(this.flight.state.t, this.impactTmp ??= {}); // (not `t`: this closure is kept)
+      const cam = this.camera.position;
+      if (Math.hypot(w.x - this.origin.x - cam.x, w.y - this.origin.y - cam.y) > IMPACT_NEAR) return;
+      this.impactPuff(hit);
+    });
+  }
+
+  /** A crosser landed on a world (`hit`: crosserHit()'s): a spray of ice dust up off its ground. */
+  impactPuff(hit) {
+    const r = hit.body.radius;
+    const nx = hit.x / r, ny = hit.y / r, nz = hit.z / r;
+    // A short bright flash (additive glow), a few sparks, then a big plume of pale bluish-white
+    // ice dust up off the ground and a ring of it along the ground; one in four puffs a little
+    // greyer, so it reads against pale ice too. All from the one particle pool.
+    const lift = 4;
+    const px = hit.x + nx * lift, py = hit.y + ny * lift, pz = hit.z + nz * lift;
+    this.particles.spawn('spark', hit.body, px, py, pz, 0, 0, 0, { size: 120, grow: 1, life: 1, drag: 0, color: 0xdcefff });
+    for (let i = 0; i < 6; i++) {
+      const sp = 20 + Math.random() * 20;
+      const jx = (Math.random() - 0.5) * 1.6, jy = (Math.random() - 0.5) * 1.6, jz = (Math.random() - 0.5) * 1.6;
+      this.particles.spawn('spark', hit.body, px, py, pz, (nx + jx) * sp, (ny + jy) * sp, (nz + jz) * sp, { size: 6, grow: -0.6, life: 1 + Math.random() * 0.6, drag: 0.8, color: 0xeaf6ff });
+    }
+    for (let i = 0; i < 48; i++) {
+      const ring = i % 3 === 0;
+      const sp = ring ? 6 + Math.random() * 8 : 4 + Math.random() * 12;
+      // Along the ground (the ring) or up off it (the plume).
+      let jx = (Math.random() - 0.5) * 2, jy = (Math.random() - 0.5) * 2, jz = (Math.random() - 0.5) * 2;
+      const d = jx * nx + jy * ny + jz * nz;
+      if (ring) { jx -= d * nx; jy -= d * ny; jz -= d * nz; } else { jx = nx + jx * 0.6; jy = ny + jy * 0.6; jz = nz + jz * 0.6; }
+      this.particles.spawn('puff', hit.body, px, py, pz, jx * sp, jy * sp, jz * sp, {
+        size: 14 + Math.random() * 14, grow: 4.5, life: 9 + Math.random() * 4, drag: 0.35,
+        color: i % 4 === 0 ? 0x9fb0c2 : i % 2 ? 0xe8f4ff : 0xbcd6ee,
+      });
+    }
+    this.app.audio?.play?.('thump');
+  }
+
+  /** Place the frontier (#62 stage 4: the belt and the lander) for this frame, after the camera. */
+  updateFrontier() {
+    const fr = this.frontier;
+    if (!fr) return;
+    const cam = this.camera;
+    const c = this.frontierCtx ??= { t: 0, time: 0, origin: this.origin, camera: cam, mode: 'flight', camWorld: { x: 0, y: 0 }, camHeight: 0, yonder: null, viewH: 1 };
+    c.t = this.flight.state.t;
+    c.time = this.time;
+    c.mode = this.drive.active ? 'drive' : this.mode;
+    c.camWorld.x = cam.position.x + this.origin.x;
+    c.camWorld.y = cam.position.y + this.origin.y;
+    c.camHeight = Math.abs(cam.position.z);
+    c.yonder = (this.yonderVisual ??= this.visuals.find((x) => x.body.id === 'yonder'))?.group ?? null;
+    c.viewH = window.innerHeight;
+    fr.update(c);
   }
 
   /**

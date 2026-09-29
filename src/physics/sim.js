@@ -2,6 +2,7 @@
 // landing and (cartoon) crashing. Frame of reference is always the current SOI body.
 import { propagate, elements } from './orbit.js';
 import { LAUNCH_ANGLE } from './bodies.js';
+import { crosserTouch, CROSS } from './frontier.js';
 
 const MAX_STEP_DIST = 15;
 const THRUST_STEP = 1 / 120;
@@ -49,6 +50,7 @@ export class Flight {
     this.targetAngle = null; // autopilot steering target (world angle), or null
     this.dvUsed = 0; // total speed change from the engine, used by the helpers
     this.lastGood = {}; // state before the current substep, to fall back to (#30)
+    this.bumpDir = { x: 0, y: 0 }; // which way a crosser's nudge pushes (#62 stage 4)
     this.resetToPad(0);
   }
 
@@ -224,8 +226,24 @@ export class Flight {
         return true;
       }
     }
+    this.checkBump();
     this.checkSoi();
     return true;
+  }
+
+  /**
+   * One of the belt's few crossers (#62 stage 4, frontier.js) touching the flying rocket: a small
+   * nudge off course, once a crossing (`bumped` is in the state, so rewinding and replaying
+   * agree). Never a crash, never damage; landed rockets aren't in here.
+   */
+  checkBump() {
+    const s = this.state;
+    const key = crosserTouch(this.system, s.body, s.x, s.y, s.t, this.bumpDir);
+    if (key < 0 || key === s.bumped) return;
+    s.bumped = key;
+    s.vx += this.bumpDir.x * CROSS.bump;
+    s.vy += this.bumpDir.y * CROSS.bump;
+    this.emit('bump', { body: s.body, x: this.bumpDir.x, y: this.bumpDir.y });
   }
 
   touchdown() {
