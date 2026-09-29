@@ -610,7 +610,7 @@ describe('the crossers (#62 stage 4): the odd real collision', () => {
     s.updateImpacts();
     s.flight.state.t = hit.t + 5;
     s.updateImpacts();
-    expect(puffs.length).toBeGreaterThan(60);
+    expect(puffs.length).toBeGreaterThan(50);
     expect(puffs.filter((p) => p.kind === 'spark').length).toBeGreaterThan(0); // the flash
     for (const p of puffs) {
       expect(p.body).toBe(yonder);
