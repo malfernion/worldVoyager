@@ -8,32 +8,37 @@ import { mulberry32 } from './noise.js';
 /**
  * The belt: `count` small icy rocks in a ring round Ember, `inner` to `outer` from it (Yonder's
  * closest and farthest), thickest round `mid` (Yonder's average), all a little behind the flight
- * plane (`zNear` to `zFar` below it: never in front of the rocket, and deeper than Yonder's or
- * Hither's radius, so no rock is ever inside a world). They're split into `sectors` arcs, each
+ * plane (`zNear` to `zFar` below it, plus most of their size: all of each rock is behind
+ * the flight plane by more than their own size, so never in front of the rocket). They're split into `sectors` arcs, each
  * drawn round its own middle, so no instance is ever far from its mesh's origin (no float jitter
  * far out) and whole arcs off screen are culled. The ring turns slowly as one, the way Yonder goes
  * round (its mean motion), on the game clock. `size`: a rock's width, small to big.
  * Near Yonder the rocks shrink away (`clear`, metres from its middle: gone inside the first, full
- * size past the second): out of the way of Yonder, Hither and the probe's pass.
+ * size past the second): out of the way of Yonder, Hither (1,600 out, radius 85) and the probe's
+ * pass, so no rock is ever drawn inside a world (no other world comes within 20,000 of the belt).
  */
 export const BELT = {
-  count: 4800, inner: 80000, outer: 140000, mid: 110000, sectors: 36,
-  zNear: 250, zFar: 1800, size: [12, 64], seed: 6204, clear: [2200, 3400],
+  count: 7000, inner: 80000, outer: 140000, mid: 110000, sectors: 36,
+  zNear: 15, zFar: 700, size: [18, 110], seed: 6204, clear: [2200, 3400],
 };
 
 // A few bigger ones, for interest, like the Kuiper belt's named worlds: `kind` snowman (two lobes
 // stuck together, like Arrokoth), egg (stretched and spinning, like Haumea) or round (like
 // Makemake); `a` the angle round Ember (at t = 0), `r` from Ember, `z` behind the plane, `size`
-// its width (metres), `tint` 0 pale ice, 1 reddish tholin.
+// its width (metres; the egg is twice as long, the snowman 1.4 times: `BIG_REACH`), `tint` 0 pale
+// ice, 1 reddish tholin. All smaller than Hither, so none looks like a world.
 export const BIG_ROCKS = [
-  { kind: 'snowman', a: 0.4, r: 104000, z: -520, size: 150, tint: 1 },
-  { kind: 'round', a: 1.3, r: 118000, z: -900, size: 220, tint: 0 },
-  { kind: 'egg', a: 2.2, r: 97000, z: -650, size: 200, tint: 0 },
-  { kind: 'snowman', a: 3.0, r: 113000, z: -480, size: 130, tint: 1 },
-  { kind: 'round', a: 3.9, r: 124000, z: -1100, size: 180, tint: 1 },
-  { kind: 'egg', a: 4.8, r: 108000, z: -700, size: 170, tint: 0 },
-  { kind: 'snowman', a: 5.6, r: 92000, z: -560, size: 140, tint: 1 },
+  { kind: 'snowman', a: 0.4, r: 104000, z: -100, size: 110, tint: 1 },
+  { kind: 'round', a: 1.3, r: 118000, z: -100, size: 130, tint: 0 },
+  { kind: 'egg', a: 2.2, r: 97000, z: -100, size: 80, tint: 0 },
+  { kind: 'snowman', a: 3.0, r: 113000, z: -90, size: 95, tint: 1 },
+  { kind: 'round', a: 3.9, r: 124000, z: -100, size: 120, tint: 1 },
+  { kind: 'egg', a: 4.8, r: 108000, z: -95, size: 75, tint: 0 },
+  { kind: 'snowman', a: 5.6, r: 92000, z: -95, size: 100, tint: 1 },
 ];
+
+/** How far each big kind reaches across, in its `size`s. */
+export const BIG_REACH = { round: 1.2, egg: 2.0, snowman: 1.4 };
 
 /** Which arc of the belt an angle round Ember (radians) is in. */
 export function sectorOf(a) {
@@ -58,9 +63,9 @@ export function beltPlan() {
     const r = BELT.mid + half * ((rand() + rand() + rand() - 1.5) / 1.5);
     const a = rand() * Math.PI * 2;
     const k = rand();
-    const z = -(BELT.zNear + (BELT.zFar - BELT.zNear) * k * k);
     const u = rand();
     const size = BELT.size[0] + (BELT.size[1] - BELT.size[0]) * u * u * u;
+    const z = -(BELT.zNear + size * 0.8 + (BELT.zFar - BELT.zNear) * k * k);
     const stretch = [0.75 + rand() * 0.6, 0.6 + rand() * 0.45, 0.75 + rand() * 0.5];
     // A random turn (a unit quaternion, uniform).
     const u1 = rand(), u2 = rand() * Math.PI * 2, u3 = rand() * Math.PI * 2;
@@ -100,7 +105,8 @@ export function beltClear(d) {
 /**
  * The probe (like New Horizons): every `period` game seconds it flies past Yonder on a straight
  * line (in Yonder's frame), from `reach` metres before its closest to `reach` after, passing
- * `pass` metres from Yonder's middle (2.2 of Yonder's radii over the ground, well inside its SOI
+ * `pass` metres from Yonder's middle (120 m over its ground, about 80 m above a parked
+ * rocket's orbit, so it's in view zoomed out a little; well inside its SOI
  * and far from Hither: the pass is always on the side away from where Hither is at the closest,
  * which is Yonder's heart side, as New Horizons' was), `z` behind the flight plane (never in front
  * of the rocket). It heads away from Ember, like the real one leaving the Sun behind. It fades in
@@ -108,7 +114,7 @@ export function beltClear(d) {
  * back to the start is never seen. `radius`: about half its size (metres), for seeing it.
  * Speed: 2 × reach / period = 40 m/s, about three times as fast as a low orbit round Yonder.
  */
-export const PROBE = { period: 400, reach: 8000, pass: 550, z: -40, fade: 0.15, radius: 6 };
+export const PROBE = { period: 400, reach: 8000, pass: 290, z: -15, fade: 0.15, radius: 6 };
 
 const tmpY = { x: 0, y: 0 }, tmpH = { x: 0, y: 0 };
 /**

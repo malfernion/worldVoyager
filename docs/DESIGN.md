@@ -761,6 +761,7 @@ world's picture), and Pip says the fact in short sentences.
 | Tumble | a Saturn-style six-sided storm round the pole the cameras see (#55) | seeing it: its middle on screen clear of the buttons, facing us, at least 16 px across its flat sides' radius (flight view or map; `FlightScene.hexagonInView()`) | 🐝 Hexagon Hunter (Saturn's north-pole hexagon; two Earths could fit inside it) |
 | Flip | the dark streaks the geysers' dust leaves downwind | buggy within 8 m of one | 🌬️ Streak Spotter (Voyager 2 at Triton) |
 | Ducky | Philae, tipped over in a shady hollow by a big boulder | buggy within 6 m | 📡 Lander Finder |
+| Yonder | the probe (#62 stage 4), New Horizons-style, flying past Yonder every 400 s of game time | seeing it: on screen clear of the buttons, at least 2.5 px in radius or the rocket within 500 m (`FlightScene.probeInView()`) | 📸 Probe Spotter (New Horizons at Pluto in 2015, the fastest launch, then Arrokoth) |
 
 - **Night is real.** The worlds don't spin, so which side is dark only changes as they go
   round Ember. Frosty has four glowing cracks spread round it, so one is always on the night
@@ -1654,6 +1655,75 @@ tidally locked, always facing each other ("like two dancers holding hands").
   at a chasm's cliff the buggy climbs it and leaps off the top (arcade traction, low gravity: a
   long hop, harmless); Yonder hangs in Hither's sky (always in the same spot,
   as from Charon), but the drive camera looks along the ground, so you mostly see it from space.
+
+## The frontier: the icy-rock belt and the probe (#62, stage 4)
+
+The owner's stage 4: "a sparse belt of icy bodies at that distance, and a probe easter egg (New
+Horizons-style flying past, Voyager-style heading out)". Both are only the look: neither is a
+physics body, so the sim, prediction, the helpers and `npm run stress` never see them (a test
+checks the physics files never import them), and nothing can crash into them.
+
+- **The belt** (`BELT`, `beltPlan()` in `src/physics/frontier.js`; drawn by
+  `src/world/frontier.js`): 7,000 small lumpy rocks in a ring round Ember from 80,000 to 140,000
+  (Yonder's closest and farthest), thickest round 110,000 (Yonder's average): three uniforms
+  added, so a soft hump, a few kilometres apart. 18 to 110 m across, mostly small; about a third
+  reddish-brown tholin, the rest grey and bluish ice; plus seven bigger ones (`BIG_ROCKS`), all
+  smaller than Hither: three two-lobed snowmen like Arrokoth, two eggs like Haumea, two round ones.
+  The crisp cartoon look: faceted toon lumps with ink, lit by Ember's (dim, cold, far) light, with
+  a little light of their own so the side away from Ember still reads against the sky.
+  - *Behind the flight plane*: every rock is below z = 0 by more than its own size (15 to 700 m
+    deep), so it's never in front of the rocket, a marker or a path.
+  - *Never inside a world*: no other world comes within 20,000 of the ring (tested over time), and
+    near Yonder the rocks shrink away in the shader (`BELT.clear`, 2,200 to 3,400 from its middle,
+    `beltClear()` the same sums): clear of Yonder, Hither and the probe's pass (tested over a year).
+  - *Turning slowly*: the whole ring turns as one at Yonder's mean motion (`beltTurn()`, the game
+    clock), so it drifts the way Yonder goes round; one rotation per mesh, nothing per rock.
+  - *No jitter far out, few draw calls*: the ring is 36 arcs (`sectors`), each one InstancedMesh
+    (plus its ink, sharing the matrices) drawn round its own middle, so no instance is more than
+    35 km from its mesh's origin (float32 steps under 4 mm), and arcs off screen are frustum-culled
+    whole. Each frame only the arcs' positions (middle, turned, less the floating origin) change.
+    The big ones are an instance each. One rock material and one ink material for everything.
+  - *Specks, not nothing*: at the flight camera's cruising distances (6 to 15 km) a 30 m rock would
+    be under a pixel, so the shader grows a rock to at least `minPx` (5) pixels across, at most 10
+    times (`beltGrow()`): a field of small grey and brown lumps drifting past with parallax.
+  - *When it's drawn* (`beltShown()`, `dotsShown()`): the meshes only in the flight view or the map
+    with the camera under 30,000 over the plane and within reach of the ring, never while driving;
+    so on the pad and anywhere inside Tumble's orbit nothing is drawn (the start is unchanged:
+    screenshots before and after differ only by the usual run-to-run smoke and clouds). On the map zoomed out, where every rock is far under a pixel, the belt is one
+    draw call of faint dots (`THREE.Points`, all 7,007, 2 px, opacity 0.4), fading in from a
+    map camera height of 14,000 to 40,000; in the default map it's a faint hint in the corners.
+  - *Cost*: flying in the belt, about 8 to 10 more draw calls and 30,000 to 40,000 triangles (the
+    arcs in view and their ink); one more on the zoomed-out map; nothing elsewhere. Per frame: 43
+    positions and rotations and a few uniforms; nothing allocated.
+- **The probe** (`PROBE`, `probeAt()` in `src/physics/frontier.js`, `createProbe()`): a cartoon New
+  Horizons, about 12 m across (gold triangular body, white dish with its feed, the dark power
+  stick with fins, ink), its dish towards Ember and tipped up to the cameras, turning slowly.
+  - *Its path, from the game clock*: every 400 s of game time it flies past Yonder in a straight
+    line (in Yonder's frame) at 40 m/s (about twice a low orbit's speed round Yonder), from 8,000
+    before its closest to 8,000 after, 290 from Yonder's middle (about 80 m above the parking
+    orbit), 15 m behind the plane. The line is set by where Hither is at the closest: the probe
+    passes on the side away from it, which is Yonder's heart side, as New Horizons' was; it heads
+    away from Ember. It fades in and out at the ends of a pass, far outside Yonder's SOI, so its
+    jump back to the start is never seen. Pure: the same time always gives the same place (saves,
+    rewind and warp agree; tested), never inside a world (stepped over 60 passes: at least 290
+    from Yonder's middle and 1,500 from Hither's).
+  - *A glint*: while it's small on screen a twinkling four-pointed glint (Ember's far glint) marks
+    it, fading as the probe grows; so from the map zoomed on Yonder, or a zoomed-out flight view,
+    a moving star shows where it is. Drawn only within 40 km of the camera, never while driving.
+  - *Finding it* (`find-probe`, `probeSeen()` / `PROBE_VIEW`, `FlightScene.probeInView()`): seeing
+    it fly past in the flight view or the map, like the hexagon and the heart: on screen clear of
+    the buttons, properly there (not fading), and at least 2.5 px in radius or with the rocket
+    within 500 m. Parked in a low orbit round Yonder, zoomed out a little (×3 or more), it's found
+    as it flies past on every pass (tested). Pip: "Look, a little space probe zooming past! A
+    real probe called New Horizons flew past Pluto in 2015. It left Earth faster than any
+    spacecraft before it! Then it flew on and visited a space rock shaped like a snowman." Hint:
+    "Something tiny zooms past Yonder now and then. Can you spot it?" It's not a ground
+    discovery: the ✨ compass (driving only) doesn't point at it.
+- **Not done / weak spots**: no Voyager-style probe heading out beyond (only the New Horizons one);
+  the belt's rocks don't tumble (only the ring turns); Pip doesn't say anything on crossing into
+  the belt; at the default parked zoom the probe passes just above the top of the screen, so it
+  needs a little zooming out (the hint says to watch for it); the grown far rocks are specks
+  with no visible ink.
 
 ## Ideas for later
 

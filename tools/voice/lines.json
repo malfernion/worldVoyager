@@ -36,6 +36,10 @@
   "text": "A real probe called Huygens landed on Titan."
  },
  {
+  "key": "a real probe called new horizons flew past pluto in 2015",
+  "text": "A real probe called New Horizons flew past Pluto in 2015."
+ },
+ {
   "key": "a real rover called opportunity explored mars",
   "text": "A real rover called Opportunity explored Mars."
  },
@@ -700,6 +704,10 @@
   "text": "It is wrapped in a thick orange haze."
  },
  {
+  "key": "it left earth faster than any spacecraft before it",
+  "text": "It left Earth faster than any spacecraft before it!"
+ },
+ {
   "key": "it saw pebbles made of ice",
   "text": "It saw pebbles made of ice!"
  },
@@ -1030,6 +1038,10 @@
  {
   "key": "look a glow deep in the crack",
   "text": "Look, a glow deep in the crack!"
+ },
+ {
+  "key": "look a little space probe zooming past",
+  "text": "Look, a little space probe zooming past!"
  },
  {
   "key": "look a storm with six straight sides like a honeycomb",
@@ -1400,6 +1412,10 @@
   "text": "Something tiny is making music on Nibble."
  },
  {
+  "key": "something tiny zooms past yonder now and then",
+  "text": "Something tiny zooms past Yonder now and then."
+ },
+ {
   "key": "sometimes ember flares up",
   "text": "Sometimes Ember flares up!"
  },
@@ -1598,6 +1614,10 @@
  {
   "key": "the wind blew the geysers dust across the ice",
   "text": "The wind blew the geyser's dust across the ice."
+ },
+ {
+  "key": "then it flew on and visited a space rock shaped like a snowman",
+  "text": "Then it flew on and visited a space rock shaped like a snowman."
  },
  {
   "key": "then its solar panels could not get enough sunlight",

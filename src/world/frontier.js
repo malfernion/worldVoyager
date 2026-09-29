@@ -18,15 +18,16 @@ import { BELT, BIG_ROCKS, beltPlan, sectorMiddle, beltTurn, probeAt, PROBE } fro
 /**
  * How it's drawn: rock colours (`ice` grey and bluish, `tholin` reddish-brown), the ink's
  * thickness (unit-rock space), when the rock meshes show (`meshTop`: the camera no higher over
- * the plane than this; `band`: within this much of the belt, plus twice the camera's height),
- * the map's dots (`dots`: shown from `dotsFrom` to `dotsFull` of the map camera's height, pixel
+ * the plane than this; `band`: within this much of the belt, plus 1.2 times the camera's height),
+ * a floor on a rock's size on screen (`minPx` pixels across, growing at most `maxGrow` times:
+ * `beltGrow()`), the map's dots (`dots`: shown from `dotsFrom` to `dotsFull` of the map camera's height, pixel
  * `dotSize`, `dotOpacity`), and the probe's glint (`glint`: its size on screen, a share of the
  * view's height; seen within `glintFar` metres; gone once the probe is `glintPx` pixels across).
  */
 export const BELT_LOOK = {
-  ice: [0xd6dee8, 0xb4c0cd, 0x98a4b3, 0xc9d8e8], tholin: [0xa8674c, 0x8a5240, 0xb87e5e],
-  ink: 0.07, meshTop: 30000, band: 6000,
-  dotsFrom: 14000, dotsFull: 40000, dotSize: 2.2, dotOpacity: 0.75,
+  ice: [0xdde5ee, 0xbcc8d4, 0xa3afbd, 0xd0dff0], tholin: [0xc07a5a, 0xa8654c, 0xcf9270],
+  ink: 0.07, meshTop: 30000, band: 3000, minPx: 5, maxGrow: 10,
+  dotsFrom: 14000, dotsFull: 40000, dotSize: 2, dotOpacity: 0.4,
   glint: 0.045, glintFar: 40000, glintPx: 14,
 };
 
@@ -38,8 +39,9 @@ export const BELT_LOOK = {
 function clearShader(shader, uniforms, push = 0) {
   shader.uniforms.fcAt = uniforms.fcAt;
   shader.uniforms.fcClear = uniforms.fcClear;
+  shader.uniforms.fcGrow = uniforms.fcGrow;
   shader.vertexShader = shader.vertexShader
-    .replace('#include <common>', '#include <common>\nuniform vec3 fcAt;\nuniform vec2 fcClear;')
+    .replace('#include <common>', '#include <common>\nuniform vec3 fcAt;\nuniform vec2 fcClear;\nuniform vec3 fcGrow;')
     .replace('#include <begin_vertex>', `#include <begin_vertex>
 ${push ? `transformed += normalize(normal) * ${push.toFixed(3)};` : ''}
 #ifdef USE_INSTANCING
@@ -47,12 +49,25 @@ ${push ? `transformed += normalize(normal) * ${push.toFixed(3)};` : ''}
 #else
   vec4 fcMid = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
 #endif
-  transformed *= smoothstep(fcClear.x, fcClear.y, length(fcMid.xy - fcAt.xy));`);
+  transformed *= smoothstep(fcClear.x, fcClear.y, length(fcMid.xy - fcAt.xy));
+  // Never smaller on screen than a few pixels (beltGrow()): far off, a speck, not nothing.
+#ifdef USE_INSTANCING
+  float fcSize = length(instanceMatrix[0].xyz) * length(modelMatrix[0].xyz);
+#else
+  float fcSize = length(modelMatrix[0].xyz);
+#endif
+  float fcDist = length(fcMid.xyz - cameraPosition);
+  transformed *= clamp(fcGrow.x * fcDist * fcGrow.y / fcSize, 1.0, fcGrow.z);`);
 }
 
 function beltMaterials() {
-  const uniforms = { fcAt: { value: new THREE.Vector3(1e9, 1e9, 0) }, fcClear: { value: new THREE.Vector2(...BELT.clear) } };
-  const rock = toon(0xffffff);
+  const uniforms = {
+    fcAt: { value: new THREE.Vector3(1e9, 1e9, 0) }, fcClear: { value: new THREE.Vector2(...BELT.clear) },
+    // (the smallest size on screen in pixels, metres per pixel per metre away, the most it grows)
+    fcGrow: { value: new THREE.Vector3(BELT_LOOK.minPx, 0.002, BELT_LOOK.maxGrow) },
+  };
+  // A little light of its own, so the side away from far-off Ember still reads against the dark sky.
+  const rock = toon(0xffffff, { emissive: 0x1e2533 });
   rock.onBeforeCompile = (s) => clearShader(s, uniforms);
   rock.customProgramCacheKey = () => 'belt-rock';
   const ink = new THREE.MeshBasicMaterial({ color: 0x2a1d17, side: THREE.BackSide });
@@ -140,6 +155,15 @@ function instanced(shape, n) {
 }
 
 /**
+ * How much a rock `size` metres across, `dist` metres from the camera, is grown so it's never
+ * under `minPx` pixels across (at most `maxGrow` times). `perPx`: metres per pixel per metre away
+ * (2 tan(fov / 2) / the screen's height). The belt's shader works out the same.
+ */
+export function beltGrow(size, dist, perPx, L = BELT_LOOK) {
+  return Math.min(L.maxGrow, Math.max(1, (L.minPx * dist * perPx) / size));
+}
+
+/**
  * The belt: `arcs` (one instanced mesh each, round its middle at t = 0), the big ones (`big`, an
  * instance each) and the map's dots (`dots`). update() places them for a frame.
  */
@@ -216,8 +240,8 @@ export function createProbe() {
   group.name = 'probe';
   const turn = new THREE.Group();
   group.add(turn);
-  const gold = toon(0xe8b54a), white = toon(0xf4f1ea), dark = toon(0x3b3d4a), grey = toon(0x9aa3ae);
-  const add = (geo, mat, x, y, z, ink = 0.12) => {
+  const gold = toon(0xf5c85a), white = toon(0xf4f1ea), dark = toon(0x3b3d4a), grey = toon(0x9aa3ae);
+  const add = (geo, mat, x, y, z, ink = 0.22) => {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
     if (ink) withOutline(mesh, ink);
@@ -231,11 +255,11 @@ export function createProbe() {
   // A box of instruments on one side.
   add(new THREE.BoxGeometry(1.8, 1.4, 1.6), grey, -1.2, -1.6, 0.2, 0.1);
   // The dish: a wide shallow cone, open side facing out (+z), closed at the back.
-  const dish = new THREE.CylinderGeometry(3.6, 1.1, 1.3, 24, 1);
+  const dish = new THREE.CylinderGeometry(2.7, 0.9, 1.1, 24, 1);
   dish.rotateX(Math.PI / 2);
-  add(dish, white, 0, 0, 1.75);
-  add(new THREE.CylinderGeometry(0.18, 0.18, 1.6, 8), grey, 0, 0, 2.9, 0.06).rotation.x = Math.PI / 2;
-  add(new THREE.SphereGeometry(0.4, 10, 8), white, 0, 0, 3.7, 0.08);
+  add(dish, white, 0.4, 0.3, 1.65);
+  add(new THREE.CylinderGeometry(0.16, 0.16, 1.5, 8), grey, 0.4, 0.3, 2.8, 0.06).rotation.x = Math.PI / 2;
+  add(new THREE.SphereGeometry(0.35, 10, 8), white, 0.4, 0.3, 3.55, 0.08);
   // The power stick (an RTG), out of one corner, with fins.
   const stick = add(new THREE.CylinderGeometry(0.55, 0.55, 4.2, 10), dark, 3.9, 1.9, -0.2);
   stick.rotation.z = -Math.PI / 3;
@@ -253,6 +277,21 @@ export function createProbe() {
   group.add(glint);
   group.visible = false;
   return { group, turn, glint };
+}
+
+/**
+ * Are the belt's rock meshes drawn? Not while driving; only with the camera low enough over the
+ * plane (`camHeight`) and near the ring (`rho`: its distance from Ember in the plane). So from
+ * the start (Homestead, 12,000 out) and anywhere inside Tumble's orbit they're never drawn.
+ */
+export function beltShown(mode, camHeight, rho, L = BELT_LOOK) {
+  const reach = L.band + 1.2 * camHeight; // (about how far the view reaches sideways from that height)
+  return mode !== 'drive' && camHeight < L.meshTop && rho > BELT.inner - reach && rho < BELT.outer + reach;
+}
+
+/** How much the map's dots show (0..1): only on the map, zoomed out. */
+export function dotsShown(mode, camHeight, L = BELT_LOOK) {
+  return mode === 'map' ? Math.max(0, Math.min(1, (camHeight - L.dotsFrom) / (L.dotsFull - L.dotsFrom))) : 0;
 }
 
 /**
@@ -280,9 +319,7 @@ export function createFrontier(system) {
       // The belt: meshes when the camera is low enough and near the ring; the map's dots far out.
       const turn = beltTurn(system, t);
       const c = Math.cos(turn), s = Math.sin(turn);
-      const rho = Math.hypot(ctx.camWorld.x, ctx.camWorld.y);
-      const reach = L.band + 2 * ctx.camHeight;
-      const meshes = !drive && ctx.camHeight < L.meshTop && rho > BELT.inner - reach && rho < BELT.outer + reach;
+      const meshes = beltShown(mode, ctx.camHeight, Math.hypot(ctx.camWorld.x, ctx.camWorld.y));
       belt.group.visible = meshes;
       if (meshes) {
         for (const a of belt.arcs) {
@@ -295,11 +332,12 @@ export function createFrontier(system) {
           b.position.set(c * m.x - s * m.y - origin.x, s * m.x + c * m.y - origin.y, m.z);
           b.rotation.z = turn;
         }
+        belt.uniforms.fcGrow.value.y = (2 * Math.tan(THREE.MathUtils.degToRad(ctx.camera.fov / 2))) / ctx.viewH;
         const y = ctx.yonder;
         if (y) belt.uniforms.fcAt.value.set(y.position.x, y.position.y, 0);
         else belt.uniforms.fcAt.value.set(1e9, 1e9, 0);
       }
-      const dots = mode === 'map' ? Math.max(0, Math.min(1, (ctx.camHeight - L.dotsFrom) / (L.dotsFull - L.dotsFrom))) : 0;
+      const dots = dotsShown(mode, ctx.camHeight);
       belt.dots.visible = dots > 0;
       if (dots > 0) {
         belt.dots.position.set(-origin.x, -origin.y, 0);
