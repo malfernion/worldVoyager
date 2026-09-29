@@ -199,11 +199,11 @@ describe('discoveries (#15)', () => {
   }
 
   describe('following the ✨ compass from any landing spot finds everything on the world', () => {
-    const worlds = [...new Set(DISCOVERIES.filter((d) => !['gap', 'flare', 'see', 'pair', 'probe'].includes(d.find)).map((d) => d.world))];
+    const worlds = [...new Set(DISCOVERIES.filter((d) => !['gap', 'flare', 'see', 'pair', 'lander'].includes(d.find)).map((d) => d.world))];
     for (const w of worlds) {
       it(w, () => {
         const body = sys.byId[w];
-        const want = DISCOVERIES.filter((d) => d.world === w && d.find !== 'probe').map((d) => d.id).sort();
+        const want = DISCOVERIES.filter((d) => d.world === w && d.find !== 'lander').map((d) => d.id).sort();
         // For Frosty's night glow: Ember on the far side from the first crack.
         const g = FROSTY_GLOWS[0], l = Math.hypot(g.x, g.y);
         const toSun = w === 'frosty' ? { x: -g.x / l, y: -g.y / l, z: 0 } : { x: 1, y: 0, z: 0 };

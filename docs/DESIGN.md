@@ -761,7 +761,7 @@ world's picture), and Pip says the fact in short sentences.
 | Tumble | a Saturn-style six-sided storm round the pole the cameras see (#55) | seeing it: its middle on screen clear of the buttons, facing us, at least 16 px across its flat sides' radius (flight view or map; `FlightScene.hexagonInView()`) | 🐝 Hexagon Hunter (Saturn's north-pole hexagon; two Earths could fit inside it) |
 | Flip | the dark streaks the geysers' dust leaves downwind | buggy within 8 m of one | 🌬️ Streak Spotter (Voyager 2 at Triton) |
 | Ducky | Philae, tipped over in a shady hollow by a big boulder | buggy within 6 m | 📡 Lander Finder |
-| Yonder | the probe (#62 stage 4), New Horizons-style, flying past Yonder every 400 s of game time | seeing it: on screen clear of the buttons, at least 2.5 px in radius or the rocket within 500 m (`FlightScene.probeInView()`) | 📸 Probe Spotter (New Horizons at Pluto in 2015, the fastest launch, then Arrokoth) |
+| Yonder (the belt) | a little lander (#62 stage 4) resting on a tumbling 60 m rock in the belt, near the far end of Yonder's loop | seeing it: on screen clear of the buttons, on the rock's side facing us, at least 4 px in radius (`FlightScene.landerInView()`) | 🪨 Rock Hopper (MASCOT hopped about on Ryugu in 2018) |
 
 - **Night is real.** The worlds don't spin, so which side is dark only changes as they go
   round Ember. Frosty has four glowing cracks spread round it, so one is always on the night
@@ -1656,11 +1656,12 @@ tidally locked, always facing each other ("like two dancers holding hands").
   long hop, harmless); Yonder hangs in Hither's sky (always in the same spot,
   as from Charon), but the drive camera looks along the ground, so you mostly see it from space.
 
-## The frontier: the icy-rock belt and the probe (#62, stage 4)
+## The frontier: the icy-rock belt and the lander (#62, stage 4)
 
 The owner's stage 4: "a sparse belt of icy bodies at that distance, and a probe easter egg (New
-Horizons-style flying past, Voyager-style heading out)". Both are only the look: neither is a
-physics body, so the sim, prediction, the helpers and `npm run stress` never see them (a test
+Horizons-style flying past, Voyager-style heading out)", then, after the first version, tumbling
+rocks and a static lander instead of the moving probe (below). All of it is only the look: none
+of it is a physics body, so the sim, prediction, the helpers and `npm run stress` never see them (a test
 checks the physics files never import them), and nothing can crash into them.
 
 - **The belt** (`BELT`, `beltPlan()` in `src/physics/frontier.js`; drawn by
@@ -1675,7 +1676,7 @@ checks the physics files never import them), and nothing can crash into them.
     deep), so it's never in front of the rocket, a marker or a path.
   - *Never inside a world*: no other world comes within 20,000 of the ring (tested over time), and
     near Yonder the rocks shrink away in the shader (`BELT.clear`, 2,200 to 3,400 from its middle,
-    `beltClear()` the same sums): clear of Yonder, Hither and the probe's pass (tested over a year).
+    `beltClear()` the same sums): clear of Yonder and Hither (tested over a year).
   - *Turning slowly*: the whole ring turns as one at Yonder's mean motion (`beltTurn()`, the game
     clock), so it drifts the way Yonder goes round; one rotation per mesh, nothing per rock.
   - *No jitter far out, few draw calls*: the ring is 36 arcs (`sectors`), each one InstancedMesh
@@ -1694,36 +1695,54 @@ checks the physics files never import them), and nothing can crash into them.
     map camera height of 14,000 to 40,000; in the default map it's a faint hint in the corners.
   - *Cost*: flying in the belt, about 8 to 10 more draw calls and 30,000 to 40,000 triangles (the
     arcs in view and their ink); one more on the zoomed-out map; nothing elsewhere. Per frame: 43
-    positions and rotations and a few uniforms; nothing allocated.
-- **The probe** (`PROBE`, `probeAt()` in `src/physics/frontier.js`, `createProbe()`): a cartoon New
-  Horizons, about 12 m across (gold triangular body, white dish with its feed, the dark power
-  stick with fins, ink), its dish towards Ember and tipped up to the cameras, turning slowly.
-  - *Its path, from the game clock*: every 400 s of game time it flies past Yonder in a straight
-    line (in Yonder's frame) at 40 m/s (about twice a low orbit's speed round Yonder), from 8,000
-    before its closest to 8,000 after, 290 from Yonder's middle (about 80 m above the parking
-    orbit), 15 m behind the plane. The line is set by where Hither is at the closest: the probe
-    passes on the side away from it, which is Yonder's heart side, as New Horizons' was; it heads
-    away from Ember. It fades in and out at the ends of a pass, far outside Yonder's SOI, so its
-    jump back to the start is never seen. Pure: the same time always gives the same place (saves,
-    rewind and warp agree; tested), never inside a world (stepped over 60 passes: at least 290
-    from Yonder's middle and 1,500 from Hither's).
-  - *A glint*: while it's small on screen a twinkling four-pointed glint (Ember's far glint) marks
-    it, fading as the probe grows; so from the map zoomed on Yonder, or a zoomed-out flight view,
-    a moving star shows where it is. Drawn only within 40 km of the camera, never while driving.
-  - *Finding it* (`find-probe`, `probeSeen()` / `PROBE_VIEW`, `FlightScene.probeInView()`): seeing
-    it fly past in the flight view or the map, like the hexagon and the heart: on screen clear of
-    the buttons, properly there (not fading), and at least 2.5 px in radius or with the rocket
-    within 500 m. Parked in a low orbit round Yonder, zoomed out a little (×3 or more), it's found
-    as it flies past on every pass (tested). Pip: "Look, a little space probe zooming past! A
-    real probe called New Horizons flew past Pluto in 2015. It left Earth faster than any
-    spacecraft before it! Then it flew on and visited a space rock shaped like a snowman." Hint:
-    "Something tiny zooms past Yonder now and then. Can you spot it?" It's not a ground
-    discovery: the ✨ compass (driving only) doesn't point at it.
-- **Not done / weak spots**: no Voyager-style probe heading out beyond (only the New Horizons one);
-  the belt's rocks don't tumble (only the ring turns); Pip doesn't say anything on crossing into
-  the belt; at the default parked zoom the probe passes just above the top of the screen, so it
-  needs a little zooming out (the hint says to watch for it); the grown far rocks are specks
-  with no visible ink.
+    positions and rotations and a few uniforms; nothing allocated. The tumble adds a few
+    multiplies per vertex (a rotation for the position and one for the normal).
+- **Every rock tumbles** (the owner's review: "I need the rocks to individually tumble"): each
+  about its own random axis at its own slow rate, the small ones fastest (about 7 s a turn for
+  the smallest, 90 s for the biggest small ones, a little scatter), the seven big ones slower (2 to
+  5 minutes a turn). It's all in the vertex shader (`beltShader()`), from per-instance attributes
+  (`fcAxis`, `fcSpin`: rate and phase), which each arc's rock and ink geometries share, and one
+  clock uniform: no instance matrix is ever rewritten. The turn goes after the instance's shape
+  (so a stretched rock tumbles, it doesn't wobble out of shape), round its middle, before the
+  arc's turn; the normals turn the same way, so a rock's lit side stays towards Ember, and its
+  ink tumbles with it. Each rock makes a whole number of turns every `BELT.spinT` (1,800 s), so
+  the shader is given only the time since the last whole spinT (`spinClock()`) and keeps its
+  precision however long a game runs; `tumbleAngle()` is the same sum in JS. From the game clock,
+  so warp, rewind and saves agree (tested, and that nothing jumps as the clock wraps).
+- **The lander** (the owner: "A transitory space probe doesn't work for me in this game where we
+  are the sole actor. Do something static, perhaps on a larger one of the rocks"; so the moving
+  New Horizons-style probe of the first version is gone): a little cartoon lander resting on one
+  of the big rocks (`LANDER_ROCK`, a round, reddish 60 m one), riding its tumble.
+  - *The look* (`createLander()`): a white box body with dark blue solar panels on its sides, a
+    grey lid, three splayed gold legs with round feet, a little antenna with a ball on top and a
+    red light that blinks (the only thing about it that changes; a light, not an actor), ink on
+    every closed part; 10 m tall on its 60 m rock, so it reads up close.
+  - *Where on its rock*: a ray down onto the rock's unit shape finds a facet to stand on
+    (`landerSpot()`, once at load); each frame the lander is placed with the same sums as the
+    shader (the rock's place, the belt's turn, its tumble: `landerRockAt()`, `tumbleAngle()`), so
+    its feet stay on that facet as the rock turns (tested).
+  - *Where in the belt*: seen from the turning belt (it turns at Yonder's average speed), Yonder's
+    stretched orbit makes a closed loop each Yonder year. The lander's rock sits just outside that
+    loop's far end, so once a year Yonder comes within about 4.5 km of it and lingers there (over
+    half an hour of game time within 10 km; never close enough to shrink it, tested). A determined
+    kid flying out from Yonder then can reach it; the hint points them there.
+  - *Why not Philae*: Ducky already has Philae (`find-philae`, "It bounced twice…"), so this one
+    is MASCOT, the little lander that hopped about on the asteroid Ryugu in 2018.
+  - *Finding it* (`find-lander`, `landerSeen()` / `LANDER_VIEW`, `FlightScene.landerInView()`): by
+    seeing it, like the hexagon and the heart: on screen clear of the buttons, on the side of its
+    rock facing us (`facing`, so not round the back as the rock tumbles) and at least 4 px in
+    radius (so only up close, not from far off or zoomed right out; tested with real scenes). Pip:
+    "Look, a little lander on a tumbling space rock! A real lander called MASCOT landed on a space
+    rock called Ryugu in 2018. The rock's gravity was so weak that MASCOT got around by hopping!"
+    Hint: "A little lander rests on a big space rock near Yonder's path. Can you find it?" It's
+    not a ground discovery: the ✨ compass (driving only) doesn't point at it.
+  - *Cost*: the lander is about 30 small meshes (plus ink), drawn only with the belt and culled
+    off screen; per frame one quaternion and a position; nothing allocated.
+- **Not done / weak spots**: no Voyager-style probe; Pip doesn't say anything on crossing into the
+  belt; the grown far rocks are specks with no visible ink; the lander's rock is out in the belt,
+  so reaching it means flying out of Yonder's space by hand at the right time of Yonder's year
+  (an easter egg for a determined kid, not something Pip leads you to); from the usual flight
+  zoom the lander is small next to its rock (zoom in).
 
 ## Ideas for later
 

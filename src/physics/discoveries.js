@@ -14,7 +14,7 @@
 //   see    Tumble's hexagon or Yonder's heart is in view, big enough to make out (flight view or map)
 //   heart  the buggy drives onto Yonder's heart (it can be seen too, like the hexagon)
 //   pair   Yonder and Hither both in view together, each big enough to see (#62 stage 3)
-//   probe  the probe flying past Yonder (#62 stage 4, frontier.js) in view, close enough to see
+//   lander the little lander on a big belt rock (#62 stage 4, frontier.js) in view, close enough to see
 import { dirOf, OBSERVATORY, NIBBLE_CRATER, FROSTY_GLOWS, SIZZLE_VENTS, FLIP_GEYSERS, SPIN_AXES, facingPole, YONDER_HEART, heartAt, heartDir, heartDist } from './terrain.js';
 
 const biggest = (list) => list.reduce((a, b) => (b.size > a.size ? b : a));
@@ -85,7 +85,7 @@ export const DISCOVERIES = [
   { id: 'find-philae', world: 'ducky', find: 'near', spots: [dirOf(1.8, -0.5)], reach: 6 },
   { id: 'find-heart', world: 'yonder', find: 'heart', spots: [HEART_NEAR] },
   { id: 'find-dancers', world: 'hither', find: 'pair' },
-  { id: 'find-probe', world: 'yonder', find: 'probe' },
+  { id: 'find-lander', world: 'yonder', find: 'lander' },
 ];
 
 export const DISCOVERY_BY_ID = Object.fromEntries(DISCOVERIES.map((d) => [d.id, d]));
@@ -335,21 +335,17 @@ export function pairSeen(a, b, dist) {
   return ok(a) && ok(b) && dist > v.apart * (a.px + b.px);
 }
 
-// The probe (#62 stage 4, `PROBE` in frontier.js) is found by seeing it fly past, in the flight
-// view or on the map: on screen clear of the buttons (`x`, `top`, `bottom`), while it's properly
-// there (`shown`: not fading in or out at the ends of a pass), and either big enough to make out
-// (`px`: its radius in pixels) or with the rocket right by it (`near` metres) where it's small.
-export const PROBE_VIEW = { x: 0.85, top: 0.8, bottom: -0.6, shown: 0.5, px: 2.5, near: 500 };
+// The lander (#62 stage 4, on `LANDER_ROCK` in frontier.js, out in the belt near Yonder's path) is
+// found by seeing it, in the flight view or on the map: on screen clear of the buttons (`x`, `top`,
+// `bottom`), on the side of its tumbling rock facing us (`facing`: the cosine between its "up" and
+// the way to the camera) and big enough to make out (`px`: its radius in pixels), so only close by.
+export const LANDER_VIEW = { x: 0.85, top: 0.8, bottom: -0.6, facing: 0.1, px: 4 };
 
 /**
- * Can we see the probe? view: { x, y (its middle on screen, -1..1, y up), behind, px (its radius
- * in pixels), k (how much it's shown, probeAt()), near (the rocket's distance from it, metres) }.
+ * Can we see the lander? view: { x, y (its middle on screen, -1..1, y up), behind, facing, px }.
  */
-export function probeSeen(view) {
-  const v = PROBE_VIEW;
-  if (view.behind || view.k < v.shown) return false;
-  if (Math.abs(view.x) >= v.x || view.y >= v.top || view.y <= v.bottom) return false;
-  return view.px >= v.px || view.near < v.near;
+export function landerSeen(view) {
+  return inSight(view, LANDER_VIEW);
 }
 
 function inSight(view, v) {

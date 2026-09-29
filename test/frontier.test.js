@@ -1,23 +1,21 @@
-// The frontier (#62 stage 4): the icy-rock belt round Yonder's distance and the New Horizons-style
-// probe flying past Yonder. The belt's place and density, never inside a world or in front of the
-// flight plane, its instances and draw calls, hidden from the start view; the probe's path (from
-// the game clock, never inside a world, heading out), and finding it by seeing it fly past.
+// The frontier (#62 stage 4): the icy-rock belt round Yonder's distance, every rock tumbling, and
+// the little lander on one of its big rocks. The belt's place and density, never inside a world or
+// in front of the flight plane, its instances and draw calls, hidden from the start view; each
+// rock's tumble (from the game clock, in the shader, normals and ink too); the lander riding its
+// rock, near Yonder's path, and finding it by seeing it up close.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import * as THREE from 'three';
 import { createSystem } from '../src/physics/bodies.js';
-import { BELT, BIG_ROCKS, BIG_REACH, beltPlan, sectorOf, sectorMiddle, beltTurn, beltClear, PROBE, probeAt } from '../src/physics/frontier.js';
-import { DISCOVERIES, PROBE_VIEW, probeSeen, buggyFinds, landingFinds, discoveryTargets } from '../src/physics/discoveries.js';
+import { BELT, BIG_ROCKS, BIG_REACH, LANDER_ROCK, beltPlan, sectorOf, sectorMiddle, beltTurn, beltClear, tumbleAngle, spinClock, landerRockAt } from '../src/physics/frontier.js';
+import { DISCOVERIES, LANDER_VIEW, landerSeen, buggyFinds, landingFinds, discoveryTargets } from '../src/physics/discoveries.js';
 import { STICKERS } from '../src/progress.js';
 import { SYSTEM_VIEW } from '../src/ui/zoom.js';
 import { FlightScene } from '../src/scenes/flight.js';
-import { mission, parkAt } from './missions.js';
+import { createBelt, createFrontier, beltShown, dotsShown, beltGrow, BELT_LOOK } from '../src/world/frontier.js';
+import { mission } from './missions.js';
 
-// createFrontier()'s glint texture draws on a canvas: a do-nothing one here.
-const ctx2d = new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true });
 globalThis.document ??= { getElementById: () => null };
-globalThis.document.createElement ??= () => ({ getContext: () => ctx2d, width: 0, height: 0 });
-const { createBelt, createFrontier, beltShown, dotsShown, beltGrow, BELT_LOOK } = await import('../src/world/frontier.js');
 
 const sys = createSystem();
 const { yonder, hither, homestead } = sys.byId;
@@ -205,204 +203,243 @@ describe('the icy-rock belt (#62 stage 4)', () => {
     const c = Math.cos(beltTurn(sys, t)), s = Math.sin(beltTurn(sys, t));
     expect(arc.position.x).toBeCloseTo(c * mid.x - s * mid.y - origin.x, 6);
     expect(arc.position.y).toBeCloseTo(s * mid.x + c * mid.y - origin.y, 6);
+    // The tumble clock: the time since the last whole spinT.
+    expect(fr.belt.uniforms.fcTime.value).toBeCloseTo(spinClock(t), 9);
     ctx.mode = 'drive';
     fr.update(ctx);
     expect(fr.belt.group.visible).toBe(false);
     expect(fr.belt.dots.visible).toBe(false);
-    expect(fr.probe.group.visible).toBe(false);
-    // The update itself makes no objects: same objects before and after.
-    const before = [fr.at, fr.belt.uniforms.fcAt.value, fr.probe.turn.quaternion];
+    expect(fr.lander.group.visible).toBe(false);
+    // The update itself makes no objects: the same ones before and after.
+    const before = [fr.belt.uniforms.fcAt.value, fr.lander.group.position, fr.lander.group.quaternion, fr.lander.up];
     ctx.mode = 'flight';
+    ctx.t += 3;
     fr.update(ctx);
-    expect([fr.at, fr.belt.uniforms.fcAt.value, fr.probe.turn.quaternion]).toEqual(before);
+    const after = [fr.belt.uniforms.fcAt.value, fr.lander.group.position, fr.lander.group.quaternion, fr.lander.up];
+    after.forEach((o, i) => expect(o).toBe(before[i]));
   });
 });
 
-describe('the probe (#62 stage 4)', () => {
-  const pass = (lap) => (lap + 0.5) * PROBE.period;
-
-  it('is where the game clock says, whatever was asked before (saves, rewind, warp)', () => {
-    const a = probeAt(sys, 12345.6, {});
-    probeAt(sys, 99, {});
-    probeAt(sys, 50000, {});
-    expect(probeAt(sys, 12345.6, {})).toEqual(a);
+describe('every rock tumbles (#62 stage 4)', () => {
+  it('each about its own axis, a whole number of turns every spinT, the small ones faster', () => {
+    for (const r of [...rocks, ...BIG_ROCKS]) {
+      expect(Math.hypot(...r.axis)).toBeCloseTo(1, 9);
+      expect(Number.isInteger(r.spin)).toBe(true);
+      expect(r.spin).toBeGreaterThan(0);
+    }
+    // Small rocks: a few seconds to a minute and a half a turn.
+    for (const r of rocks) {
+      const period = BELT.spinT / r.spin;
+      expect(period).toBeGreaterThanOrEqual(6);
+      expect(period).toBeLessThanOrEqual(90);
+    }
+    // Big ones: a couple of minutes to five.
+    for (const b of BIG_ROCKS) {
+      expect(BELT.spinT / b.spin).toBeGreaterThanOrEqual(100);
+      expect(BELT.spinT / b.spin).toBeLessThanOrEqual(300);
+    }
+    const bySize = [...rocks].sort((x, y) => x.size - y.size);
+    const tenth = Math.floor(rocks.length / 10);
+    const mean = (l) => l.reduce((v, r) => v + BELT.spinT / r.spin, 0) / l.length;
+    expect(mean(bySize.slice(0, tenth))).toBeLessThan(mean(bySize.slice(-tenth)) / 2);
+    // Every which way: about as many axes near the plane's normal as random axes give (10%).
+    const up = rocks.filter((r) => Math.abs(r.axis[2]) > 0.9).length / rocks.length;
+    expect(up).toBeGreaterThan(0.05);
+    expect(up).toBeLessThan(0.15);
   });
 
-  it('flies past Yonder once a pass: straight, fast, closest at the middle, fading in and out far away', () => {
-    const at = pass(12);
-    const p = probeAt(sys, at, {});
-    expect(p.s).toBeCloseTo(0, 6);
-    expect(p.k).toBe(1);
-    expect(Math.hypot(p.x - p.sx, p.y - p.sy)).toBeCloseTo(PROBE.pass, 6);
-    // Faster than a low orbit round Yonder.
-    const speed = (2 * PROBE.reach) / PROBE.period;
-    expect(speed).toBeGreaterThan(2 * Math.sqrt(yonder.mu / (yonder.radius * 2)));
-    // Straight, in Yonder's frame.
-    const q = probeAt(sys, at + 30, {}), o = probeAt(sys, at - 30, {});
-    const ax = q.x - q.sx - (o.x - o.sx), ay = q.y - q.sy - (o.y - o.sy);
-    expect(Math.hypot(ax, ay)).toBeCloseTo(60 * speed, 6);
-    expect((ax * p.hx + ay * p.hy) / Math.hypot(ax, ay)).toBeCloseTo(1, 9);
-    // Fades at the ends, where it's far from Yonder, so its jump back is never seen.
-    expect(probeAt(sys, 12 * PROBE.period + 0.01, {}).k).toBeLessThan(0.001);
-    expect(probeAt(sys, 13 * PROBE.period - 0.01, {}).k).toBeLessThan(0.001);
-    for (const dt of [-0.45, -0.4, 0.4, 0.45]) {
-      const e = probeAt(sys, at + dt * PROBE.period, {});
-      if (e.k < 1) expect(Math.hypot(e.x - e.sx, e.y - e.sy)).toBeGreaterThan(yonder.soi);
-    }
-    // Moves smoothly within a pass (no jumps frame to frame).
-    let last = probeAt(sys, 12 * PROBE.period + 1, {});
-    for (let t = 12 * PROBE.period + 1.1; t < 13 * PROBE.period - 1; t += 0.1) {
-      const n = probeAt(sys, t, {});
-      expect(Math.hypot(n.x - last.x, n.y - last.y)).toBeLessThan(0.1 * (speed + 400));
-      last = n;
-    }
-  });
-
-  it('heads away from Ember, on the side away from Hither (Yonder\'s heart side, like New Horizons)', () => {
-    for (let lap = 0; lap < 60; lap++) {
-      const at = pass(lap);
-      const p = probeAt(sys, at, {});
-      expect(p.hx * p.sx + p.hy * p.sy).toBeGreaterThanOrEqual(0);
-      const h = hither.relPos(at, {});
-      expect((p.x - p.sx) * h.x + (p.y - p.sy) * h.y).toBeLessThan(0);
-    }
-  });
-
-  it('is never inside a world, nor in front of the flight plane', () => {
-    expect(PROBE.z + PROBE.radius).toBeLessThan(0);
-    let yMin = Infinity, hMin = Infinity;
-    for (let t = 0; t < 60 * PROBE.period; t += 1) {
-      const p = probeAt(sys, t, {});
-      if (p.k === 0) continue;
-      for (const b of sys.bodies) {
-        const w = b.worldPos(t, {});
-        const d = Math.hypot(p.x - w.x, p.y - w.y, p.z);
-        expect(d, `${b.id} at ${t}`).toBeGreaterThan(b.radius + PROBE.radius);
-        if (b === yonder) yMin = Math.min(yMin, d);
-        if (b === hither) hMin = Math.min(hMin, d);
+  it('from the game clock: the same time, the same turn (saves, rewind, warp), and no jump as the clock wraps', () => {
+    expect(tumbleAngle(20, 0.5, 1234.5)).toBe(tumbleAngle(20, 0.5, 1234.5));
+    const turns = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+    for (const spin of [1, 20, 240]) {
+      const w = (2 * Math.PI * spin) / BELT.spinT; // radians a second
+      for (const T of [BELT.spinT, 7 * BELT.spinT, 1e6 * BELT.spinT]) {
+        expect(turns(tumbleAngle(spin, 1, T + 0.01), tumbleAngle(spin, 1, T - 0.01))).toBeCloseTo(0.02 * w, 6);
       }
     }
-    expect(yMin).toBeGreaterThan(PROBE.pass - 1);
-    expect(hMin).toBeGreaterThan(1500);
+    // The shader's clock keeps its precision: never more than spinT, however long the game runs.
+    expect(spinClock(1e9 + 12.25)).toBeLessThan(BELT.spinT);
+    expect(spinClock(3 * BELT.spinT + 12.25)).toBeCloseTo(12.25, 9);
   });
 
-  it('is a discovery with a sticker, a New Horizons fact and a hint, found only by seeing it', () => {
-    const d = DISCOVERIES.find((x) => x.id === 'find-probe');
+  it('in the vertex shader, from per-instance attributes the rock and its ink share; its normals turn too', () => {
+    const belt = createBelt();
+    for (const m of [...belt.arcs, ...belt.big]) {
+      const ink = m.children[0];
+      for (const name of ['fcAxis', 'fcSpin']) {
+        const attr = m.geometry.attributes[name];
+        expect(attr.isInstancedBufferAttribute, name).toBe(true);
+        expect(attr.count).toBe(m.count);
+        expect(ink.geometry.attributes[name]).toBe(attr); // the ink tumbles with its rock
+      }
+    }
+    // Each arc has its own tumbles (the shape's vertices are shared).
+    expect(belt.arcs[0].geometry.attributes.fcSpin).not.toBe(belt.arcs[1].geometry.attributes.fcSpin);
+    expect(belt.arcs[0].geometry.attributes.position).toBe(belt.arcs[1].geometry.attributes.position);
+    // The rate and phase are the plan's.
+    const r = rocks.find((x) => x.sector === 0);
+    const sp = belt.arcs[0].geometry.attributes.fcSpin;
+    expect(sp.getX(0)).toBeCloseTo((2 * Math.PI * r.spin) / BELT.spinT, 6);
+    expect(sp.getY(0)).toBeCloseTo(r.phase, 5);
+    // The shaders: the tumble goes into the position (after the instance's shape, round its
+    // middle), and for the rock into its normal too (so the lit side stays towards Ember).
+    const rockShader = { uniforms: {}, vertexShader: THREE.ShaderLib.toon.vertexShader, fragmentShader: '' };
+    belt.arcs[0].material.onBeforeCompile(rockShader);
+    const inkShader = { uniforms: {}, vertexShader: THREE.ShaderLib.basic.vertexShader, fragmentShader: '' };
+    belt.arcs[0].children[0].material.onBeforeCompile(inkShader);
+    for (const sh of [rockShader, inkShader]) {
+      expect(sh.vertexShader).not.toContain('#include <project_vertex>');
+      expect(sh.vertexShader).toContain('fcC + fcTurn((instanceMatrix * vec4(transformed, 1.0)).xyz - fcC)');
+      expect(sh.uniforms.fcTime).toBe(belt.uniforms.fcTime);
+    }
+    expect(rockShader.vertexShader).not.toContain('#include <defaultnormal_vertex>');
+    expect(rockShader.vertexShader).toContain('normalMatrix * fcTurn(fcIm * transformedNormal)');
+    expect(inkShader.vertexShader).toContain('transformed += normalize(normal)');
+  });
+
+  it('turns shapes and normals as a true rotation (the shader\'s sum against three\'s quaternion)', () => {
+    const axis = new THREE.Vector3(0.3, -0.5, 0.81).normalize(), a = 2.2;
+    const turn = (v) => {
+      const c = Math.cos(a), s = Math.sin(a);
+      return v.clone().multiplyScalar(c).add(axis.clone().cross(v).multiplyScalar(s)).add(axis.clone().multiplyScalar(axis.dot(v) * (1 - c)));
+    };
+    const q = new THREE.Quaternion().setFromAxisAngle(axis, a);
+    for (const v of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0.2, 0.7, -0.4)]) {
+      expect(turn(v).distanceTo(v.clone().applyQuaternion(q))).toBeLessThan(1e-12);
+    }
+  });
+});
+
+describe('the lander on a belt rock (#62 stage 4)', () => {
+  it('rests on a big rock in the belt, all of it always behind the flight plane', () => {
+    expect(BIG_ROCKS.filter((b) => b.lander)).toEqual([LANDER_ROCK]);
+    expect(LANDER_ROCK.r > BELT.inner && LANDER_ROCK.r < BELT.outer).toBe(true);
+    expect(LANDER_ROCK.z + (LANDER_ROCK.size * BIG_REACH[LANDER_ROCK.kind]) / 2 + BELT_LOOK.lander).toBeLessThan(0);
+    // Big enough on its rock to see: a seventh of its width or more.
+    expect(BELT_LOOK.lander / LANDER_ROCK.size).toBeGreaterThan(1 / 7);
+  });
+
+  it('is near Yonder\'s path: once a Yonder year Yonder comes within a few km (never close enough to shrink it)', () => {
+    let best = Infinity, near = 0;
+    const dt = 20;
+    for (let t = 0; t < yonder.orbitalPeriod; t += dt) {
+      const r = landerRockAt(sys, t, {}), y = yonder.worldPos(t, {});
+      const d = Math.hypot(r.x - y.x, r.y - y.y);
+      best = Math.min(best, d);
+      if (d < 10000) near += dt;
+    }
+    expect(best).toBeGreaterThan(BELT.clear[1]);
+    expect(best).toBeLessThan(6000);
+    // It lingers there (the far end of Yonder's loop against the turning belt): half an hour or more within 10 km.
+    expect(near).toBeGreaterThan(1800);
+  });
+
+  it('rides its tumbling rock: the same spot on its ground, turning with it, from the game clock', () => {
+    const fr = createFrontier(sys);
+    const cam = new THREE.PerspectiveCamera(50, 844 / 390, 1, 3e6);
+    const Z = new THREE.Vector3(0, 0, 1);
+    const ups = [];
+    for (const t of [4000, 4007, 4030, 4100]) {
+      const r = landerRockAt(sys, t, {});
+      const origin = { x: r.x + 50, y: r.y - 50 };
+      fr.update({ t, time: t, origin, camera: cam, mode: 'flight', camWorld: { ...origin }, camHeight: 200, yonder: null, viewH: 390 });
+      expect(fr.lander.group.visible).toBe(true);
+      const rock = fr.rock.position;
+      expect(rock.x).toBeCloseTo(r.x - origin.x, 6);
+      expect(rock.y).toBeCloseTo(r.y - origin.y, 6);
+      // Where it stands: the rock's turn (the belt's, then its tumble) applied to its spot.
+      const tumble = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...LANDER_ROCK.axis), tumbleAngle(LANDER_ROCK.spin, LANDER_ROCK.phase, t));
+      const q = new THREE.Quaternion().setFromAxisAngle(Z, beltTurn(sys, t)).multiply(tumble);
+      const at = fr.spot.at.clone().applyQuaternion(q).add(rock);
+      expect(fr.lander.group.position.distanceTo(at)).toBeLessThan(1e-6);
+      // On the ground: its feet on the rock's surface, and upright on it.
+      expect(fr.spot.at.length()).toBeGreaterThan(LANDER_ROCK.size * 0.3);
+      expect(fr.spot.at.length()).toBeLessThan(LANDER_ROCK.size * 0.62);
+      expect(fr.lander.up.dot(fr.spot.up.clone().applyQuaternion(q))).toBeCloseTo(1, 9);
+      ups.push(fr.lander.up.clone());
+    }
+    // It really turns.
+    expect(ups[0].angleTo(ups[1])).toBeGreaterThan(0.05);
+  });
+
+  it('is a discovery with a sticker, a lander fact and a hint, found only by seeing it', () => {
+    const d = DISCOVERIES.find((x) => x.id === 'find-lander');
     expect(d.world).toBe('yonder');
-    expect(d.find).toBe('probe');
-    const st = STICKERS['find-probe'];
-    expect(st.say).toContain('New Horizons');
-    expect(st.say).toContain('Pluto');
+    expect(d.find).toBe('lander');
+    const st = STICKERS['find-lander'];
+    expect(st.say).toContain('MASCOT');
+    expect(st.say).toContain('hopping');
     expect(st.hint).toContain('Yonder');
+    expect(STICKERS['find-probe']).toBeUndefined();
+    expect(DISCOVERIES.some((x) => x.id === 'find-probe')).toBe(false);
     // Not on the ground: the buggy, landing and the ✨ compass never find it.
-    const ctx = { time: 0, toSun: { x: 1, y: 0, z: 0 }, has: (id) => id !== 'find-probe' };
-    expect(discoveryTargets(yonder, ctx).map((x) => x.id)).not.toContain('find-probe');
+    const ctx = { time: 0, toSun: { x: 1, y: 0, z: 0 }, has: (id) => id !== 'find-lander' };
+    expect(discoveryTargets(yonder, ctx).map((x) => x.id)).not.toContain('find-lander');
     expect(landingFinds(yonder, 0.3, ctx)).toBe(null);
     expect(buggyFinds(yonder, { p: [yonder.radius, 0, 0], speed: 0, grounded: true }, ctx)).toBe(null);
   });
 
-  it('needs it on screen, clear of the buttons, properly there, and big enough or right by the rocket', () => {
-    const v = { x: 0.1, y: 0.1, behind: false, px: 4, k: 1, near: 3000 };
-    expect(probeSeen(v)).toBe(true);
-    expect(probeSeen({ ...v, px: PROBE_VIEW.px - 0.5 })).toBe(false); // a dot, far off
-    expect(probeSeen({ ...v, px: 1, near: 300 })).toBe(true); // flying right by it
-    expect(probeSeen({ ...v, behind: true })).toBe(false);
-    expect(probeSeen({ ...v, x: 0.95 })).toBe(false); // under the buttons
-    expect(probeSeen({ ...v, y: -0.8 })).toBe(false);
-    expect(probeSeen({ ...v, k: 0.2 })).toBe(false); // fading in at a pass's end
+  it('needs it on screen, clear of the buttons, facing us, and big enough to make out', () => {
+    const v = { x: 0.1, y: 0.1, behind: false, facing: 0.7, px: 8 };
+    expect(landerSeen(v)).toBe(true);
+    expect(landerSeen({ ...v, px: LANDER_VIEW.px - 0.5 })).toBe(false); // far off
+    expect(landerSeen({ ...v, facing: -0.3 })).toBe(false); // round the back of its rock
+    expect(landerSeen({ ...v, behind: true })).toBe(false);
+    expect(landerSeen({ ...v, x: 0.95 })).toBe(false); // under the buttons
+    expect(landerSeen({ ...v, y: -0.8 })).toBe(false);
   });
 
-  // A flight scene with just what probeInView() needs (like test/hither.test.js).
-  function scene(m, mode = 'flight', zoom = 1) {
+  const shared = createFrontier(sys);
+  // A flight scene with the frontier and just what landerInView() needs (like test/hither.test.js):
+  // the rocket drifting in Ember's space `off` from the lander's rock at time t.
+  function scene(t, off, zoom = 1) {
     globalThis.window ??= {};
     Object.assign(globalThis.window, { innerWidth: 844, innerHeight: 390 });
+    const m = mission();
+    const r = landerRockAt(sys, t, {});
+    m.flight.state = { body: sys.byId.ember, x: r.x + off[0], y: r.y + off[1], vx: 0, vy: 0, angle: 0, t, landed: false, landAngle: 0, crashed: false, flightTime: 5 };
     const s = Object.create(FlightScene.prototype);
     Object.assign(s, {
       flight: m.flight, system: m.sys, time: 0, crashed: false, mode: 'flight', origin: { x: 0, y: 0 }, tmp: {}, tmp2: {}, tmp3: {},
-      mapAt: { x: 0, y: 0 }, mapOff: { x: 0, y: 0 }, mapGoalAt: { x: 0, y: 0 }, mapDist: 2000, zoom, carry: 1, camSettle: false,
-      camera: new THREE.PerspectiveCamera(50, 844 / 390, 1, 3e6), camUp: new THREE.Vector3(0, 1, 0), rocket: { height: 6 },
-      drive: { active: false }, visuals: [],
+      zoom, carry: 1, camSettle: false, camera: new THREE.PerspectiveCamera(50, 844 / 390, 1, 3e6), camUp: new THREE.Vector3(0, 1, 0),
+      rocket: { height: 6 }, drive: { active: false }, visuals: [], frontier: shared,
     });
     s.look = () => {
-      const rw = s.flight.worldPos({});
-      if (mode === 'map') {
-        s.mode = 'map';
-        s.mapAt.x = rw.x;
-        s.mapAt.y = rw.y;
-      }
-      s.placeOrigin(rw);
+      s.placeOrigin(s.flight.worldPos({}));
       s.updateCamera(0);
-      const r = s.probeInView();
-      s.seen = { ...s.probeView, p: undefined };
-      return r;
+      s.updateFrontier();
+      return s.landerInView();
     };
     return s;
   }
-
-  // The rocket in Yonder's space `off` metres from the probe's closest point, at that time.
-  function nearPass(lap, off, dt = 0) {
-    const at = pass(lap) + dt;
-    const p = probeAt(sys, pass(lap), {});
-    const m = mission();
-    parkAt(m, 'yonder', at, 0);
-    const st = m.flight.state;
-    const dx = p.x - p.sx, dy = p.y - p.sy, l = Math.hypot(dx, dy);
-    st.x = dx + (dx / l) * off;
-    st.y = dy + (dy / l) * off;
-    st.angle = Math.atan2(st.y, st.x) - Math.PI / 2;
-    return m;
+  // A game time when the lander faces the cameras (its up towards +z; sign -1: away from them).
+  function facing(sign) {
+    const fr = createFrontier(sys);
+    const cam = new THREE.PerspectiveCamera(50, 1, 1, 3e6);
+    for (let t = 4000; t < 5000; t += 1) {
+      const r = landerRockAt(sys, t, {});
+      fr.update({ t, time: 0, origin: { x: r.x, y: r.y }, camera: cam, mode: 'flight', camWorld: { x: r.x, y: r.y }, camHeight: 100, yonder: null, viewH: 390 });
+      if (fr.lander.up.z * sign > 0.6) return t;
+    }
+    return null;
   }
 
-  // A kid parked in a low orbit round Yonder, on the side the probe passes, watching: is it found
-  // on some frame as it flies by (±`span` s round its closest)?
-  function watch(lap, zoom, mode = 'flight', span = 90) {
-    const p = probeAt(sys, pass(lap), {});
-    const side = Math.atan2(p.y - p.sy, p.x - p.sx);
-    for (let dt = -span; dt <= span; dt += 1) {
-      const m = mission();
-      parkAt(m, 'yonder', pass(lap) + dt, side);
-      const s = scene(m, mode, zoom);
-      if (mode === 'map') s.mapDist = zoom;
-      if (s.look()) return true;
-    }
-    return false;
-  }
-
-  it('is found in the flight view as it flies past a rocket in a low orbit round Yonder, whenever the pass is', () => {
-    // Zoomed out a little from the parked view (it passes about 110 m above the parking orbit).
-    for (const lap of [0, 7, 31, 55]) {
-      expect(watch(lap, 3), `lap ${lap}`).toBe(true);
-      expect(watch(lap, 8), `lap ${lap} zoomed out more`).toBe(true);
-    }
-    // Right in close on the rocket it's off the top of the screen: it has to be seen.
-    expect(watch(7, 0.3)).toBe(false);
-  });
-
-  it('is found flying along with it, at the flight view\'s usual zoom', () => {
-    // The rocket 40 m behind it on its way, at its height.
-    const p = probeAt(sys, pass(9), {});
-    const m = nearPass(9, 0);
-    m.flight.state.x -= p.hx * 40;
-    m.flight.state.y -= p.hy * 40;
-    const sc = scene(m);
-    expect(sc.look()).toBe(true);
-    expect(sc.seen.near).toBeLessThan(PROBE_VIEW.near);
-  });
-
-  it('is not found far from it, before it comes, or while driving', () => {
-    // Parked in a low orbit on the far side of Yonder from its pass.
-    expect(scene(nearPass(3, -2 * PROBE.pass)).look()).toBe(false);
-    // Long before it comes by (the rocket where it will pass).
-    expect(scene(nearPass(3, -100, -0.4 * PROBE.period)).look()).toBe(false);
-    // At home.
-    const m = mission();
-    parkAt(m, 'homestead', pass(3), 0);
-    expect(scene(m).look()).toBe(false);
-    const d = scene(nearPass(3, -120));
+  it('is found flying up close with it facing us, and not from far off, round the back, or driving', () => {
+    const t = facing(1), back = facing(-1);
+    expect(t).not.toBe(null);
+    expect(back).not.toBe(null);
+    expect(scene(t, [40, -40]).look()).toBe(true);
+    expect(scene(t, [40, -40], 3).look()).toBe(true);
+    expect(scene(t, [40, -40], 60).look()).toBe(false); // zoomed right out: a speck
+    expect(scene(t, [3000, 0]).look()).toBe(false); // far off
+    expect(scene(back, [40, -40]).look()).toBe(false); // round the back of its rock
+    const d = scene(t, [40, -40]);
     d.drive = { active: true };
-    expect(d.look()).toBe(false);
-    const c = scene(nearPass(3, -120));
+    expect(d.landerInView()).toBe(false);
+    const c = scene(t, [40, -40]);
+    c.look();
     c.crashed = true;
-    expect(c.look()).toBe(false);
+    expect(c.landerInView()).toBe(false);
   });
 });
+

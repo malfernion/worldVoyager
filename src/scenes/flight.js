@@ -18,9 +18,8 @@ import { createSky } from '../world/sky.js';
 import { SKY_LOOK, farLight, FAR_LIGHT } from '../world/planets.js';
 import { rainVolume } from '../world/rain.js';
 import { DriveMode } from './drive.js';
-import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, pairSeen, probeSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
-import { probeAt, PROBE } from '../physics/frontier.js';
-import { createFrontier } from '../world/frontier.js';
+import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, pairSeen, landerSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
+import { createFrontier, BELT_LOOK } from '../world/frontier.js';
 import { HEXAGON } from '../world/richLook.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
@@ -30,6 +29,9 @@ import {
   handoffCarry, handoffCalm, easeCarry, HANDOFF_TURN,
 } from '../ui/zoom.js';
 import { GOALS, STARTER_END } from '../progress.js';
+
+// The lander's size for seeing it (#62 stage 4): half its height, metres.
+const LANDER_LOOK = { half: BELT_LOOK.lander / 2 };
 
 // A splash's two colours: white and blue for water (#44), pale and dark amber for methane (#46).
 const WATER_SPLASH = [0xeaf7ff, 0x9fd6ee];
@@ -132,10 +134,10 @@ export class FlightScene {
     this.ambient = new THREE.AmbientLight(0x404060, 0.35);
     this.scene.add(this.hemi, this.ambient);
     this.initFarLight();
-    // The frontier (#62 stage 4): the icy-rock belt round Yonder's distance and the probe flying
-    // past Yonder. Only the look: placed each frame by updateFrontier().
+    // The frontier (#62 stage 4): the icy-rock belt round Yonder's distance, tumbling, and the
+    // little lander on one of its big rocks. Only the look: placed each frame by updateFrontier().
     this.frontier = createFrontier(this.system);
-    this.scene.add(this.frontier.belt.group, this.frontier.belt.dots, this.frontier.probe.group);
+    this.scene.add(this.frontier.belt.group, this.frontier.belt.dots, this.frontier.lander.group);
 
     this.rocketHolder = new THREE.Group();
     this.scene.add(this.rocketHolder);
@@ -1577,34 +1579,33 @@ export class FlightScene {
     if (!p.has('find-hexagon') && this.hexagonInView()) this.found('find-hexagon');
     if (!p.has('find-heart') && this.heartInView()) this.found('find-heart');
     if (!p.has('find-dancers') && this.pairInView()) this.found('find-dancers');
-    if (!p.has('find-probe') && this.probeInView()) this.found('find-probe');
+    if (!p.has('find-lander') && this.landerInView()) this.found('find-lander');
   }
 
   /**
-   * Is the probe (#62 stage 4) in view as it flies past Yonder, close enough to see? Where it is
-   * comes from the game clock (probeAt()); from where the camera was last frame (flight view or
-   * map), not while driving; no allocation.
+   * Is the little lander (#62 stage 4) on its tumbling belt rock in view, facing us and close
+   * enough to make out? From where the camera and the lander were last frame (flight view or map);
+   * not while driving; no allocation.
    */
-  probeInView() {
-    if (this.drive?.active || this.crashed) return false;
-    const s = this.flight.state;
-    const at = probeAt(this.system, s.t, this.probeTmp ??= {});
-    const v = this.probeView ??= { x: 0, y: 0, behind: false, px: 0, k: 0, near: Infinity, p: new THREE.Vector3() };
+  landerInView() {
+    const fr = this.frontier;
+    if (!fr || this.drive?.active || this.crashed || !fr.lander.group.visible) return false;
     const cam = this.camera;
-    v.p.set(at.x - this.origin.x, at.y - this.origin.y, at.z);
-    const dist = v.p.distanceTo(cam.position);
-    v.px = (PROBE.radius * window.innerHeight) / (2 * Math.max(dist, 1) * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
-    v.k = at.k;
-    const rw = this.flight.worldPos(this.probeRocket ??= {});
-    v.near = Math.hypot(at.x - rw.x, at.y - rw.y, at.z);
+    const v = this.landerView ??= { x: 0, y: 0, behind: false, facing: 0, px: 0, p: new THREE.Vector3(), to: new THREE.Vector3() };
+    // Its middle: half its height up from its feet.
+    v.p.copy(fr.lander.up).multiplyScalar(LANDER_LOOK.half).add(fr.lander.group.position);
+    v.to.copy(cam.position).sub(v.p);
+    const dist = v.to.length();
+    v.facing = v.to.dot(fr.lander.up) / Math.max(dist, 1e-6);
+    v.px = (LANDER_LOOK.half * window.innerHeight) / (2 * Math.max(dist, 1) * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
     v.p.project(cam);
     v.x = v.p.x;
     v.y = v.p.y;
     v.behind = v.p.z > 1;
-    return probeSeen(v);
+    return landerSeen(v);
   }
 
-  /** Place the frontier (#62 stage 4: the belt and the probe) for this frame, after the camera. */
+  /** Place the frontier (#62 stage 4: the belt and the lander) for this frame, after the camera. */
   updateFrontier() {
     const fr = this.frontier;
     if (!fr) return;

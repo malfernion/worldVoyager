@@ -437,7 +437,7 @@ function starVisual(body) {
 }
 
 /** A bright star's glint (#62): a white-hot middle, a soft warm halo and four thin spikes. */
-export function glintTexture(size = 128) {
+function glintTexture(size = 128) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d');
