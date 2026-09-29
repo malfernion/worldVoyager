@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toonGradient, toon, withOutline } from './materials.js';
 import { mulberry32 } from '../physics/noise.js';
-import { BELT, BIG_ROCKS, LANDER_ROCK, ROCK_REACH, beltPlan, sectorMiddle, beltTurn, spinClock, tumbleAngle, crossers, crosserPos, crosserShown } from '../physics/frontier.js';
+import { BELT, BIG_ROCKS, LANDER_ROCK, ROCK_REACH, beltPlan, sectorMiddle, beltTurn, spinClock, tumbleAngle, crossers, crosserPos, crosserShown, impactor, fallPos, IMPACT } from '../physics/frontier.js';
 
 /**
  * How it's drawn: rock colours (`ice` grey and bluish, `tholin` reddish-brown), the ink's
@@ -297,7 +297,24 @@ export function createBelt(system) {
     return mesh;
   });
 
-  return { group, arcs, big, cross, dots, uniforms: k.uniforms };
+  // The falls onto Yonder and Hither (#62 stage 4, IMPACT): a few pooled rocks (never more than
+  // two falling at once), each given its fall's size every frame.
+  const falls = [0, 1, 2].map((i) => {
+    const mesh = instanced(k.small, 1);
+    q.setFromEuler(new THREE.Euler(0.3 + i, 1.2 * i, 0.5));
+    mesh.setMatrixAt(0, m.compose(p.set(0, 0, 0), q, s.set(1, 0.8, 0.9)));
+    mesh.setColorAt(0, rockColour(i === 1 ? 1 : 0, 0.3 + 0.2 * i));
+    mesh.userData.tumble(0, [0.6, 0.64, 0.48], 80 + 20 * i, i);
+    mesh.computeBoundingSphere();
+    mesh.children[0].computeBoundingSphere();
+    mesh.frustumCulled = false; // (its size changes: the unit bounds wouldn't do)
+    mesh.children[0].frustumCulled = false;
+    mesh.visible = false;
+    group.add(mesh);
+    return mesh;
+  });
+
+  return { group, arcs, big, cross, falls, dots, uniforms: k.uniforms };
 }
 
 /**
@@ -384,6 +401,7 @@ export function createFrontier(system) {
   const belt = createBelt(system);
   const lander = createLander();
   const crossList = crossers(system), at = { x: 0, y: 0, z: 0 };
+  const fall = { hit: {} };
   const rock = belt.big[BIG_ROCKS.indexOf(LANDER_ROCK)];
   const spot = landerSpot(rock, LANDER_ROCK.size);
   const Y = new THREE.Vector3(0, 1, 0);
@@ -428,6 +446,15 @@ export function createFrontier(system) {
           crosserPos(crossList[i], t, at);
           m.position.set(at.x - origin.x, at.y - origin.y, at.z);
           m.visible = crosserShown(system, crossList[i], t);
+        }
+        // The falls: the ones coming down now, each in the mesh of its slot.
+        for (const m of belt.falls) m.visible = false;
+        for (let kk = Math.floor(t / IMPACT.gap) - 1; kk <= Math.floor(t / IMPACT.gap) + 1; kk++) {
+          if (!fallPos(impactor(system, kk, fall), t, at)) continue;
+          const m = belt.falls[((kk % 3) + 3) % 3];
+          m.visible = true;
+          m.position.set(at.x - origin.x, at.y - origin.y, at.z);
+          m.scale.setScalar(fall.size);
         }
         // The lander rides its rock: the rock's place, the belt's turn, then its tumble (the same
         // sums as the shader's), then where it stands on the rock.

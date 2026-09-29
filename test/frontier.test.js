@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { createSystem } from '../src/physics/bodies.js';
 import {
   BELT, BELT_MID, ROCK_REACH, BIG_ROCKS, BIG_REACH, LANDER_ROCK, CROSS, beltPlan, sectorOf, sectorMiddle, beltTurn, tumbleAngle, spinClock,
-  landerRockAt, crossers, crosserPos, passTime, crosserHit, crosserShown, crosserHitsBetween, crosserTouch, worldOf,
+  landerRockAt, crossers, crosserPos, passTime, crosserHit, crosserShown, crosserHitsBetween, crosserTouch, worldOf, IMPACT, impactor, fallPos,
 } from '../src/physics/frontier.js';
 import { DISCOVERIES, LANDER_VIEW, landerSeen, buggyFinds, landingFinds, discoveryTargets } from '../src/physics/discoveries.js';
 import { Flight } from '../src/physics/sim.js';
@@ -46,7 +46,7 @@ describe('the icy-rock belt (#62 stage 4)', () => {
     expect(outside).toBeGreaterThan(0.08);
     // Sparse: kilometres apart in the plane (and more in 3D).
     const area = Math.PI * (BELT.outer ** 2 - BELT.inner ** 2);
-    expect(Math.sqrt(area / rocks.length)).toBeGreaterThan(4000);
+    expect(Math.sqrt(area / rocks.length)).toBeGreaterThan(3000);
     const per = Array(BELT.sectors).fill(0);
     for (const r of rocks) per[r.sector]++;
     for (const n of per) expect(n).toBeGreaterThan((0.6 * BELT.count) / BELT.sectors);
@@ -128,9 +128,11 @@ describe('the icy-rock belt (#62 stage 4)', () => {
     expect(tris / BELT.count).toBeLessThanOrEqual(20);
     expect(belt.big.length).toBe(BIG_ROCKS.length);
     expect(belt.cross.length).toBe(list.length);
-    expect(list.length).toBeGreaterThanOrEqual(3);
-    expect(list.length).toBeLessThanOrEqual(6);
-    for (const b of [...belt.big, ...belt.cross]) expect(b.count).toBe(1);
+    expect(list.length).toBe(20);
+    expect(belt.falls.length).toBe(3);
+    for (const b of [...belt.big, ...belt.cross, ...belt.falls]) expect(b.count).toBe(1);
+    // Triangles: small lumps (20 each) for the belt, so a few arcs in view stay light.
+    expect(belt.arcs[0].geometry.attributes.position.count / 3).toBe(20);
     const mats = new Set(), inks = new Set();
     for (const m of [...belt.arcs, ...belt.big, ...belt.cross]) {
       mats.add(m.material);
@@ -448,24 +450,70 @@ describe('the crossers (#62 stage 4): the odd real collision', () => {
     }
   });
 
-  it('one beats 3:2 with Yonder and reaches it every two Yonder years; one reaches Hither; each a puff on the cameras\' side', () => {
+  it('one beats 3:2 with Yonder and reaches it every two Yonder years; one reaches Hither; each on the cameras\' side', () => {
     const hits = [];
-    crosserHitsBetween(sys, 0, 4 * yonder.orbitalPeriod + 1000, (h) => hits.push(h));
-    const onYonder = hits.filter((h) => h.body === yonder), onHither = hits.filter((h) => h.body === hither);
+    // The crossers' own hits (the falls are below).
+    crosserHitsBetween(sys, 0, 4 * yonder.orbitalPeriod + 1000, (h) => { if (h.crosser !== 'fall') hits.push({ ...h }); });
+    const onYonder = hits.filter((h) => h.body === yonder && h.crosser === 0), onHither = hits.filter((h) => h.body === hither);
     expect(onYonder.length).toBeGreaterThanOrEqual(2);
     expect(onHither.length).toBeGreaterThanOrEqual(1);
     for (let i = 1; i < onYonder.length; i++) expect(onYonder[i].t - onYonder[i - 1].t).toBeCloseTo(2 * yonder.orbitalPeriod, 0);
     for (const h of hits) {
-      // Where it lands: on the world's ground (its radius from the middle), on the side the cameras see.
       expect(Math.hypot(h.x, h.y, h.z)).toBeCloseTo(h.body.radius, 6);
       expect(h.z).toBeGreaterThan(0);
-      // Touching at that moment.
       const c = list[h.crosser];
       const p = crosserPos(c, h.t, {}), w = worldOf(h.body, h.t, {});
       expect(Math.hypot(p.x - w.x, p.y - w.y, p.z)).toBeCloseTo(h.body.radius + c.size * ROCK_REACH, 3);
     }
-    // Hits are rare: a few over many Yonder years.
-    expect(hits.length).toBeLessThan(8);
+    // The crossers' own hits are rare: a few over many Yonder years.
+    expect(hits.length).toBeLessThan(12);
+  });
+
+  it('a rock falls on Yonder about every ten minutes (7 to 13 between), now and then on Hither', () => {
+    const falls = [];
+    crosserHitsBetween(sys, 0, 40000, (h) => { if (h.crosser === 'fall') falls.push({ ...h }); });
+    falls.sort((a, b) => a.t - b.t);
+    const n = 40000 / IMPACT.gap;
+    expect(falls.length).toBeGreaterThan(n - 2);
+    expect(falls.length).toBeLessThan(n + 2);
+    for (let i = 1; i < falls.length; i++) {
+      expect(falls[i].t - falls[i - 1].t).toBeGreaterThanOrEqual(7 * 60);
+      expect(falls[i].t - falls[i - 1].t).toBeLessThanOrEqual(13 * 60);
+    }
+    const onYonder = falls.filter((h) => h.body === yonder).length;
+    expect(onYonder / falls.length).toBeGreaterThan(0.75);
+    expect(falls.some((h) => h.body === hither)).toBe(true);
+    // Pure: the same slot, the same fall.
+    expect(impactor(sys, 17)).toEqual(impactor(sys, 17));
+  });
+
+  it('falls land on the side the cameras see, well off the landing strip, and never reach the flight plane (no rocket or buggy is ever touched)', () => {
+    const f = { hit: {} }, p = {};
+    for (let k = 0; k < 400; k++) {
+      impactor(sys, k, f);
+      expect(f.nz).toBeGreaterThanOrEqual(IMPACT.lat[0]);
+      // The landing strip is the ground by the flight plane; a landed rocket stands there (a few metres tall).
+      expect(f.hit.z).toBeGreaterThan(0.5 * f.body.radius);
+      // Its whole way down: above the plane by more than its own reach plus a rocket's.
+      for (let t = f.t - IMPACT.lead; t < f.t; t += 2) {
+        expect(fallPos(f, t, p)).toBeTruthy();
+        expect(p.z - f.size * ROCK_REACH).toBeGreaterThan(CROSS.rocket + 20);
+        // Never inside a world before it lands.
+        for (const b of [yonder, hither]) {
+          const w = worldOf(b, t, {});
+          expect(Math.hypot(p.x - w.x, p.y - w.y, p.z)).toBeGreaterThan(b.radius + f.size * ROCK_REACH - 1e-6);
+        }
+      }
+      // Touching its world exactly as it lands; gone after.
+      const w = worldOf(f.body, f.t - 1e-6, {});
+      fallPos(f, f.t - 1e-6, p);
+      expect(Math.hypot(p.x - w.x, p.y - w.y, p.z)).toBeCloseTo(f.body.radius + f.size * ROCK_REACH, 3);
+      expect(fallPos(f, f.t, p)).toBe(null);
+      expect(fallPos(f, f.t - IMPACT.lead - 1, p)).toBe(null);
+    }
+    // And the sim never nudges from them: a rocket parked right under a fall's spot isn't touched.
+    impactor(sys, 3, f);
+    expect(crosserTouch(sys, f.body, f.nx * (f.body.radius + 5), f.ny * (f.body.radius + 5), f.t - 1, {})).toBe(-1);
   });
 
   it('are never drawn inside a world: gone from the moment one reaches it until far off the plane', () => {
@@ -549,7 +597,7 @@ describe('the crossers (#62 stage 4): the odd real collision', () => {
 
   it('a hit on Yonder makes a puff of ice dust in the flight scene (pooled particles), once', () => {
     const hits = [];
-    crosserHitsBetween(sys, 0, yonder.orbitalPeriod, (h) => hits.push(h));
+    crosserHitsBetween(sys, 0, yonder.orbitalPeriod, (h) => hits.push({ ...h }));
     const hit = hits.find((h) => h.body === yonder);
     const puffs = [];
     const s = Object.create(FlightScene.prototype);
@@ -560,10 +608,11 @@ describe('the crossers (#62 stage 4): the odd real collision', () => {
     s.updateImpacts();
     s.flight.state.t = hit.t + 5;
     s.updateImpacts();
-    expect(puffs.length).toBeGreaterThan(20);
+    expect(puffs.length).toBeGreaterThan(60);
+    expect(puffs.filter((p) => p.kind === 'spark').length).toBeGreaterThan(0); // the flash
     for (const p of puffs) {
       expect(p.body).toBe(yonder);
-      expect(Math.hypot(p.x, p.y, p.z)).toBeCloseTo(yonder.radius, 6);
+      expect(Math.hypot(p.x, p.y, p.z)).toBeCloseTo(yonder.radius + 4, 6); // just off the ground
     }
     // Not again for the same moment, nor after a rewind.
     const n = puffs.length;

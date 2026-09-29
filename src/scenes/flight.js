@@ -1531,6 +1531,7 @@ export class FlightScene {
     this.origin.y = this.drive.world.y;
     this.drive.place(this.input);
     this.placeBodies(s.t);
+    this.updateImpacts(); // (a fall onto the world we're driving on is a puff to watch, nothing more)
     this.updateFarLight(this.drive.world);
     this.placeRocket(f.worldPos(this.tmp));
     this.particles.update(dt, s.t, this.origin);
@@ -1664,13 +1665,28 @@ export class FlightScene {
   impactPuff(hit) {
     const r = hit.body.radius;
     const nx = hit.x / r, ny = hit.y / r, nz = hit.z / r;
-    for (let i = 0; i < 50; i++) {
-      const sp = 3 + Math.random() * 9;
-      const jx = (Math.random() - 0.5) * 1.2, jy = (Math.random() - 0.5) * 1.2, jz = (Math.random() - 0.5) * 1.2;
-      this.particles.spawn('puff', hit.body, hit.x, hit.y, hit.z,
-        (nx + jx) * sp, (ny + jy) * sp, (nz + jz) * sp, {
-          size: 12 + Math.random() * 12, grow: 4, life: 8 + Math.random() * 4, drag: 0.35, color: i % 2 ? 0xc8d3df : 0x8e9aa9,
-        });
+    // A short bright flash (additive glow), a few sparks, then a big plume of pale bluish-white
+    // ice dust up off the ground and a ring of it along the ground; one in four puffs a little
+    // greyer, so it reads against pale ice too. All from the one particle pool.
+    const lift = 4;
+    const px = hit.x + nx * lift, py = hit.y + ny * lift, pz = hit.z + nz * lift;
+    this.particles.spawn('spark', hit.body, px, py, pz, 0, 0, 0, { size: 70, grow: 0.8, life: 0.8, drag: 0, color: 0xdcefff });
+    for (let i = 0; i < 8; i++) {
+      const sp = 20 + Math.random() * 20;
+      const jx = (Math.random() - 0.5) * 1.6, jy = (Math.random() - 0.5) * 1.6, jz = (Math.random() - 0.5) * 1.6;
+      this.particles.spawn('spark', hit.body, px, py, pz, (nx + jx) * sp, (ny + jy) * sp, (nz + jz) * sp, { size: 6, grow: -0.6, life: 1 + Math.random() * 0.6, drag: 0.8, color: 0xeaf6ff });
+    }
+    for (let i = 0; i < 64; i++) {
+      const ring = i % 3 === 0;
+      const sp = ring ? 6 + Math.random() * 8 : 4 + Math.random() * 12;
+      // Along the ground (the ring) or up off it (the plume).
+      let jx = (Math.random() - 0.5) * 2, jy = (Math.random() - 0.5) * 2, jz = (Math.random() - 0.5) * 2;
+      const d = jx * nx + jy * ny + jz * nz;
+      if (ring) { jx -= d * nx; jy -= d * ny; jz -= d * nz; } else { jx = nx + jx * 0.6; jy = ny + jy * 0.6; jz = nz + jz * 0.6; }
+      this.particles.spawn('puff', hit.body, px, py, pz, jx * sp, jy * sp, jz * sp, {
+        size: 14 + Math.random() * 14, grow: 4.5, life: 9 + Math.random() * 4, drag: 0.35,
+        color: i % 4 === 0 ? 0x9fb0c2 : i % 2 ? 0xe8f4ff : 0xbcd6ee,
+      });
     }
     this.app.audio?.play?.('thump');
   }
