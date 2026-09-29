@@ -18,7 +18,9 @@ import { createSky } from '../world/sky.js';
 import { SKY_LOOK, farLight, FAR_LIGHT } from '../world/planets.js';
 import { rainVolume } from '../world/rain.js';
 import { DriveMode } from './drive.js';
-import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, pairSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
+import { landingFinds, ringGapCrossed, flareSeen, hexagonSeen, heartSeen, pairSeen, probeSeen, HEX_POLE, HEART_SPOT, HEART_SIZE, sunDirection } from '../physics/discoveries.js';
+import { probeAt, PROBE } from '../physics/frontier.js';
+import { createFrontier } from '../world/frontier.js';
 import { HEXAGON } from '../world/richLook.js';
 import { landingMeets, allFound, fullBandReady, FULL_BAND } from '../physics/friends.js';
 import { MARKER_LINES, FIRST_SIGHT, MAX_PAUSE, pickExplanation, buttonExplanation, labelRank, declutterLabels } from '../ui/markers.js';
@@ -130,6 +132,10 @@ export class FlightScene {
     this.ambient = new THREE.AmbientLight(0x404060, 0.35);
     this.scene.add(this.hemi, this.ambient);
     this.initFarLight();
+    // The frontier (#62 stage 4): the icy-rock belt round Yonder's distance and the probe flying
+    // past Yonder. Only the look: placed each frame by updateFrontier().
+    this.frontier = createFrontier(this.system);
+    this.scene.add(this.frontier.belt.group, this.frontier.belt.dots, this.frontier.probe.group);
 
     this.rocketHolder = new THREE.Group();
     this.scene.add(this.rocketHolder);
@@ -1007,6 +1013,7 @@ export class FlightScene {
     this.placeRocket(rw);
     this.updateEffects(dt);
     this.updateCamera(dt);
+    this.updateFrontier();
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
@@ -1516,6 +1523,7 @@ export class FlightScene {
     this.camera.far = 3e6;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
+    this.updateFrontier(); // (hidden while driving)
     this.updateLines();
     this.sky.position.copy(this.camera.position);
     this.updateAtmospheres();
@@ -1569,6 +1577,48 @@ export class FlightScene {
     if (!p.has('find-hexagon') && this.hexagonInView()) this.found('find-hexagon');
     if (!p.has('find-heart') && this.heartInView()) this.found('find-heart');
     if (!p.has('find-dancers') && this.pairInView()) this.found('find-dancers');
+    if (!p.has('find-probe') && this.probeInView()) this.found('find-probe');
+  }
+
+  /**
+   * Is the probe (#62 stage 4) in view as it flies past Yonder, close enough to see? Where it is
+   * comes from the game clock (probeAt()); from where the camera was last frame (flight view or
+   * map), not while driving; no allocation.
+   */
+  probeInView() {
+    if (this.drive?.active || this.crashed) return false;
+    const s = this.flight.state;
+    const at = probeAt(this.system, s.t, this.probeTmp ??= {});
+    const v = this.probeView ??= { x: 0, y: 0, behind: false, px: 0, k: 0, near: Infinity, p: new THREE.Vector3() };
+    const cam = this.camera;
+    v.p.set(at.x - this.origin.x, at.y - this.origin.y, at.z);
+    const dist = v.p.distanceTo(cam.position);
+    v.px = (PROBE.radius * window.innerHeight) / (2 * Math.max(dist, 1) * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
+    v.k = at.k;
+    const rw = this.flight.worldPos(this.probeRocket ??= {});
+    v.near = Math.hypot(at.x - rw.x, at.y - rw.y, at.z);
+    v.p.project(cam);
+    v.x = v.p.x;
+    v.y = v.p.y;
+    v.behind = v.p.z > 1;
+    return probeSeen(v);
+  }
+
+  /** Place the frontier (#62 stage 4: the belt and the probe) for this frame, after the camera. */
+  updateFrontier() {
+    const fr = this.frontier;
+    if (!fr) return;
+    const cam = this.camera;
+    const c = this.frontierCtx ??= { t: 0, time: 0, origin: this.origin, camera: cam, mode: 'flight', camWorld: { x: 0, y: 0 }, camHeight: 0, yonder: null, viewH: 1 };
+    c.t = this.flight.state.t;
+    c.time = this.time;
+    c.mode = this.drive.active ? 'drive' : this.mode;
+    c.camWorld.x = cam.position.x + this.origin.x;
+    c.camWorld.y = cam.position.y + this.origin.y;
+    c.camHeight = Math.abs(cam.position.z);
+    c.yonder = (this.yonderVisual ??= this.visuals.find((x) => x.body.id === 'yonder'))?.group ?? null;
+    c.viewH = window.innerHeight;
+    fr.update(c);
   }
 
   /**

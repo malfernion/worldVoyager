@@ -180,6 +180,12 @@ export const STICKERS = {
     say: 'Look, Yonder and Hither spin round together! Pluto and its moon Charon always face each other, like two dancers holding hands!',
     hint: 'Yonder and Hither are doing something together. Can you see them both at once?',
   },
+  // The probe (#62 stage 4), like New Horizons: found by seeing it fly past Yonder (discoveries.js).
+  'find-probe': {
+    icon: '📸', name: 'Probe Spotter', world: 'yonder',
+    say: 'Look, a little space probe zooming past! A real probe called New Horizons flew past Pluto in 2015. It left Earth faster than any spacecraft before it! Then it flew on and visited a space rock shaped like a snowman.',
+    hint: 'Something tiny zooms past Yonder now and then. Can you spot it?',
+  },
 
   // Pip's friends, the space band (#16): where they are, what they play and how loud they are is
   // src/physics/friends.js. `say` is Pip's hello (and again when tapped in the sticker book);
