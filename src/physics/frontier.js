@@ -29,7 +29,7 @@ import { mulberry32 } from './noise.js';
  * 7 s a turn) and the biggest of them slowest (`spin[0]`: 90 s); the big ones slower still.
  */
 export const BELT = {
-  count: 3200, inner: 68000, outer: 160000, sectors: 36, tilt: 0.06, slab: 300,
+  count: 6400, inner: 68000, outer: 160000, sectors: 36, tilt: 0.06, slab: 300,
   size: [18, 110], seed: 6204, spinT: 1800, spin: [20, 240],
 };
 /** The middle of the belt's radii (where each arc's mesh is centred). */
@@ -178,10 +178,11 @@ export function landerRockAt(system, t, out = {}) {
 // meet a world: one in a 3:2 beat with Yonder (like the real Plutinos with Neptune: three of its
 // laps to Yonder's two), crossing the plane exactly where Yonder is as it heads out past that
 // distance in its first year (about t = 3,800), and so again every two Yonder years; one crossing
-// where Hither is at `CROSS.meetHither` (once; after that only by chance). The rest cross in empty space. A crosser that reaches a world is gone, in a puff
+// where Hither is at `CROSS.meetHither` (once; after that only by chance). The rest (`count` in
+// all) cross in empty space. A crosser that reaches a world is gone, in a puff
 // of ice dust, until the far point of that lap (a quarter lap later, far off the plane).
 // `size`: its width; `bump`: the nudge a rocket gets from one (m/s); `rocket`: the rocket's reach.
-export const CROSS = { meetHither: 12000, incl: 0.25, bump: 2.5, rocket: 4 };
+export const CROSS = { count: 20, meetHither: 12000, incl: 0.25, bump: 2.5, rocket: 4 };
 
 const tmpA = { x: 0, y: 0 }, tmpB = { x: 0, y: 0 };
 
@@ -232,9 +233,9 @@ export function crossers(system) {
     through(0, pa, t1, (-3 / 2) * (2 * Math.PI) / P, { size: 26, tint: 0.2 }),
     through(1, worldOf(hither, CROSS.meetHither, {}), CROSS.meetHither, undefined, { size: 22, tint: 0.8 }),
   ];
-  // Three more, crossing in empty belt (fixed seeds).
+  // The rest cross in empty belt (fixed seeds).
   const rand = mulberry32(6262);
-  for (let i = 2; i < 5; i++) {
+  for (let i = 2; i < CROSS.count; i++) {
     const R = 76000 + rand() * 70000, node = rand() * Math.PI * 2, rate = kepler(R);
     list.push({ id: i, R, node, incl: 0.12 + rand() * 0.2, rate, u0: rand() * Math.PI * 2, size: 16 + rand() * 12, tint: rand() });
   }
@@ -336,12 +337,18 @@ export function crosserShown(system, c, t) {
 }
 
 /**
- * The crossers' reaches of worlds between game times t0 and t1 (t0 < t, t <= t1), each passed to
- * `fn(hit)` in time order: for the flight scene's puffs of ice dust. Only looks at crossings in
- * that window.
+ * Every rock reaching Yonder or Hither between game times t0 and t1 (t0 < t, t <= t1): the falls
+ * (about one every IMPACT.gap) and the crossers', each passed to `fn(hit)` (a fall's `hit` is
+ * reused: copy it to keep it): for the flight scene's puffs of ice dust. Only looks at the falls
+ * and crossings in that window.
  */
 export function crosserHitsBetween(system, t0, t1, fn) {
   if (!(t1 > t0)) return;
+  // The falls onto Yonder and Hither (below): one about every IMPACT.gap.
+  for (let k = Math.floor(t0 / IMPACT.gap) - 1; k <= Math.floor(t1 / IMPACT.gap) + 1; k++) {
+    const f = impactor(system, k, fallTmp);
+    if (f.t > t0 && f.t <= t1) fn(f.hit);
+  }
   for (const c of crossers(system)) {
     const k0 = lastPass(c, t0), k1 = lastPass(c, t1);
     // Crossings from just before t0 (a hit can come a little before its crossing) to just after t1.
@@ -379,4 +386,67 @@ export function crosserTouch(system, body, x, y, t, out) {
     return c.id * 1e9 + Math.round(along(c, t) / Math.PI); // (its nearest crossing: one nudge each)
   }
   return -1;
+}
+
+// ---- The falls: a rock landing on Yonder (or now and then Hither) about every ten minutes -------
+//
+// The owner wanted Yonder's impacts about every ten minutes of game time, far more often than any
+// orbit round Ember could line up. So the falls are slots on the game clock: fall k lands at about
+// k × `gap` (give or take `jitter`, so the gaps are 7 to 13 minutes), a small rock seen coming down
+// out of the belt for the last `lead` seconds, on a straight line in its world's (not turning)
+// frame, from high above the flight plane, at `speed` m/s, onto a spot on the side the cameras see
+// (`lat`: its height up the world, as a share of the radius, from lat[0] to lat[1], so never on the
+// landing strip by the flight plane, and the rock never reaches the plane: a rocket, landed or
+// flying, and the buggy are never touched; the puff is only the look). About one in `hither` lands
+// on Hither instead. Pure: each fall comes from a hash of k.
+export const IMPACT = { gap: 600, jitter: 90, lead: 240, speed: [12, 20], lat: [0.55, 0.95], hither: 8, size: [14, 26] };
+
+/** A number in [0, 1) from integers k and i (a small integer hash: no allocation, the same every time). */
+function hash(k, i) {
+  let h = Math.imul(k ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(i + 0x632be5ab, 0xc2b2ae35);
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+const fallTmp = { hit: {} };
+/**
+ * Fall k, into `out`: { k, t (the moment it lands), body, nx, ny, nz (the spot, a unit direction
+ * from the world's middle, in the flight's frame), ux, uy, uz (which way it came from, unit),
+ * speed, size, hit (as crosserHit()'s: { t, body, x, y, z, crosser: 'fall' }) }.
+ */
+export function impactor(system, k, out = { hit: {} }) {
+  const I = IMPACT;
+  out.k = k;
+  out.t = (k + 0.5) * I.gap + (hash(k, 1) - 0.5) * 2 * I.jitter;
+  out.body = hash(k, 2) * I.hither < 1 ? system.byId.hither : system.byId.yonder;
+  const z = I.lat[0] + (I.lat[1] - I.lat[0]) * hash(k, 3), a = 2 * Math.PI * hash(k, 4), h = Math.sqrt(1 - z * z);
+  out.nx = h * Math.cos(a); out.ny = h * Math.sin(a); out.nz = z;
+  // Coming down steeply from above, leaning out over the spot a little and a little sideways.
+  const b = 2 * Math.PI * hash(k, 5);
+  let ux = out.nx * 0.5 + 0.3 * Math.cos(b), uy = out.ny * 0.5 + 0.3 * Math.sin(b), uz = out.nz * 0.5 + 0.8;
+  const l = Math.hypot(ux, uy, uz);
+  out.ux = ux / l; out.uy = uy / l; out.uz = uz / l;
+  out.speed = I.speed[0] + (I.speed[1] - I.speed[0]) * hash(k, 6);
+  out.size = I.size[0] + (I.size[1] - I.size[0]) * hash(k, 7);
+  const R = out.body.radius;
+  const hit = out.hit;
+  hit.t = out.t; hit.body = out.body; hit.x = out.nx * R; hit.y = out.ny * R; hit.z = out.nz * R; hit.crosser = 'fall';
+  return out;
+}
+
+const fallW = { x: 0, y: 0 };
+/**
+ * Where fall `f` (impactor()'s) is at time t (world coordinates round Ember, into `out`), or null
+ * if it isn't there (before its last `lead` seconds, or landed).
+ */
+export function fallPos(f, t, out) {
+  if (t < f.t - IMPACT.lead || t >= f.t) return null;
+  worldOf(f.body, t, fallW);
+  const r = f.body.radius + f.size * ROCK_REACH, s = f.speed * (f.t - t);
+  out.x = fallW.x + f.nx * r + f.ux * s;
+  out.y = fallW.y + f.ny * r + f.uy * s;
+  out.z = f.nz * r + f.uz * s;
+  return out;
 }
