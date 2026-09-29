@@ -970,11 +970,13 @@ h1 {
   }
 }
 
+/* Placed by App.placeSticker() (src/ui/stickerPop.js) clear of Pip's bubble, and shrunk to fit
+   (--pop); these are only where it starts. */
 #sticker-pop {
   position: absolute;
   left: 50%;
   top: 42%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(var(--pop, 1));
   display: flex;
   flex-direction: column;
   align-items: center;
