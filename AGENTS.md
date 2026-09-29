@@ -36,7 +36,7 @@ When reviewing an agent's work before merging, check that the docs moved with th
 ```bash
 npm install
 npm run dev          # Vite dev server (--host, so phones on the LAN can connect)
-npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), the frontier (#62 stage 4: the belt's spread, depth, clear slab and draw calls, hidden from the start; every rock's tumble from the game clock, in the shader; the lander riding its rock near Yonder's path, found by seeing it up close; the crossers: pure orbits, hits on Yonder and Hither with their puffs, a small nudge that never crashes), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, splashes on the baked ground, the rings, the rain's volume, the sky in a shower), the gas giants' streaks and limb haze (#54: clear of the hexagon, no jump at the clock's wrap, veil and haze profiles, other shells unchanged), Frosty's crack mist, plumes and ice sparkles (#54: always out of a crack, each wisp's and plume puff's loop, day and night, sunlit plumes, fades; sparkles only in Frosty's ground shader, a steady size on screen), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp), Yonder (#62: its orbit and never meeting Tumble, landing, driving, trips there and back, Ember's dim far light and every other world's light unchanged; the rest of its ground's patterns only on Yonder and never on the heart, the blades gentle and clear of the flight plane), Hither (#62 stage 3: its orbit and SOI, the mutual tidal locking, a landed rocket and the buggy on turning ground, Yonder's heart still found, the Charon look, its chasms, Kubrick Mons and craters, trips and hops, the double world; its cracked ice: Yonder's cracks only, every other world's ground shader pinned as it was, strongest on the plains, none on the cap's middle, the chasms, Kubrick or in craters)
+npm test             # vitest: the starter journey's goals (+ older saves), physics, autopilot missions, coached flights (+ the 🧭 toggle and Show me how, and who may speed time up, #50), buggy (+ driving round the world, its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46) and haze (#58), Homestead's and Dusty's skies (#61), the frontier (#62 stage 4: the belt's spread, depth, clear slab and draw calls, hidden from the start; every rock's tumble from the game clock, in the shader; the lander riding its rock near Yonder's path, found by seeing it up close; the crossers: pure orbits, hits on Yonder and Hither with their puffs, a small nudge that never crashes; a fall about every ten minutes; the sticker pop clear of Pip's words), discoveries, friends (+ the band's music), speech (+ the speech queue), markers, fast travel, zoom, clouds (#54: placement, cloud and sprite fades, noise tile, shadow map), Sizzle's embers and heat haze (#54: always over the lava, each spark's loop, fades), Dusty's high clouds and dust storms (#54: Homestead's plan unchanged, placement, drift, soft edges, the blowing dust, the sky and haze in a storm), Misty's haze bands and methane rain (#54: other worlds' shells unchanged, bands and their drift, the detached layer, showers' placement and drift, fading with height, each drop's loop, splashes on the baked ground, the rings, the rain's volume, the sky in a shower), the gas giants' streaks and limb haze (#54: clear of the hexagon, no jump at the clock's wrap, veil and haze profiles, other shells unchanged), Frosty's crack mist, plumes and ice sparkles (#54: always out of a crack, each wisp's and plume puff's loop, day and night, sunlit plumes, fades; sparkles only in Frosty's ground shader, a steady size on screen), the camera across SOI hand-offs (#49), the map staying where it's put (#57), orbit lines never through the ground (#48), page zoom (#39), audio unlock, the rocket's exhaust (#60: air per world, none in a vacuum, pool reuse, colours, warp), Yonder (#62: its orbit and never meeting Tumble, landing, driving, trips there and back, Ember's dim far light and every other world's light unchanged; the rest of its ground's patterns only on Yonder and never on the heart, the blades gentle and clear of the flight plane), Hither (#62 stage 3: its orbit and SOI, the mutual tidal locking, a landed rocket and the buggy on turning ground, Yonder's heart still found, the Charon look, its chasms, Kubrick Mons and craters, trips and hops, the double world; its cracked ice: Yonder's cracks only, every other world's ground shader pinned as it was, strongest on the plains, none on the cap's middle, the chasms, Kubrick or in craters)
 npm run build        # static site in dist/
 npm run voice:check  # which of Pip's sentences still need recording
 npm run stress       # "take me there" sweep: every pair of worlds, many start times, tours,
@@ -92,7 +92,8 @@ src/physics/           Pure, headless, unit-tested; no three.js here
                        every rock's tumble from the game clock (`tumbleAngle()`, `spinClock()`), the lander's rock (`LANDER_ROCK`,
                        `landerRockAt()`, near the far end of Yonder's loop against the turning belt), and the few crossers on tilted
                        orbits (`CROSS`, `crossers()`, `crosserPos()`, `passTime()`): reaching Yonder or Hither (`crosserHit()`,
-                       `crosserShown()`, `crosserHitsBetween()`) and nudging a flying rocket (`crosserTouch()`, the sim's only use)
+                       `crosserShown()`, `crosserHitsBetween()`) and nudging a flying rocket (`crosserTouch()`, the sim's only use);
+                       the falls onto Yonder and Hither about every ten minutes (`IMPACT`, `impactor()`, `fallPos()`)
   friends.js           Pip's friends, the space band (#16): where each campfire is, saying hello (buggy near / landing next to),
                        the 🎵 compass targets, how loud each friend's part is from where you are, Full Band
   sim.js               Flight: thrust, patched-conic stepping, SOI hand-offs, landing/crash, rewind, a crosser's nudge (`checkBump()`, #62 stage 4)
@@ -158,7 +159,7 @@ src/world/             three.js visuals: planets (incl. rings, atmospheres; Embe
                        frontier (#62 stage 4: the belt, an instanced mesh + ink per arc round its own middle, `createBelt()`, the map's
                        dots, `beltShown()` / `dotsShown()`, rocks by the camera fading `nearFade()` and the `beltGrow()` floor on screen,
                        `BELT_LOOK`; every rock's tumble in the vertex shader from per-instance attributes, `beltShader()`; the crossers'
-                       meshes; the lander `createLander()` on its rock; `createFrontier()` places it all each frame)
+                       and falls' meshes; the lander `createLander()` on its rock; `createFrontier()` places it all each frame)
 src/rocket/            Parts catalogue + stats, procedural rocket and buggy meshes
 src/scenes/            builder.js (workshop), flight.js (flight + map views; its coaching section: the 🧭 toggle, 🧭 Show me how,
                        `coachWant()` / `updateCoaching()`, and the autopilot buttons, `helper()`; #36; time speed: `warp`, `fly()`,
@@ -174,6 +175,7 @@ src/ui/                flightHud.js (controls, readouts, gestures, which helpers
                        speechQueue.js (pure: one line at a time, gap, priorities, stall timeout; #31),
                        markers.js (pure: what each screen marker means, when it's safe to pause and explain one, label decluttering; #33;
                        what each autopilot button says the first time it flies for us; #36),
+                       stickerPop.js (pure: where a sticker that pops up goes, clear of Pip's bubble, `stickerSpot()`; #62),
                        fastTravel.js (pure: tapping the map's path for a ⏰, where it may go, the travel warp that lands on it; #27),
                        zoom.js (pure zoom maths: real camera distances with fixed limits per mode, slider mapping;
                        the SOI hand-off's `carry` and when it may settle, #49)
@@ -224,7 +226,9 @@ test/                  vitest suites; missions.js has the shared headless flight
                        and its wrap, the shader's attributes shared with the ink, normals turned); the lander (under the slab, near
                        Yonder's path, riding its tumbling rock) and finding it by seeing it up close; the crossers (pure orbits, the 3:2
                        beat with Yonder and the hit on Hither, gone after a hit, never drawn inside a world, the nudge: small, once,
-                       never a crash, the same on replay; the puff of ice dust on Yonder)
+                       never a crash, the same on replay; a fall about every ten minutes, off the landing strip, never
+                       reaching the plane; the puff of ice dust on Yonder, only for a frame's time near the camera)
+                       stickerPop.test.js: the sticker that pops up never over Pip's words, on screen, at phone and tablet sizes
                        hitherGround.test.js: Hither's cracked ice (#62): Yonder's cracks only (no blades or pits, its own program),
                        every other world's ground shader (Yonder's too) pinned byte for byte as it was, the ground untouched,
                        strongest on the plains, fainter in the north, fading across the cap's edge, none on its middle, down the
@@ -312,7 +316,9 @@ tools/stress.mjs       Stress sweep for "take me there" (npm run stress), built 
   (`crosserTouch()`): a few small rocks on tilted orbits that touch a flying rocket give it a
   2.5 m/s nudge, once a crossing (`state.bumped`, so rewind and replay agree), never a crash, and
   never touch a landed rocket or the buggy; one reaching Yonder or Hither is a puff of ice dust
-  (visual only) and gone until the far point of its lap. Every other rock stays outside the clear
+  (visual only) and gone until the far point of its lap. The falls (a rock onto Yonder or Hither
+  about every ten minutes, `impactor()`) land high on the cameras' side, never on the landing
+  strip, and never reach the flight plane, so they never touch a rocket or the buggy either. Every other rock stays outside the clear
   slab round the flight plane (`BELT.slab`, more than Yonder's plus Hither's radius, beyond its own
   reach, and never grown into it), so no world ever touches one and none is in the rocket's way;
   nothing vanishes near a world. Rocks by the camera (between it and the rocket) shrink away

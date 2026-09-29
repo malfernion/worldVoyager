@@ -187,8 +187,8 @@ there is about 25 minutes). Hop across from Yonder, land and drive down into the
 reddish ones, a few bigger, one shaped like a snowman) circles Ember, like the Kuiper belt: a wide,
 thick band, rocks far apart above and below you, each slowly tumbling. It's so empty that you fly
 straight through the gaps, but now and then one of a few rocks on tilted orbits crosses your path
-and gives you a little bonk (never a crash), and once in a long while one lands on Yonder or Hither
-in a puff of ice dust. On the zoomed-out map the belt is a faint broad band of dots. Somewhere out
+and gives you a little bonk (never a crash). About every ten minutes a small rock falls onto
+Yonder (now and then Hither) in a bright puff of ice dust: watch from orbit or the map! On the zoomed-out map the belt is a faint broad band of dots. Somewhere out
 there, near Yonder's path, a little lander rests on a big tumbling rock. Can you find it?
 
 **Discoveries:** little secrets hide around the solar system, each one a real bit of space
