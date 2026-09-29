@@ -604,6 +604,8 @@ describe('the crossers (#62 stage 4): the odd real collision', () => {
     Object.assign(s, {
       system: sys, flight: { state: { t: hit.t - 5 } }, app: { audio: { play() {} } },
       particles: { spawn: (kind, body, x, y, z) => puffs.push({ kind, body, x, y, z }) },
+      // The camera over Yonder (the floating origin there).
+      origin: { ...yonder.worldPos(hit.t, {}) }, camera: { position: new THREE.Vector3(0, 0, 500) },
     });
     s.updateImpacts();
     s.flight.state.t = hit.t + 5;
@@ -620,6 +622,18 @@ describe('the crossers (#62 stage 4): the odd real collision', () => {
     s.flight.state.t = hit.t - 100;
     s.updateImpacts();
     s.flight.state.t = hit.t - 99;
+    s.updateImpacts();
+    expect(puffs.length).toBe(n);
+    // Nor across a jump in time (more than a frame's worth), nor far from the camera.
+    s.flight.state.t = hit.t - 400;
+    s.updateImpacts();
+    s.flight.state.t = hit.t + 10;
+    s.updateImpacts();
+    expect(puffs.length).toBe(n);
+    s.camera.position.set(80000, 0, 500);
+    s.flight.state.t = hit.t - 5;
+    s.updateImpacts();
+    s.flight.state.t = hit.t + 5;
     s.updateImpacts();
     expect(puffs.length).toBe(n);
   });

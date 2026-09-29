@@ -31,6 +31,11 @@ import {
 } from '../ui/zoom.js';
 import { GOALS, STARTER_END } from '../progress.js';
 
+// The falls onto Yonder and Hither (#62 stage 4): the most game time one frame covers (more is a
+// jump, and nothing puffs), and how near the camera a fall must be to puff at all (metres).
+const IMPACT_FRAME = 120;
+const IMPACT_NEAR = 40000;
+
 // The lander's size for seeing it (#62 stage 4): half its height, metres.
 const LANDER_LOOK = { half: BELT_LOOK.lander / 2 };
 
@@ -1650,15 +1655,22 @@ export class FlightScene {
   }
 
   /**
-   * The belt's crossers reaching Yonder or Hither (#62 stage 4, `crosserHitsBetween()`: pure, from
-   * the game clock): a big puff of ice dust where each one lands, seen from orbit. Only for game
-   * time that has just passed (not after a rewind or a jump).
+   * Rocks reaching Yonder or Hither (#62 stage 4, `crosserHitsBetween()`: the falls, about one
+   * every ten minutes, and the crossers'; pure, from the game clock): a big puff of ice dust where
+   * each one lands, seen from orbit. Only for game time that has just passed in one frame (not after
+   * a rewind or a jump: `IMPACT_FRAME`), and only near the camera (`IMPACT_NEAR`), so warping past
+   * Yonder never fills the particle pool with puffs nobody sees.
    */
   updateImpacts() {
     const t = this.flight.state.t, last = this.lastHitT;
     this.lastHitT = t;
-    if (last === undefined || !(t > last) || t - last > 4000) return;
-    crosserHitsBetween(this.system, last, t, this.onImpact ??= (hit) => this.impactPuff(hit));
+    if (last === undefined || !(t > last) || t - last > IMPACT_FRAME) return;
+    crosserHitsBetween(this.system, last, t, this.onImpact ??= (hit) => {
+      const w = hit.body.worldPos(t, this.impactTmp ??= {});
+      const cam = this.camera.position;
+      if (Math.hypot(w.x - this.origin.x - cam.x, w.y - this.origin.y - cam.y) > IMPACT_NEAR) return;
+      this.impactPuff(hit);
+    });
   }
 
   /** A crosser landed on a world (`hit`: crosserHit()'s): a spray of ice dust up off its ground. */
@@ -1671,12 +1683,12 @@ export class FlightScene {
     const lift = 4;
     const px = hit.x + nx * lift, py = hit.y + ny * lift, pz = hit.z + nz * lift;
     this.particles.spawn('spark', hit.body, px, py, pz, 0, 0, 0, { size: 70, grow: 0.8, life: 0.8, drag: 0, color: 0xdcefff });
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 6; i++) {
       const sp = 20 + Math.random() * 20;
       const jx = (Math.random() - 0.5) * 1.6, jy = (Math.random() - 0.5) * 1.6, jz = (Math.random() - 0.5) * 1.6;
       this.particles.spawn('spark', hit.body, px, py, pz, (nx + jx) * sp, (ny + jy) * sp, (nz + jz) * sp, { size: 6, grow: -0.6, life: 1 + Math.random() * 0.6, drag: 0.8, color: 0xeaf6ff });
     }
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < 48; i++) {
       const ring = i % 3 === 0;
       const sp = ring ? 6 + Math.random() * 8 : 4 + Math.random() * 12;
       // Along the ground (the ring) or up off it (the plume).
