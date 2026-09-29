@@ -1666,7 +1666,7 @@ export class FlightScene {
     this.lastHitT = t;
     if (last === undefined || !(t > last) || t - last > IMPACT_FRAME) return;
     crosserHitsBetween(this.system, last, t, this.onImpact ??= (hit) => {
-      const w = hit.body.worldPos(t, this.impactTmp ??= {});
+      const w = hit.body.worldPos(this.flight.state.t, this.impactTmp ??= {}); // (not `t`: this closure is kept)
       const cam = this.camera.position;
       if (Math.hypot(w.x - this.origin.x - cam.x, w.y - this.origin.y - cam.y) > IMPACT_NEAR) return;
       this.impactPuff(hit);
@@ -1682,7 +1682,7 @@ export class FlightScene {
     // greyer, so it reads against pale ice too. All from the one particle pool.
     const lift = 4;
     const px = hit.x + nx * lift, py = hit.y + ny * lift, pz = hit.z + nz * lift;
-    this.particles.spawn('spark', hit.body, px, py, pz, 0, 0, 0, { size: 70, grow: 0.8, life: 0.8, drag: 0, color: 0xdcefff });
+    this.particles.spawn('spark', hit.body, px, py, pz, 0, 0, 0, { size: 120, grow: 1, life: 1, drag: 0, color: 0xdcefff });
     for (let i = 0; i < 6; i++) {
       const sp = 20 + Math.random() * 20;
       const jx = (Math.random() - 0.5) * 1.6, jy = (Math.random() - 0.5) * 1.6, jz = (Math.random() - 0.5) * 1.6;
