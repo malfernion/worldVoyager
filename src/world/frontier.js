@@ -7,8 +7,8 @@
 // round its own middle so no rock is far from its mesh's origin (the floating origin keeps the
 // mesh near the camera; nothing jitters far out), and arcs off screen are culled whole. The few
 // big ones are an instance each. On the zoomed-out map, where every rock is far under a pixel,
-// the belt is one draw call of dots instead. Near Yonder the rocks shrink away in the shader
-// (`beltClear()`'s sums). Each rock tumbles in the vertex shader, from its own axis, spin and
+// the belt is one draw call of dots instead. Rocks close to the camera (between it and the flight
+// plane) shrink away in the shader, so none hides the rocket. Each rock tumbles in the vertex shader, from its own axis, spin and
 // phase (per-instance attributes) and one clock uniform, so no instance matrix is ever rewritten;
 // its ink tumbles with it, and its normals turn too, so its lit side stays towards Ember. Nothing
 // is allocated per frame.
@@ -16,20 +16,21 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toonGradient, toon, withOutline } from './materials.js';
 import { mulberry32 } from '../physics/noise.js';
-import { BELT, BIG_ROCKS, LANDER_ROCK, beltPlan, sectorMiddle, beltTurn, spinClock, tumbleAngle } from '../physics/frontier.js';
+import { BELT, BIG_ROCKS, LANDER_ROCK, ROCK_REACH, beltPlan, sectorMiddle, beltTurn, spinClock, tumbleAngle, crossers, crosserPos, crosserShown } from '../physics/frontier.js';
 
 /**
  * How it's drawn: rock colours (`ice` grey and bluish, `tholin` reddish-brown), the ink's
  * thickness (unit-rock space), when the rock meshes show (`meshTop`: the camera no higher over
  * the plane than this; `band`: within this much of the belt, plus 1.2 times the camera's height),
- * a floor on a rock's size on screen (`minPx` pixels across, growing at most `maxGrow` times:
- * `beltGrow()`), the map's dots (`dots`: shown from `dotsFrom` to `dotsFull` of the map camera's height, pixel
+ * a floor on a rock's size on screen (`minPx` pixels across, growing at most `maxGrow` times and
+ * never into the clear slab: `beltGrow()`), rocks near the camera shrinking away (`near`: from
+ * this share of the camera's height over the plane to that, `nearFade()`), the map's dots (`dots`: shown from `dotsFrom` to `dotsFull` of the map camera's height, pixel
  * `dotSize`, `dotOpacity`), and the lander: how tall (`lander`, metres), where on its rock's
  * unit shape it stands (`landerAt`), and its light's blink (`blink`: seconds a flash).
  */
 export const BELT_LOOK = {
   ice: [0xdde5ee, 0xbcc8d4, 0xa3afbd, 0xd0dff0], tholin: [0xc07a5a, 0xa8654c, 0xcf9270],
-  ink: 0.07, meshTop: 30000, band: 3000, minPx: 5, maxGrow: 10,
+  ink: 0.07, meshTop: 30000, band: 3000, minPx: 5, maxGrow: 10, near: [0.3, 0.6],
   dotsFrom: 14000, dotsFull: 40000, dotSize: 2, dotOpacity: 0.4,
   lander: 10, landerAt: [0.25, 1, 0.35], blink: 1.4,
 };
@@ -38,19 +39,20 @@ export const BELT_LOOK = {
  * The belt's vertex shader, on top of three.js's: each rock tumbles about its own axis (`fcAxis`,
  * `fcSpin`: turns a second and phase; `fcTime` the time since the last whole BELT.spinT, so the
  * angle keeps its precision), after its instance's shape and before the arc's turn, and so do its
- * normals; it shrinks away near Yonder (BELT.clear; frontier.js `beltClear()` is the same sum:
- * `fcAt` is Yonder's middle in the scene); and it's never smaller than a few pixels (`beltGrow()`).
+ * normals; it shrinks away close to the camera (`fcNear`, metres: `nearFade()`), so a rock between
+ * the camera and the flight plane never hides the rocket; and it's never smaller than a few pixels,
+ * nor grown into the clear slab round the plane (`fcSlab`; `beltGrow()`).
  * `push`: the ink's thickness, pushed out along the normal first.
  */
 function beltShader(shader, uniforms, push = 0) {
-  shader.uniforms.fcAt = uniforms.fcAt;
-  shader.uniforms.fcClear = uniforms.fcClear;
+  shader.uniforms.fcNear = uniforms.fcNear;
+  shader.uniforms.fcSlab = uniforms.fcSlab;
   shader.uniforms.fcGrow = uniforms.fcGrow;
   shader.uniforms.fcTime = uniforms.fcTime;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>
-uniform vec3 fcAt;
-uniform vec2 fcClear;
+uniform vec2 fcNear;
+uniform float fcSlab;
 uniform vec3 fcGrow;
 uniform float fcTime;
 attribute vec3 fcAxis;
@@ -67,11 +69,13 @@ vec3 fcTurn(vec3 v) {
     .replace('#include <begin_vertex>', `#include <begin_vertex>
 ${push ? `transformed += normalize(normal) * ${push.toFixed(3)};` : ''}
   vec4 fcMid = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-  transformed *= smoothstep(fcClear.x, fcClear.y, length(fcMid.xy - fcAt.xy));
-  // Never smaller on screen than a few pixels (beltGrow()): far off, a speck, not nothing.
-  float fcSize = length(instanceMatrix[0].xyz) * length(modelMatrix[0].xyz);
   float fcDist = length(fcMid.xyz - cameraPosition);
-  transformed *= clamp(fcGrow.x * fcDist * fcGrow.y / fcSize, 1.0, fcGrow.z);`)
+  transformed *= smoothstep(fcNear.x, fcNear.y, fcDist);
+  // Never smaller on screen than a few pixels (beltGrow()): far off, a speck, not nothing; but
+  // never grown into the clear slab round the flight plane.
+  float fcSize = length(instanceMatrix[0].xyz) * length(modelMatrix[0].xyz);
+  float fcSlabGrow = max(1.0, (abs(fcMid.z) - fcSlab) / (${ROCK_REACH.toFixed(2)} * fcSize));
+  transformed *= clamp(fcGrow.x * fcDist * fcGrow.y / fcSize, 1.0, min(fcGrow.z, fcSlabGrow));`)
     .replace('#include <project_vertex>', `vec3 fcC = instanceMatrix[3].xyz;
   vec4 mvPosition = vec4(fcC + fcTurn((instanceMatrix * vec4(transformed, 1.0)).xyz - fcC), 1.0);
   mvPosition = modelViewMatrix * mvPosition;
@@ -80,7 +84,7 @@ ${push ? `transformed += normalize(normal) * ${push.toFixed(3)};` : ''}
 
 function beltMaterials() {
   const uniforms = {
-    fcAt: { value: new THREE.Vector3(1e9, 1e9, 0) }, fcClear: { value: new THREE.Vector2(...BELT.clear) },
+    fcNear: { value: new THREE.Vector2(0, 0) }, fcSlab: { value: BELT.slab },
     // (the smallest size on screen in pixels, metres per pixel per metre away, the most it grows)
     fcGrow: { value: new THREE.Vector3(BELT_LOOK.minPx, 0.002, BELT_LOOK.maxGrow) },
     fcTime: { value: 0 },
@@ -198,15 +202,28 @@ function instanced(shape, n) {
  * under `minPx` pixels across (at most `maxGrow` times). `perPx`: metres per pixel per metre away
  * (2 tan(fov / 2) / the screen's height). The belt's shader works out the same.
  */
-export function beltGrow(size, dist, perPx, L = BELT_LOOK) {
-  return Math.min(L.maxGrow, Math.max(1, (L.minPx * dist * perPx) / size));
+export function beltGrow(size, dist, perPx, z = Infinity, L = BELT_LOOK) {
+  const slab = Math.max(1, (Math.abs(z) - BELT.slab) / (ROCK_REACH * size));
+  return Math.max(1, Math.min((L.minPx * dist * perPx) / size, L.maxGrow, slab));
+}
+
+/**
+ * How much of a rock `dist` metres from the camera is drawn (0..1), with the camera `camHeight`
+ * over the flight plane: rocks right by the camera (so between it and the plane) shrink away. The
+ * belt's shader works out the same (its `fcNear`).
+ */
+export function nearFade(dist, camHeight, L = BELT_LOOK) {
+  const a = L.near[0] * camHeight, b = L.near[1] * camHeight;
+  const k = Math.max(0, Math.min(1, (dist - a) / (b - a)));
+  return k * k * (3 - 2 * k);
 }
 
 /**
  * The belt: `arcs` (one instanced mesh each, round its middle at t = 0), the big ones (`big`, an
  * instance each) and the map's dots (`dots`). update() places them for a frame.
  */
-export function createBelt() {
+export function createBelt(system) {
+  crossers(system); // (the crossers' orbits are set from the worlds' once)
   const group = new THREE.Group();
   group.name = 'belt';
   const rocks = beltPlan();
@@ -267,7 +284,20 @@ export function createBelt() {
   dots.visible = false;
   dots.name = 'belt-dots';
 
-  return { group, arcs, big, dots, uniforms: k.uniforms };
+  // The crossers (#62 stage 4): an instance each, placed from their own orbits every frame.
+  const cross = crossers(null).map((c, i) => {
+    const mesh = instanced(k.small, 1);
+    q.setFromEuler(new THREE.Euler(1.1 * i, 0.7 + i, 0.4 * i));
+    mesh.setMatrixAt(0, m.compose(p.set(0, 0, 0), q, s.set(c.size, c.size * 0.8, c.size * 0.9)));
+    mesh.setColorAt(0, rockColour(c.tint, (i * 0.29) % 1));
+    mesh.userData.tumble(0, c.axis, c.spin, c.phase);
+    mesh.computeBoundingSphere();
+    mesh.children[0].computeBoundingSphere();
+    group.add(mesh);
+    return mesh;
+  });
+
+  return { group, arcs, big, cross, dots, uniforms: k.uniforms };
 }
 
 /**
@@ -351,8 +381,9 @@ export function dotsShown(mode, camHeight, L = BELT_LOOK) {
  * `lander.up` is the lander's "up" in the scene after the last update (for seeing it).
  */
 export function createFrontier(system) {
-  const belt = createBelt();
+  const belt = createBelt(system);
   const lander = createLander();
+  const crossList = crossers(system), at = { x: 0, y: 0, z: 0 };
   const rock = belt.big[BIG_ROCKS.indexOf(LANDER_ROCK)];
   const spot = landerSpot(rock, LANDER_ROCK.size);
   const Y = new THREE.Vector3(0, 1, 0);
@@ -390,9 +421,14 @@ export function createFrontier(system) {
         }
         belt.uniforms.fcTime.value = spinClock(t);
         belt.uniforms.fcGrow.value.y = (2 * Math.tan(THREE.MathUtils.degToRad(ctx.camera.fov / 2))) / ctx.viewH;
-        const y = ctx.yonder;
-        if (y) belt.uniforms.fcAt.value.set(y.position.x, y.position.y, 0);
-        else belt.uniforms.fcAt.value.set(1e9, 1e9, 0);
+        belt.uniforms.fcNear.value.set(L.near[0] * ctx.camHeight, L.near[1] * ctx.camHeight);
+        // The crossers: where their own orbits have them, unless one is gone after reaching a world.
+        for (let i = 0; i < crossList.length; i++) {
+          const m = belt.cross[i];
+          crosserPos(crossList[i], t, at);
+          m.position.set(at.x - origin.x, at.y - origin.y, at.z);
+          m.visible = crosserShown(system, crossList[i], t);
+        }
         // The lander rides its rock: the rock's place, the belt's turn, then its tumble (the same
         // sums as the shader's), then where it stands on the rock.
         tumble.setFromAxisAngle(ax, tumbleAngle(LANDER_ROCK.spin, LANDER_ROCK.phase, t));

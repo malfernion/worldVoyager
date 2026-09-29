@@ -184,10 +184,12 @@ they go round, like two dancers holding hands, so both turn slowly as Hither goe
 there is about 25 minutes). Hop across from Yonder, land and drive down into the big chasm!
 
 **The frontier:** out round Yonder's distance a sparse belt of small icy rocks (grey ice and
-reddish ones, a few bigger, one shaped like a snowman) circles Ember, like the Kuiper belt, so
-flying out there you cross a field of drifting, slowly tumbling rocks. They're only scenery: you
-can't bump into them. On the zoomed-out map the belt is a faint ring of dots. Somewhere out there
-near Yonder's path a little lander rests on a big tumbling rock. Can you find it?
+reddish ones, a few bigger, one shaped like a snowman) circles Ember, like the Kuiper belt: a wide,
+thick band, rocks far apart above and below you, each slowly tumbling. It's so empty that you fly
+straight through the gaps, but now and then one of a few rocks on tilted orbits crosses your path
+and gives you a little bonk (never a crash), and once in a long while one lands on Yonder or Hither
+in a puff of ice dust. On the zoomed-out map the belt is a faint broad band of dots. Somewhere out
+there, near Yonder's path, a little lander rests on a big tumbling rock. Can you find it?
 
 **Discoveries:** little secrets hide around the solar system, each one a real bit of space
 science: an old observatory on a hill near home, footprints and a flag and a shiny laser mirror
@@ -224,7 +226,7 @@ controls stay reachable meanwhile. A two-finger pinch outwards also works.
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (also on your LAN for phone testing)
-npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Misty's haze bands and rain, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), Yonder (#62: its orbit, landing, driving, trips there, the dim far light), Hither (#62 stage 3: its orbit, the two facing each other, landing and driving on turning ground, hops, the double world; its cracked ice), the frontier (#62 stage 4: the icy-rock belt and its tumbling rocks, the lander and finding it), discoveries, friends, Pip's speech queue
+npm test         # physics, autopilot missions, coached flights (+ the 🧭 and Show me how), buggy (+ its dust, driving back into the garage), seas (#44), lava (#45), Misty's methane lakes (#46), skies (#58, #61), Homestead's clouds, Sizzle's embers, Dusty's high clouds and dust storms, Misty's haze bands and rain, Frosty's crack mist and ice sparkles (#54), rocket smoke (#60), Yonder (#62: its orbit, landing, driving, trips there, the dim far light), Hither (#62 stage 3: its orbit, the two facing each other, landing and driving on turning ground, hops, the double world; its cracked ice), the frontier (#62 stage 4: the rock belt and its tumbling rocks, the lander and finding it, the crossers' nudges and puffs), discoveries, friends, Pip's speech queue
 npm run build    # static site in dist/
 npm run stress   # fly "take me there" between every pair of worlds and count failures
 ```

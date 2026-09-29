@@ -16,6 +16,10 @@
   "text": "A little lander, hiding in the shade!"
  },
  {
+  "key": "a little lander rests on a big space rock near yonders path",
+  "text": "A little lander rests on a big space rock near Yonder's path."
+ },
+ {
   "key": "a little probe with a parachute",
   "text": "A little probe with a parachute!"
  },
@@ -24,8 +28,16 @@
   "text": "A little robot called Philae landed on it!"
  },
  {
+  "key": "a little space rock bumped us",
+  "text": "A little space rock bumped us!"
+ },
+ {
   "key": "a long dark streak",
   "text": "A long dark streak!"
+ },
+ {
+  "key": "a real lander called mascot landed on a space rock called ryugu in 2018",
+  "text": "A real lander called MASCOT landed on a space rock called Ryugu in 2018."
  },
  {
   "key": "a real lander called philae landed on a comet",
@@ -34,10 +46,6 @@
  {
   "key": "a real probe called huygens landed on titan",
   "text": "A real probe called Huygens landed on Titan."
- },
- {
-  "key": "a real probe called new horizons flew past pluto in 2015",
-  "text": "A real probe called New Horizons flew past Pluto in 2015."
  },
  {
   "key": "a real rover called opportunity explored mars",
@@ -194,6 +202,10 @@
  {
   "key": "bump",
   "text": "Bump!"
+ },
+ {
+  "key": "but plutos craters come from the few that did",
+  "text": "But Pluto's craters come from the few that did!"
  },
  {
   "key": "can you drive onto one",
@@ -704,10 +716,6 @@
   "text": "It is wrapped in a thick orange haze."
  },
  {
-  "key": "it left earth faster than any spacecraft before it",
-  "text": "It left Earth faster than any spacecraft before it!"
- },
- {
   "key": "it saw pebbles made of ice",
   "text": "It saw pebbles made of ice!"
  },
@@ -726,6 +734,10 @@
  {
   "key": "its named tombaugh regio after clyde tombaugh who discovered pluto",
   "text": "It's named Tombaugh Regio, after Clyde Tombaugh, who discovered Pluto."
+ },
+ {
+  "key": "its so empty that the rocks almost never bump into anything",
+  "text": "It's so empty that the rocks almost never bump into anything."
  },
  {
   "key": "kaboom",
@@ -1040,8 +1052,8 @@
   "text": "Look, a glow deep in the crack!"
  },
  {
-  "key": "look a little space probe zooming past",
-  "text": "Look, a little space probe zooming past!"
+  "key": "look a little lander on a tumbling space rock",
+  "text": "Look, a little lander on a tumbling space rock!"
  },
  {
   "key": "look a storm with six straight sides like a honeycomb",
@@ -1412,10 +1424,6 @@
   "text": "Something tiny is making music on Nibble."
  },
  {
-  "key": "something tiny zooms past yonder now and then",
-  "text": "Something tiny zooms past Yonder now and then."
- },
- {
   "key": "sometimes ember flares up",
   "text": "Sometimes Ember flares up!"
  },
@@ -1608,16 +1616,16 @@
   "text": "The Monster Truck!"
  },
  {
+  "key": "the rocks gravity was so weak that mascot got around by hopping",
+  "text": "The rock's gravity was so weak that MASCOT got around by hopping!"
+ },
+ {
   "key": "the rover",
   "text": "The Rover!"
  },
  {
   "key": "the wind blew the geysers dust across the ice",
   "text": "The wind blew the geyser's dust across the ice."
- },
- {
-  "key": "then it flew on and visited a space rock shaped like a snowman",
-  "text": "Then it flew on and visited a space rock shaped like a snowman."
  },
  {
   "key": "then its solar panels could not get enough sunlight",
@@ -1654,6 +1662,10 @@
  {
   "key": "this is the best campfire song ever",
   "text": "This is the best campfire song ever!"
+ },
+ {
+  "key": "this is yonders rock belt like the real kuiper belt",
+  "text": "This is Yonder's rock belt, like the real Kuiper belt!"
  },
  {
   "key": "titan has lakes and rain but theyre made of methane not water",

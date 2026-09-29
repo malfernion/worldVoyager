@@ -339,7 +339,7 @@ export function pairSeen(a, b, dist) {
 // found by seeing it, in the flight view or on the map: on screen clear of the buttons (`x`, `top`,
 // `bottom`), on the side of its tumbling rock facing us (`facing`: the cosine between its "up" and
 // the way to the camera) and big enough to make out (`px`: its radius in pixels), so only close by.
-export const LANDER_VIEW = { x: 0.85, top: 0.8, bottom: -0.6, facing: 0.1, px: 4 };
+export const LANDER_VIEW = { x: 0.85, top: 0.8, bottom: -0.6, facing: 0.1, px: 3 };
 
 /**
  * Can we see the lander? view: { x, y (its middle on screen, -1..1, y up), behind, facing, px }.

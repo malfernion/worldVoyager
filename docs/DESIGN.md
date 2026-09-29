@@ -761,7 +761,7 @@ world's picture), and Pip says the fact in short sentences.
 | Tumble | a Saturn-style six-sided storm round the pole the cameras see (#55) | seeing it: its middle on screen clear of the buttons, facing us, at least 16 px across its flat sides' radius (flight view or map; `FlightScene.hexagonInView()`) | 🐝 Hexagon Hunter (Saturn's north-pole hexagon; two Earths could fit inside it) |
 | Flip | the dark streaks the geysers' dust leaves downwind | buggy within 8 m of one | 🌬️ Streak Spotter (Voyager 2 at Triton) |
 | Ducky | Philae, tipped over in a shady hollow by a big boulder | buggy within 6 m | 📡 Lander Finder |
-| Yonder (the belt) | a little lander (#62 stage 4) resting on a tumbling 60 m rock in the belt, near the far end of Yonder's loop | seeing it: on screen clear of the buttons, on the rock's side facing us, at least 4 px in radius (`FlightScene.landerInView()`) | 🪨 Rock Hopper (MASCOT hopped about on Ryugu in 2018) |
+| Yonder (the belt) | a little lander (#62 stage 4) resting on a tumbling 60 m rock just under the clear slab, near the far end of Yonder's loop | seeing it: on screen clear of the buttons, on the rock's side facing us, at least 3 px in radius (`FlightScene.landerInView()`) | 🪨 Rock Hopper (MASCOT hopped about on Ryugu in 2018) |
 
 - **Night is real.** The worlds don't spin, so which side is dark only changes as they go
   round Ember. Frosty has four glowing cracks spread round it, so one is always on the night
@@ -1656,93 +1656,121 @@ tidally locked, always facing each other ("like two dancers holding hands").
   long hop, harmless); Yonder hangs in Hither's sky (always in the same spot,
   as from Charon), but the drive camera looks along the ground, so you mostly see it from space.
 
-## The frontier: the icy-rock belt and the lander (#62, stage 4)
+## The frontier: the rock belt, the lander and the crossers (#62, stage 4)
 
-The owner's stage 4: "a sparse belt of icy bodies at that distance, and a probe easter egg (New
-Horizons-style flying past, Voyager-style heading out)", then, after the first version, tumbling
-rocks and a static lander instead of the moving probe (below). All of it is only the look: none
-of it is a physics body, so the sim, prediction, the helpers and `npm run stress` never see them (a test
-checks the physics files never import them), and nothing can crash into them.
+The owner's stage 4: "a sparse belt of icy bodies at that distance, and a probe easter egg". After
+two rounds of review the agreed plan (on #62) is a realistic belt: sparse, broad, thick and
+tilted, every rock tumbling, a static lander instead of a moving probe ("we are the sole actor"),
+and the odd real collision (not a dodging game). Nothing vanishes to make room for the worlds:
+it's plausible because it's so empty, and because rocks sit at many depths off the flight plane.
 
 - **The belt** (`BELT`, `beltPlan()` in `src/physics/frontier.js`; drawn by
-  `src/world/frontier.js`): 7,000 small lumpy rocks in a ring round Ember from 80,000 to 140,000
-  (Yonder's closest and farthest), thickest round 110,000 (Yonder's average): three uniforms
-  added, so a soft hump, a few kilometres apart. 18 to 110 m across, mostly small; about a third
-  reddish-brown tholin, the rest grey and bluish ice; plus seven bigger ones (`BIG_ROCKS`), all
-  smaller than Hither: three two-lobed snowmen like Arrokoth, two eggs like Haumea, two round ones.
-  The crisp cartoon look: faceted toon lumps with ink, lit by Ember's (dim, cold, far) light, with
-  a little light of their own so the side away from Ember still reads against the sky.
-  - *Behind the flight plane*: every rock is below z = 0 by more than its own size (15 to 700 m
-    deep), so it's never in front of the rocket, a marker or a path.
-  - *Never inside a world*: no other world comes within 20,000 of the ring (tested over time), and
-    near Yonder the rocks shrink away in the shader (`BELT.clear`, 2,200 to 3,400 from its middle,
-    `beltClear()` the same sums): clear of Yonder and Hither (tested over a year).
-  - *Turning slowly*: the whole ring turns as one at Yonder's mean motion (`beltTurn()`, the game
-    clock), so it drifts the way Yonder goes round; one rotation per mesh, nothing per rock.
-  - *No jitter far out, few draw calls*: the ring is 36 arcs (`sectors`), each one InstancedMesh
-    (plus its ink, sharing the matrices) drawn round its own middle, so no instance is more than
-    35 km from its mesh's origin (float32 steps under 4 mm), and arcs off screen are frustum-culled
-    whole. Each frame only the arcs' positions (middle, turned, less the floating origin) change.
-    The big ones are an instance each. One rock material and one ink material for everything.
-  - *Specks, not nothing*: at the flight camera's cruising distances (6 to 15 km) a 30 m rock would
-    be under a pixel, so the shader grows a rock to at least `minPx` (5) pixels across, at most 10
-    times (`beltGrow()`): a field of small grey and brown lumps drifting past with parallax.
+  `src/world/frontier.js`): 3,200 small lumpy rocks round Ember from 68,000 to 160,000 (well
+  inside Yonder's closest, 80,000, and well outside its farthest, 140,000; just past Tumble's
+  sphere), two uniforms added so a broad soft hump, not a ring: about 5 km apart in the plane.
+  18 to 110 m across, mostly small; about a third reddish-brown tholin, the rest grey and bluish
+  ice. The crisp cartoon look: faceted toon lumps with ink, lit by Ember's (dim, cold, far) light,
+  with a little light of their own so the side away from Ember still reads.
+  - *Thick and tilted*: each rock's orbit is tilted a little (a bell curve, about 3 degrees)
+    about its own line of nodes, so rocks sit above and below the flight plane at many depths
+    (half above, typically 3 km off the plane, a few over 10 km).
+  - *The clear slab*: no rock (but the crossers) comes within `BELT.slab` (300 m, more than
+    Yonder's radius plus Hither's) of the flight plane, beyond its own reach. So Yonder, Hither
+    and the rocket always pass through the gaps, no world ever touches a rock, and no rock is ever
+    in the rocket's way. Every other world stays at least 5,000 short of the belt (tested). The
+    vanishing bubble round Yonder of the first version is gone.
+  - *Never in front of the rocket*: a rock above the plane is between the camera and the rocket,
+    so rocks close to the camera shrink away in the shader (`nearFade()`, `fcNear`: from 0.3 to
+    0.6 of the camera's height over the plane); below the plane they're always further than that.
+  - *Turning slowly*: the whole belt turns as one at Yonder's mean motion (`beltTurn()`, the game
+    clock): one rotation per mesh, nothing per rock.
+  - *No jitter far out, few draw calls*: 36 arcs (`sectors`), each one InstancedMesh (plus its
+    ink, sharing the matrices and the tumbles) drawn round its own middle (114,000 out), so no
+    instance is more than about 50 km from its mesh's origin (float32 steps about 4 mm), and arcs
+    off screen are frustum-culled whole. One rock material and one ink material for everything.
+  - *Specks, not nothing*: at the flight camera's cruising distances a 30 m rock would be under a
+    pixel, so the shader grows a rock to at least 5 pixels across, at most 10 times and never into
+    the clear slab (`beltGrow()`).
   - *When it's drawn* (`beltShown()`, `dotsShown()`): the meshes only in the flight view or the map
-    with the camera under 30,000 over the plane and within reach of the ring, never while driving;
-    so on the pad and anywhere inside Tumble's orbit nothing is drawn (the start is unchanged:
-    screenshots before and after differ only by the usual run-to-run smoke and clouds). On the map zoomed out, where every rock is far under a pixel, the belt is one
-    draw call of faint dots (`THREE.Points`, all 7,007, 2 px, opacity 0.4), fading in from a
-    map camera height of 14,000 to 40,000; in the default map it's a faint hint in the corners.
-  - *Cost*: flying in the belt, about 8 to 10 more draw calls and 30,000 to 40,000 triangles (the
-    arcs in view and their ink); one more on the zoomed-out map; nothing elsewhere. Per frame: 43
-    positions and rotations and a few uniforms; nothing allocated. The tumble adds a few
-    multiplies per vertex (a rotation for the position and one for the normal).
-- **Every rock tumbles** (the owner's review: "I need the rocks to individually tumble"): each
-  about its own random axis at its own slow rate, the small ones fastest (about 7 s a turn for
-  the smallest, 90 s for the biggest small ones, a little scatter), the seven big ones slower (2 to
-  5 minutes a turn). It's all in the vertex shader (`beltShader()`), from per-instance attributes
-  (`fcAxis`, `fcSpin`: rate and phase), which each arc's rock and ink geometries share, and one
-  clock uniform: no instance matrix is ever rewritten. The turn goes after the instance's shape
-  (so a stretched rock tumbles, it doesn't wobble out of shape), round its middle, before the
-  arc's turn; the normals turn the same way, so a rock's lit side stays towards Ember, and its
-  ink tumbles with it. Each rock makes a whole number of turns every `BELT.spinT` (1,800 s), so
-  the shader is given only the time since the last whole spinT (`spinClock()`) and keeps its
-  precision however long a game runs; `tumbleAngle()` is the same sum in JS. From the game clock,
-  so warp, rewind and saves agree (tested, and that nothing jumps as the clock wraps).
-- **The lander** (the owner: "A transitory space probe doesn't work for me in this game where we
-  are the sole actor. Do something static, perhaps on a larger one of the rocks"; so the moving
-  New Horizons-style probe of the first version is gone): a little cartoon lander resting on one
-  of the big rocks (`LANDER_ROCK`, a round, reddish 60 m one), riding its tumble.
-  - *The look* (`createLander()`): a white box body with dark blue solar panels on its sides, a
-    grey lid, three splayed gold legs with round feet, a little antenna with a ball on top and a
-    red light that blinks (the only thing about it that changes; a light, not an actor), ink on
-    every closed part; 10 m tall on its 60 m rock, so it reads up close.
+    with the camera under 30,000 over the plane and within reach of the belt, never while
+    driving; so on the pad (and anywhere closer in than about 47,000 from Ember, zoomed right out)
+    nothing is drawn: the start is unchanged. On the map zoomed out the belt is one draw call of
+    faint dots (`THREE.Points`, opacity 0.4): a faint broad band.
+  - *Cost*: flying in the belt a few more draw calls (the arcs in view and their ink, the big ones
+    and crossers when on screen); one more on the zoomed-out map; nothing elsewhere. Per frame: 48
+    positions and rotations and a few uniforms; nothing allocated.
+- **Every rock tumbles** (the owner: "I need the rocks to individually tumble"): each about its
+  own random axis at its own slow rate, the small ones fastest (about 7 s a turn for the
+  smallest, 90 s for the biggest small ones), the big ones slower (2 to 5 minutes a turn). All in
+  the vertex shader (`beltShader()`), from per-instance attributes (`fcAxis`, `fcSpin`: rate and
+  phase) that each mesh's rock and ink geometries share, and one clock uniform: no instance
+  matrix is ever rewritten. The turn goes after the instance's shape (a stretched rock tumbles,
+  it doesn't wobble out of shape), round its middle, before the arc's turn; the normals turn the
+  same way, so a rock's lit side stays towards Ember, and its ink tumbles with it. Each rock makes
+  a whole number of turns every `BELT.spinT` (1,800 s), so the shader is given only the time since
+  the last whole spinT (`spinClock()`) and keeps its precision however long a game runs;
+  `tumbleAngle()` is the same sum in JS. From the game clock: warp, rewind and saves agree.
+- **A few bigger rocks** (`BIG_ROCKS`): three two-lobed snowmen like Arrokoth, two eggs like
+  Haumea, two round ones, all smaller than Hither, above and below the plane.
+- **The lander** (the owner: "Do something static, perhaps on a larger one of the rocks"): a
+  little cartoon lander resting on one of the big rocks (`LANDER_ROCK`, a round, reddish 60 m
+  one), riding its tumble.
+  - *The look* (`createLander()`): a white box body with dark blue solar panels, a grey lid, three
+    splayed gold legs with round feet, a little antenna and a red light that blinks (a light, not
+    an actor), ink on every closed part; 10 m tall on its 60 m rock.
   - *Where on its rock*: a ray down onto the rock's unit shape finds a facet to stand on
-    (`landerSpot()`, once at load); each frame the lander is placed with the same sums as the
-    shader (the rock's place, the belt's turn, its tumble: `landerRockAt()`, `tumbleAngle()`), so
-    its feet stay on that facet as the rock turns (tested).
-  - *Where in the belt*: seen from the turning belt (it turns at Yonder's average speed), Yonder's
-    stretched orbit makes a closed loop each Yonder year. The lander's rock sits just outside that
-    loop's far end, so once a year Yonder comes within about 4.5 km of it and lingers there (over
-    half an hour of game time within 10 km; never close enough to shrink it, tested). A determined
-    kid flying out from Yonder then can reach it; the hint points them there.
+    (`landerSpot()`, once at load); each frame it's placed with the shader's sums (the rock's
+    place, the belt's turn, its tumble: `landerRockAt()`, `tumbleAngle()`), so its feet stay on
+    that facet as the rock turns (tested). The rock tumbles about an axis near the flight plane,
+    so the lander comes over the top to face the cameras every few minutes.
+  - *Where in the belt*: just under the clear slab (355 m below the plane), so flying over it and
+    zooming in shows the lander, but it can never touch the rocket (it's not a crosser). Seen
+    from the turning belt, Yonder's stretched orbit makes a closed loop each Yonder year; the
+    lander's rock sits just outside that loop's far end, so once a year Yonder comes within about
+    4.5 km of it and lingers there (over half an hour of game time within 10 km, tested).
   - *Why not Philae*: Ducky already has Philae (`find-philae`, "It bounced twice…"), so this one
     is MASCOT, the little lander that hopped about on the asteroid Ryugu in 2018.
   - *Finding it* (`find-lander`, `landerSeen()` / `LANDER_VIEW`, `FlightScene.landerInView()`): by
     seeing it, like the hexagon and the heart: on screen clear of the buttons, on the side of its
-    rock facing us (`facing`, so not round the back as the rock tumbles) and at least 4 px in
-    radius (so only up close, not from far off or zoomed right out; tested with real scenes). Pip:
-    "Look, a little lander on a tumbling space rock! A real lander called MASCOT landed on a space
-    rock called Ryugu in 2018. The rock's gravity was so weak that MASCOT got around by hopping!"
-    Hint: "A little lander rests on a big space rock near Yonder's path. Can you find it?" It's
-    not a ground discovery: the ✨ compass (driving only) doesn't point at it.
-  - *Cost*: the lander is about 30 small meshes (plus ink), drawn only with the belt and culled
-    off screen; per frame one quaternion and a position; nothing allocated.
-- **Not done / weak spots**: no Voyager-style probe; Pip doesn't say anything on crossing into the
-  belt; the grown far rocks are specks with no visible ink; the lander's rock is out in the belt,
-  so reaching it means flying out of Yonder's space by hand at the right time of Yonder's year
-  (an easter egg for a determined kid, not something Pip leads you to); from the usual flight
-  zoom the lander is small next to its rock (zoom in).
+    rock facing us, and at least 3 px in radius (so only zoomed in to a couple of hundred metres
+    over it; not from the usual 6 km view out there, round the back, far off or driving; tested
+    with real scenes). Pip: "Look, a little lander on a tumbling space rock! A real lander called
+    MASCOT landed on a space rock called Ryugu in 2018. The rock's gravity was so weak that
+    MASCOT got around by hopping!" Hint: "A little lander rests on a big space rock near
+    Yonder's path. Can you find it?" Not on the ✨ ground compass.
+- **The crossers: the odd real collision** (`CROSS`, `crossers()`, `crosserPos()`): five small
+  rocks on their own tilted round orbits round Ember (clockwise, like everything), each crossing
+  the flight plane twice a lap at its two fixed nodes. All pure functions of the game clock.
+  - *Meeting Yonder and Hither*: one is in a 3:2 beat with Yonder (three of its laps to Yonder's
+    two, like the real Plutinos with Neptune: its radius is Yonder's average times (2/3)^(2/3),
+    83,946), crossing the plane exactly where Yonder is as it heads out past that distance, so it
+    reaches Yonder at t ≈ 3,573 and again every two Yonder years (45,869 s). One crosses where
+    Hither is at t = 12,000 (it reaches Hither at t ≈ 11,988, once; later only by chance). The
+    other three cross in empty belt. They come down from the cameras' side, so a hit shows.
+  - *A hit* (`crosserHit()`, per crossing, worked out once and remembered;
+    `crosserHitsBetween()`): the moment it touches the world (bisected, a quarter-second scan
+    round each crossing that passes near a world), where (on the ground, on the cameras' side),
+    and then it's gone (`crosserShown()`) until the far point of that lap, a quarter lap later,
+    far off the plane. `FlightScene.updateImpacts()` checks the game time that has just passed
+    (not after a rewind or a jump over 4,000 s) and `impactPuff()` throws up a cloud of grey ice
+    dust from the spot (50 pooled particles, seen from orbit) with a thump. No craters (that's #63).
+  - *Nudging the rocket* (`crosserTouch()`, `Flight.checkBump()`): in the sim, every substep, each
+    crosser's height first (so it's cheap unless one is right at the plane); if one touches the
+    flying rocket (its reach plus 4 m), the rocket gets a 2.5 m/s push away from it, once a
+    crossing (`state.bumped`, so rewinding and replaying agree), and a `bump` event: a bonk, a
+    small puff of ice dust, and the first time, Pip: "Bonk! A little space rock bumped us!".
+    Never a crash, never damage; landed or driving, nothing. The helpers don't plan round them
+    (a crosser is only in the slab for a minute or so round each crossing, at fixed points far
+    from any route), and their corrections take care of a nudge; `npm run stress` stays at 0.
+- **Pip explains the belt** once, the first time we fly out past 68,000 from Ember
+  (`FlightScene.checkBelt()`, saved as `belt` in `progress.markers`): "This is Yonder's rock belt,
+  like the real Kuiper belt! It's so empty that the rocks almost never bump into anything. But
+  Pluto's craters come from the few that did!"
+- **Not done / weak spots**: at the flight camera's usual 6 km out there the belt is a sprinkling
+  of specks (it's meant to be sparse); the lander needs zooming in to a couple of hundred metres
+  over its rock, and reaching it means flying out of Yonder's space by hand at the right time of
+  Yonder's year (an easter egg for a determined kid); the impact puff is grey on pale ice and not
+  big; the far crossers are drawn only with the belt (as the rest); no Voyager-style probe.
 
 ## Ideas for later
 
