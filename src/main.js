@@ -256,7 +256,15 @@ class App {
       const left = box.offsetLeft - box.offsetWidth / 2;
       bubble = { left, top: box.offsetTop, right: left + box.offsetWidth, bottom: box.offsetTop + box.offsetHeight };
     }
-    const spot = stickerSpot({ w: window.innerWidth, h: window.innerHeight }, bubble);
+    // The free band: under the top bar and above the buttons at the bottom, where they're showing.
+    const view = { w: window.innerWidth, h: window.innerHeight };
+    for (const id of ['helpers', 'steer', 'go-btn', 'drive-tools']) {
+      const r = $(id)?.offsetParent ? $(id).getBoundingClientRect() : null;
+      if (r && r.height) view.bottom = Math.min(view.bottom ?? view.h, r.top - 6);
+    }
+    const bar = document.querySelector('#flight-screen:not(.hidden) .flight-top');
+    if (bar) view.top = Math.max(64, bar.getBoundingClientRect().bottom + 6);
+    const spot = stickerSpot(view, bubble);
     el.style.left = `${spot.x}px`;
     el.style.top = `${spot.y}px`;
     el.style.setProperty('--pop', spot.scale.toFixed(3));

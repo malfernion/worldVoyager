@@ -43,6 +43,13 @@ describe('the sticker pop (#62)', () => {
     expect(s.scale).toBeGreaterThan(0.5);
   });
 
+  it('keeps above the buttons the page says are at the bottom (a tall portrait bubble)', () => {
+    const b = bubbleFor(390, 122, 14); // (a very tall bubble on a narrow screen)
+    const s = stickerSpot({ w: 390, h: 844, top: 70, bottom: 690 }, b);
+    expect(s.y + (STICKER_POP.h * s.scale) / 2).toBeLessThanOrEqual(690 + 1e-9);
+    expect(s.y - (STICKER_POP.h * s.scale) / 2).toBeGreaterThanOrEqual(b.bottom);
+  });
+
   it('with no bubble showing it sits in the middle', () => {
     const s = stickerSpot({ w: 1024, h: 768 }, null);
     expect(s.x).toBe(512);
