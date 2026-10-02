@@ -1420,9 +1420,10 @@ hexagon (#55), which are drawn over the streaks.
 ## Yonder, far out (#62)
 
 The owner asked for a Pluto-like world noticeably further out than everything else, for a sense
-of scale, built in stages (#62). Stage 1 is the world, its orbit and feeling the distance; the
-heart plain, mountains and glaciers, the blue haze, its big twin moon Hither and slingshots
-come later.
+of scale, built in stages (#62). Stage 1 is the world, its orbit and feeling the distance;
+stage 2 the heart plain, mountains and glaciers; stage 3 its big twin moon Hither; stage 4 the
+frontier (below). A fifth stage, gravity slingshots round Ringo or Tumble, was dropped: it's
+more than a 4–5 year old will pick up or enjoy, and Yonder is reachable without one.
 
 - **The orbit** (`bodies.js`): a stretched Kepler ellipse round Ember like Ducky's (`ecc`,
   `periArg`), close in 80,000, far out 140,000, 110,000 on average: twice Tumble's. Like Pluto
